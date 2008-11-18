@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+
+#   Copyright 2008 Sam Chapin
+#
+#   This file is part of Gospel.
+#
+#   Gospel is free software: you can redistribute it and/or modify
+#   it under the terms of version 3 of the GNU General Public License
+#   as published by the Free Software Foundation.
+#
+#   Gospel is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
+
+$id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
+while (<>) {
+  if    (/^(\#.*| *)$/           ) { }
+  elsif (/^@($id) ($id)(.*)$/    ) { $parent{$currentObject = $1} = $2;
+                                     $objects{$currentObject} = {};
+                                     $constants{$currentObject} = [];
+                                     $hidden{$currentObject} = $3;                   }
+  elsif (/^~($id) ([^\n]*)$/     ) { $exceptions{$currentObject}{$1} = $2;           }
+  elsif (/^!($id(?::(?:$id:)*)?)/) { $methods{$currentMethod = $1} = $1;             }
+  elsif (/^!([^ ]+) ($id)/       ) { $methods{$currentMethod = $2} = $1;             }
+  elsif (/^\$($id)/              ) { push @{$constants{$currentObject}}, $1;         }
+  else                             { $objects{$currentObject}{$currentMethod} .= $_; }
+}
+
+# Convert a GoSPeL identifier to a C identifier.
+sub cname {
+  my $name = ucfirst shift;
+  $name =~ s/:/_/g;
+  return $name;
+}
+
+open HEADER, ">objects.h" or die("ObjGen couldn't write objects.h");
+open SOURCE, ">objects.c" or die("ObjGen couldn't write objects.c");
+
+print HEADER "obj o", cname($_), ";\n" foreach (keys %objects);
+print HEADER "\n";
+print HEADER "obj s", cname($_), ";\n" foreach (keys %methods);
+foreach $objectConstants (values %constants) {
+  print HEADER "obj s", cname($_), ";\n" foreach (@$objectConstants);
+}
+print HEADER "obj sSelf;\n"; # TODO: Add a mechanism to specify generating symbols for their own sake.
+foreach $objectExceptions (values %exceptions) {
+  print HEADER "obj e", cname($_), ";\n" foreach (keys %$objectExceptions);
+}
+
+foreach $object (keys %objects) {
+  foreach (keys %{$objects{$object}}) {
+    print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n", $objects{$object}{$_}, "}\n";
+  }
+  print SOURCE "\n";
+}
+
+print SOURCE "void initializeObjects() {\n";
+# Objects need to be initialized first, since the symbols and exceptions that come next will refer
+# to the values of object identifiers for their prototypes.
+print SOURCE "  o", cname($_), " = newObject(temp(), NIL, emptyVector, emptyVector, NIL);\n"
+ foreach(keys %objects);
+print SOURCE "\n";
+foreach $objectExceptions (values %exceptions) {
+  print SOURCE "  e", cname($_), " = string(temp(), \"$objectExceptions->{$_}\");\n"
+   foreach(keys %$objectExceptions);
+}
+print SOURCE "\n  sSelf = symbol(temp(), \"self\");\n";
+print SOURCE "  s", cname($_), " = symbol(temp(), \"$methods{$_}\");\n"
+ foreach (keys %methods);
+foreach $objectConstants (values %constants) {
+  print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n"
+   foreach (@$objectConstants);
+}
+
+foreach $object (keys %objects) {
+  print SOURCE "\n  setHiddenData(o", cname($object), ", ", $hidden{$object}, ");"
+   if ($hidden{$object} !~ /^ *$/);
+  print SOURCE "\n  setDelegate(temp(), o", cname($object), ", o", cname($parent{$object}), ");"
+   if ($parent{$object});
+
+  print SOURCE "\n  setSlotNames(temp(), o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});
+  print SOURCE "\n  , s", cname($_)
+   foreach (keys %{$objects{$object}});
+  print SOURCE "\n  , s", cname($_)
+   foreach (@{$constants{$object}});
+  print SOURCE "\n  , symbol(temp(), \"$_\")"
+   foreach (keys %{$exceptions{$object}});
+  print SOURCE "));";
+
+  print SOURCE "\n  setSlotValues(o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});
+  print SOURCE "\n  , primitive(temp(), m", cname($object), cname($_), ")"
+   foreach (keys %{$objects{$object}});
+  print SOURCE "\n  , o", cname($_)
+   foreach (@{$constants{$object}});
+  print SOURCE "\n  , e", cname($_)
+   foreach (keys %{$exceptions{$object}});
+  print SOURCE "));\n";
+}
+print SOURCE "}\n";

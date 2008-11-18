@@ -1,0 +1,307 @@
+#   Copyright 2008 Sam Chapin
+#
+#   This file is part of Gospel.
+#
+#   Gospel is free software: you can redistribute it and/or modify
+#   it under the terms of version 3 of the GNU General Public License
+#   as published by the Free Software Foundation.
+#
+#   Gospel is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
+
+@null null
+!identity
+  valueReturn(oNull);
+!interpret
+  valueReturn(oNull);
+!inspect
+  printf("<null>"); fflush(stdout);
+  valueReturn(oNull);
+@interpreter object
+!methodBody
+  int l = vectorLength(evaluated(threadContinuation(thread)));
+  valueReturn(l == 1 ? oNull : arg(l - 2));
+!waitFor:
+  valueReturn(waitFor(arg(0)));
+@object null
+!proto
+  valueReturn(delegate(target));
+!channel
+  valueReturn(newChannel(edenRoot(thread), target));
+!slots
+  valueReturn(slotlessObject(edenRoot(thread), oSlotCollection, target));
+!identity
+  normalReturn;
+!addSlot:as:
+  valueReturn(addSlot(edenRoot(thread), target, waitFor(arg(0)), arg(1)));
+!setSlot:to:
+  void **slot = deepLookup(target, waitFor(arg(0)));
+  if (!slot) raise(thread, eSettingNonexistantSlot);
+  valueReturn(*slot = arg(1));
+!contentsOfSlot:
+  void **slot = deepLookup(target, waitFor(arg(0)));
+  if (!slot) raise(thread, eGettingNonexistantSlot);
+  valueReturn(*slot);
+!inspect
+  printf("<object %x>", target);
+  normalReturn;
+!interpret
+  normalReturn;
+!new
+  valueReturn(slotlessObject(edenRoot(thread), oObject, 0));
+@primitive object
+!inspect
+  printf("<primitive %x>", target); fflush(stdout);
+  normalReturn;
+@string object
+!print
+  fputs(stringData(target), stdout); fflush(stdout);
+  normalReturn;
+!inspect
+  printf("\"%s\"", stringData(target)); fflush(stdout);
+  normalReturn;
+!die
+  puts(stringData(target));
+  exit(1);
+@symbol object
+!inspect
+  printf("$%s", stringData(target)); fflush(stdout);
+  normalReturn;
+@closure object
+!inspect
+  printf("<closure %x>", target); fflush(stdout);
+  normalReturn;
+@code object
+!interpret
+  continuation c = threadContinuation(thread);
+  obj o = continuationTarget(c);
+  vector *live = edenRoot(thread);
+  tailcall(doNext,
+           setContinuation(thread,
+                           newContinuation(live,
+                                           origin(c),
+                                           codeSelector(o),
+                                           emptyVector,
+                                           prefix(live, codeTarget(o) ?: env(c), codeArgs(o)),
+                                           env(c),
+                                           dynamicEnv(c))));
+@promiseCode object
+!interpret
+  vector *life = edenRoot(thread);
+  promise p = newPromise(life);
+  continuation c = threadContinuation(thread);
+  newThread(life,
+            p,
+            env(c),
+            dynamicEnv(c),
+            hiddenEntity(continuationTarget(c)),
+            sIdentity,
+            emptyVector);
+  valueReturn(p);
+@arrowCode code
+!interpret
+  // FIXME: This code relies on message arguments being evaluated from left to right.
+  vector living = makeVector(edenRoot(thread), 2),
+         *live = idxPointer(living, 0);
+  promise p = newPromise(idxPointer(living, 1));
+  continuation c = threadContinuation(thread);
+  newThread(live,
+            p,
+            env(c),
+            dynamicEnv(c),
+            oInterpreter,
+            sMethodBody,
+            newVector(live,
+                      2,
+                      message(live, oInterpreter, sWaitFor_, newVector(live, 1, arrowPromiser(target))),
+                      arrowFollower(target)));
+  valueReturn(p);
+  // TODO: Check whether problems could be caused by code assuming that the continuation origin
+  //       is also a continuation, and referring to its data elements, when it's actually a promise.
+  //       (i.e. is it okay to call newThread() for the sMethodBody message as is done above,
+  //       rather than e.g. on a sIdentity message send to the result of sMethodBody?)
+@block object
+!interpret
+  continuation c = threadContinuation(thread);
+  obj o = continuationTarget(c);
+  valueReturn(newClosure(edenRoot(thread), env(c), blockParams(o), blockBody(o)));
+@integer object newAtomVector(temp(), 1, 0)
+!== equals
+  if (integerValue(target) == integerValue(arg(0))) normalReturn;
+  valueReturn(oFalse);
+!- minus
+  valueReturn(integer(edenRoot(thread), integerValue(target) - integerValue(arg(0))));
+!print
+  printf("%d", hiddenAtom(target)); fflush(stdout);
+  normalReturn;
+!inspect
+  printf("%d", hiddenAtom(target)); fflush(stdout);
+  normalReturn;
+!+ plus
+  obj n = waitFor(arg(0));
+  if (delegate(n) != oInteger) raise(thread, eBadArithmetic);
+  valueReturn(integer(edenRoot(thread), integerValue(target) + integerValue(n)));
+!secondsDelay
+  int i = integerValue(target);
+  while (i) i = sleep(i);
+  valueReturn(target);
+@byteVector object
+!inspect
+  printf("<byteVector %x>", target); fflush(stdout);
+  valueReturn(oNull);
+!length
+  valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target)) / sizeof(int)));
+@file object
+!close
+  if (close((int)hiddenAtom(target))) raise(thread, eClosingFile);
+  normalReturn;
+!readBytes:
+  vector *live = edenRoot(thread), living = makeVector(live, 3);
+  int length = integerValue(waitFor(arg(0)));
+  vector buffer = makeAtomVector(idxPointer(living, 0), (length + sizeof(int) - 1) / sizeof(int));
+  int count = read(integerValue(call(idxPointer(living, 1),
+                                     dynamicEnv(threadContinuation(thread)),
+                                     target,
+                                     sPosixFileDescriptor,
+                                     emptyVector)),
+                   buffer->data,
+                   length);
+  vector result = makeAtomVector(idxPointer(living, 2), (count + sizeof(int) - 1) / sizeof(int));
+  memcpy(result->data, buffer->data, count);
+  valueReturn(slotlessObject(live, oByteVector, result));
+@socket file
+!posixFileDescriptor
+  valueReturn(integer(edenRoot(thread), (int)hiddenAtom(target)));
+!new
+  int s = socket(PF_INET, SOCK_STREAM, 0);
+  if (s == -1) raise(thread, eOpeningSocket);
+  vector *live = edenRoot(thread);
+  valueReturn(slotlessObject(live, oSocket, newAtomVector(live, 1, s)));
+!bind:
+  struct sockaddr_in s;
+  memset(&s, 0, sizeof(struct sockaddr_in));
+  s.sin_family = AF_INET;
+  s.sin_port = htons(integerValue(waitFor(arg(0))));
+  s.sin_addr.s_addr = htonl(INADDR_ANY);//inet_addr("127.0.0.1");
+  if (bind((int)hiddenAtom(target), (struct sockaddr *)&s, sizeof(struct sockaddr_in)))
+    raise(thread, eBindingSocket);
+  normalReturn;
+!listen
+  if (listen((int)hiddenAtom(target), 42)) // TODO: Set the backlog number in a sane way.
+    raise(thread, eListeningOnSocket);
+  normalReturn;
+!accept
+  struct sockaddr socketParameters;
+  int socketParametersSize = sizeof(struct sockaddr);
+  int socketHandle = accept((int)hiddenAtom(target), &socketParameters, &socketParametersSize);
+  if (socketHandle == -1) raise(thread, eAcceptingSocketConnection);
+  vector *live = edenRoot(thread);
+  valueReturn(slotlessObject(live, oSocket, newAtomVector(live, 1, socketHandle)));
+!read:
+  int length = integerValue(waitFor(arg(0)));
+  vector *live = edenRoot(thread);
+  obj string = slotlessObject(live, oString, makeAtomVector(live, length));
+  if (recv((int)hiddenAtom(target), vectorData(hiddenEntity(string)), length, 0) == -1)
+    raise(thread, eReadingFromSocket);
+  valueReturn(string);
+@true object
+!inspect
+  printf("<true>"); fflush(stdout);
+  normalReturn;
+@false object
+!inspect
+  printf("<false>"); fflush(stdout);
+  normalReturn;
+@slotCollection object
+!includesKey:
+  obj o = hiddenEntity(target), key = arg(0);
+  for (int i = 0; i < slotCount(o); i++) if (slotName(o, i) == key) valueReturn(oTrue);
+  valueReturn(oFalse);
+!at:put:
+  obj o = hiddenEntity(target), key = arg(0), value = arg(1);
+  for (int i = 0; i < slotCount(o); i++)
+    if (slotName(o, i) == key)
+      valueReturn(setSlotByIndex(o, i, value));
+  valueReturn(addSlot(edenRoot(thread), o, key, value));
+@exceptions lobby
+~messageNotUnderstood Message not understood.
+~readingFromSocket Error while reading from a socket.
+~openingSocket Error while opening a socket.
+~bindingSocket Error while binding a socket.
+~listeningOnSocket Error while beginning to listen on a socket.
+~acceptingSocketConnection Error while accepting a connection on a socket.
+~closingFile Error while closing a file.
+~outOfBounds Out-of-bounds array access.
+~badReturnDepth Too many carets in return statement.
+~topLevelRecursion Attempted to recurse at the top level.
+~settingNonexistantSlot Attempted to set a nonexistant slot.
+~gettingNonexistantSlot Attempted to access a nonexistant slot.
+~badArithmetic Type error in arithmetic expression.
+@lobby object
+!abort
+  tailcall(returnToREPL, thread);
+!end
+  killThreadData(thread);
+  // Permit a C subroutine return, thus killing the current thread.
+$true
+$false
+$object
+$closure
+$integer
+$null
+$lobby
+$file
+$socket
+$slotCollection
+$byteVector
+$code
+$promiseCode
+$arrowCode
+$block
+$primitive
+$string
+$symbol
+$stackFrame
+$interpreter
+$exceptions
+!dynamicContext
+  valueReturn(dynamicEnv(threadContinuation(thread)));
+!collectGarbage
+  forbidGC();
+  collectGarbage();
+  permitGC();
+  normalReturn;
+!freeSpaceCount
+  valueReturn(integer(edenRoot(thread), freeSpaceCount()));
+!exit
+  exit(0);
+@dynamicEnvironment object
+!raise:
+  fputs("\nUnhandled exception: ", stdout);
+  fflush(stdout);
+  call(edenRoot(thread), dynamicEnv(threadContinuation(thread)), arg(0), sPrint, emptyVector);
+  tailcall(returnToREPL, thread);
+@stackFrame lobby
+!return:atDepth:
+  // TODO: This can fail if the user modifies "thisContext proto". Find ways to make it more robust?
+  obj frame = target;
+  for (int i = integerValue(arg(1));;) {
+    if (frame == oStackFrame) raise(thread, eBadReturnDepth);
+    if (!i--) break;
+    frame = delegate(frame);
+  }
+  obj v = setShelter(thread, arg(0));
+  setContinuation(thread, hiddenEntity(frame));
+  valueReturn(v);
+!thisContext
+  normalReturn;
+!recurse
+  // TODO: The need for this logic suggests that top-level messages should not be sent to
+  //       the stackFrame prototype.
+  if (target == oStackFrame) raise(thread, eTopLevelRecursion);
+  tailcall(doNext, setContinuation(thread, hiddenEntity(target)));
