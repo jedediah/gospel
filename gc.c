@@ -36,7 +36,7 @@ void *heap;
 
 int liveSegmentCount = 0;
 
-#define ARENA_CELLS (1024 * 64) //(8 * 1024 * 1024)
+#define ARENA_CELLS (1024 * 1024)
 
 #define ATOM_VECTOR   0
 #define ENTITY_VECTOR 1

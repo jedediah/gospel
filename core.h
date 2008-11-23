@@ -69,6 +69,7 @@ obj expressionSequence(life, vector);
 obj string(life, const char *);
 obj integer(life, int);
 int integerValue(obj);
+obj vectorObject(life, vector);
 
 typedef vector pair;
 #define emptyList 0
@@ -78,6 +79,7 @@ void *cdr(pair);
 vector setcar(pair, void *);
 vector setcdr(pair, void *);
 pair list(life, void *);
+int length(pair);
 pair listToVector(life, pair);
 pair map(life, void *, pair);
 pair nreverse(pair);

@@ -103,6 +103,14 @@ int slotCount(obj o) {
 void *slotName(obj o, int i) {
   return idx(class(o), i + 1);
 }
+vector slotNameVector(vector *eden, obj o) {
+  vector c = class(o);
+  int l = vectorLength(c) - 1;
+  vector s = makeVector(edenIdx(newVector(eden, 2, c, 0), 1), l);
+  memcpy(vectorData(s), idxPointer(c, 1), l * sizeof(vector));
+  return s;
+}
+
 // Encapsulate the way slot values are stored within the instance vector.
 void *setSlotByIndex(obj o, int i, obj v) {
   return setIdx(instance(o), i, v);
@@ -119,6 +127,9 @@ void setDelegate(vector *live, obj o, obj d) {
   vector c = duplicateVector(live, class(o));
   setIdx(c, 0, d);
   setClass(o, c);
+}
+vector proto(obj o) {
+  return idx(class(o), 0);
 }
 
 obj newObject(vector *live, vector proto, vector slotNames, vector slotValues, void *hidden) {
@@ -178,23 +189,24 @@ vector setSubexpressionContinuation(vector thread,
                                          dynamicEnv));
 }
 
-// This needs to be a macro because otherwise the number of arguments would preclude tailcall optimization.
+vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
+  return setContinuation(thread,
+                         newContinuation(edenRoot(thread),
+                                         origin(c),
+                                         selector(c),
+                                         suffix(edenRoot(thread), value, evaluated(c)),
+                                         unevaluated(c),
+                                         env(c),
+                                         dynamicEnv(c)));
+}
+
 #define messageReturn(thread, value) do { \
-  vector mr_t = (thread), \
-         mr_v = (value); \
+  vector mr_t = (thread), mr_v = (value); \
   continuation mr_c = origin(threadContinuation(mr_t)); \
-  /* This logic can't easily be moved from the macro into a function call,
+  /* This logic can't easily be moved from the macro into the function call,
      because the return from keep() is what kills the thread. */ \
   if (isPromise(mr_c)) tailcall(keep, mr_t, mr_c, mr_v); \
-  tailcall(doNext, setContinuation(mr_t, newContinuation(edenRoot(mr_t), \
-                                                         origin(mr_c), \
-                                                         selector(mr_c), \
-                                                         suffix(edenRoot(mr_t), \
-                                                                mr_v, \
-                                                                evaluated(mr_c)), \
-                                                         unevaluated(mr_c), \
-                                                         env(mr_c), \
-                                                         dynamicEnv(mr_c)))); \
+  tailcall(doNext, setMessageReturnContinuation(mr_t, mr_c, mr_v)); \
 } while (0)
 
 vector setExceptionContinuation(vector thread, obj exception) {
@@ -288,6 +300,10 @@ obj integer(vector *live, int value) {
 }
 int integerValue(obj i) {
   return (int)hiddenAtom(i);
+}
+
+obj vectorObject(vector *eden, vector v) {
+  return slotlessObject(eden, oVector, v);
 }
 
 void doNext(vector);
@@ -419,7 +435,7 @@ void doNext(vector thread) {
 
 obj call(vector *live, obj dynamicEnv, obj target, obj selector, vector args) {
   promise p = newPromise(live);
-  newThread(live, p, oStackFrame, dynamicEnv, target, selector, args);
+  newThread(live, p, oLobby, dynamicEnv, target, selector, args);
   return waitFor(p);
 }
 
@@ -505,17 +521,16 @@ void invalidateTemporaryLife() {
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
 
 void *safeIdx(vector thread, vector v, int i) {
-  if (i >= vectorLength(v)) raise(thread, eOutOfBounds);
-  return idx(v, i);
+  return i < vectorLength(v) ? idx(v, i) : 0;
 }
-
 void *arg(vector thread, int i) {
   return safeIdx(thread, evaluated(threadContinuation(thread)), i + 1);
 }
-
+  
 #define normalReturn     messageReturn(thread, continuationTarget(threadContinuation(thread)))
 #define valueReturn(v)   messageReturn(thread, (v))
 #define arg(i)           arg(thread, (i))
+//(arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
 #define target           continuationTarget(threadContinuation(thread))
 #include "objects.c"
 #undef target
@@ -573,7 +588,7 @@ void loadFile(const char *filename) {
     originalInterpreterPromise = newPromise(temp());
     newThread(temp(),
               originalInterpreterPromise,
-              oStackFrame,
+              oLobby,
               oDynamicEnvironment,
               car(code),
               sIdentity,
@@ -586,27 +601,32 @@ void REPL() {
   openInputFile(stdin);
   for (;;) {
     invalidateTemporaryLife();
+    fflush(stdout);
     fputs("\n> ", stdout);
     yylex = interactiveLexer;
     yyparse();
     originalInterpreterPromise = newPromise(temp());
     newThread(temp(),
               originalInterpreterPromise,
-              oStackFrame,
+              oLobby,
               oDynamicEnvironment,
               parserOutput,
               sIdentity,
               emptyVector);
+    obj result = waitFor(originalInterpreterPromise);
+    if (result == oNull) continue;
+    obj serialization = newPromise(temp());
+    newThread(temp(), serialization, oLobby, oDynamicEnvironment, result, sSerialized, emptyVector);
     fflush(stdout);
     fputs("\n=> ", stdout);
-    vector dummyResult = newPromise(temp());
+    vector inspection = newPromise(temp());
     newThread(temp(),
-              dummyResult,
-              oStackFrame,
+              inspection,
+              oLobby,
               oDynamicEnvironment,
-              waitFor(originalInterpreterPromise),
-              sInspect,
+              waitFor(serialization),
+              sPrint,
               emptyVector);
-    waitFor(dummyResult);
+    waitFor(inspection);
   }
 }

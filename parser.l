@@ -32,6 +32,8 @@ void closeInputFile(void *b) {
   yy_delete_buffer(b);
 }
 
+char *stringLiteral;
+
 %}
 
 %x NEWLINES
@@ -39,10 +41,21 @@ void closeInputFile(void *b) {
 %%
 
 <INITIAL>{
-\"([^"]|\\\")*\"                   { yytext[strlen(yytext) - 1] = 0;
+\"([^"]|\\\")*\"                   { char *s = yytext + 1;
+                                     int remainder = strlen(s);
+                                     while (*s != '"') {
+                                       --remainder;
+                                       if (*s++ != '\\') continue;
+                                       switch (*s) {
+                                         case 'n': s[-1] = '\n'; break;
+                                         case 't': s[-1] = '\t';
+                                       }
+                                       memmove(s, s + 1, --remainder);
+                                     }
+                                     *s = 0;
                                      yylval = string(temp(), yytext + 1);     return STRING; }
 \$[^ \n.,;]+                         yylval = symbol(temp(), yytext + 1);     return SYMBOL;
-[0-9]+                               yylval = integer(temp(), atoi(yytext));  return INTEGER;
+-?[0-9]+                             yylval = integer(temp(), atoi(yytext));  return INTEGER;
 =                                                                             return ADDSLOT;
 :=                                                                            return SETSLOT;
 [a-zA-Z_0-9]+                        yylval = symbol(temp(), yytext);         return NAME;

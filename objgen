@@ -19,9 +19,9 @@
 $id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
 while (<>) {
   if    (/^(\#.*| *)$/           ) { }
+  elsif (/^&((?:$id:?)+)/        ) { push @symbols, $1;                              }
   elsif (/^@($id) ($id)(.*)$/    ) { $parent{$currentObject = $1} = $2;
                                      $objects{$currentObject} = {};
-                                     $constants{$currentObject} = [];
                                      $hidden{$currentObject} = $3;                   }
   elsif (/^~($id) ([^\n]*)$/     ) { $exceptions{$currentObject}{$1} = $2;           }
   elsif (/^!($id(?::(?:$id:)*)?)/) { $methods{$currentMethod = $1} = $1;             }
@@ -40,16 +40,13 @@ sub cname {
 open HEADER, ">objects.h" or die("ObjGen couldn't write objects.h");
 open SOURCE, ">objects.c" or die("ObjGen couldn't write objects.c");
 
-print HEADER "obj o", cname($_), ";\n" foreach (keys %objects);
-print HEADER "\n";
-print HEADER "obj s", cname($_), ";\n" foreach (keys %methods);
-foreach $objectConstants (values %constants) {
-  print HEADER "obj s", cname($_), ";\n" foreach (@$objectConstants);
-}
-print HEADER "obj sSelf;\n"; # TODO: Add a mechanism to specify generating symbols for their own sake.
-foreach $objectExceptions (values %exceptions) {
-  print HEADER "obj e", cname($_), ";\n" foreach (keys %$objectExceptions);
-}
+print HEADER "obj ",
+      (join "\n  , ",
+           (map { "o" . cname $_ } keys %objects),
+           (map { "s" . cname $_ } @symbols, keys %methods),
+           (map { join "\n  , ", map { "s" . cname $_ } @$_ } values %constants),
+           (map { join "\n  , ", map { "e" . cname $_ } keys %$_ } values %exceptions)),
+      ";\n";
 
 foreach $object (keys %objects) {
   foreach (keys %{$objects{$object}}) {
@@ -68,9 +65,12 @@ foreach $objectExceptions (values %exceptions) {
   print SOURCE "  e", cname($_), " = string(temp(), \"$objectExceptions->{$_}\");\n"
    foreach(keys %$objectExceptions);
 }
-print SOURCE "\n  sSelf = symbol(temp(), \"self\");\n";
-print SOURCE "  s", cname($_), " = symbol(temp(), \"$methods{$_}\");\n"
- foreach (keys %methods);
+foreach (keys %methods) {
+  print SOURCE "  s", cname($_), " = symbol(temp(), \"$methods{$_}\");\n";
+}
+foreach (@symbols) {
+  print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n";
+}
 foreach $objectConstants (values %constants) {
   print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n"
    foreach (@$objectConstants);

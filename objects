@@ -14,21 +14,39 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
+&do
+&raise:
+
 @null null
 !identity
-  valueReturn(oNull);
+  normalReturn;
 !interpret
-  valueReturn(oNull);
-!inspect
-  printf("<null>"); fflush(stdout);
-  valueReturn(oNull);
+  normalReturn;
 @interpreter object
+!vectorLiteral
+  int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
+  vector v = makeVector(edenRoot(thread), c);
+  while (c--) setIdx(v, c, arg(c));
+  valueReturn(vectorObject(edenRoot(thread), v));
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 !waitFor:
   valueReturn(waitFor(arg(0)));
 @object null
+!== equals
+  if (target == arg(0)) valueReturn(oTrue);
+  valueReturn(oFalse);
+!send:
+  continuation c = origin(threadContinuation(thread));
+  tailcall(doNext,
+           setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), target, arg(0), emptyVector));
+!respondsTo:
+  obj a = arg(0), t = target;
+  for (int i = 0; i < slotCount(t); i++) if (slotName(t, i) == a) valueReturn(oTrue);
+  valueReturn(oFalse);
+!selectors
+  valueReturn(vectorObject(edenRoot(thread), slotNameVector(edenRoot(thread), target)));
 !proto
   valueReturn(delegate(target));
 !channel
@@ -47,35 +65,60 @@
   void **slot = deepLookup(target, waitFor(arg(0)));
   if (!slot) raise(thread, eGettingNonexistantSlot);
   valueReturn(*slot);
-!inspect
-  printf("<object %x>", target);
-  normalReturn;
 !interpret
   normalReturn;
 !new
   valueReturn(slotlessObject(edenRoot(thread), oObject, 0));
+@vector object
+!ofLength:containing:
+  int l = integerValue(arg(0));
+  if (l < 0) raise(thread, eNegativeVectorLength);
+  obj o = arg(1);
+  vector v = makeVector(edenRoot(thread), l);
+  while (l--) setIdx(v, l, o);
+  valueReturn(vectorObject(edenRoot(thread), v));
+!length
+  valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target))));
+!at:put:ifAbsent:
+  int i = integerValue(arg(0));
+  obj v = hiddenEntity(target);
+  if (i < 0) i = vectorLength(v) + i;
+  if (i < 0 || i >= vectorLength(v)) {
+    continuation c = origin(threadContinuation(thread));
+    tailcall(doNext,
+             setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(2), sDo, emptyVector));
+  }
+  valueReturn(setIdx(v, i, arg(1)));
+!at:ifAbsent:
+  int i = integerValue(arg(0));
+  obj v = hiddenEntity(target);
+  if (i < 0) i = vectorLength(v) + i;
+  if (i < 0 || i >= vectorLength(v)) {
+    continuation c = origin(threadContinuation(thread));
+    tailcall(doNext,
+             setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(1), sDo, emptyVector));
+  }
+  valueReturn(idx(v, i));
 @primitive object
-!inspect
-  printf("<primitive %x>", target); fflush(stdout);
-  normalReturn;
-@string object
+@string object newAtomVector(temp(), 1, 0)
+!serialized
+  // FIXME: This arguably doesn't handle e.g. '\n' and '\t' correctly.
+  vector eden = makeVector(edenRoot(thread), 2);
+  obj quote = string(edenIdx(eden, 0), "\""); // TODO: Create this string once, at startup.
+  valueReturn(appendStrings(edenIdx(eden, 1), quote, appendStrings(edenIdx(eden, 1), target, quote)));
+!++ appending:
+  valueReturn(appendStrings(edenRoot(thread), target, arg(0)));
 !print
   fputs(stringData(target), stdout); fflush(stdout);
-  normalReturn;
-!inspect
-  printf("\"%s\"", stringData(target)); fflush(stdout);
   normalReturn;
 !die
   puts(stringData(target));
   exit(1);
-@symbol object
-!inspect
-  printf("$%s", stringData(target)); fflush(stdout);
-  normalReturn;
+@symbol object newAtomVector(temp(), 1, 0)
+!serialized
+  // TODO: Create the dollarsign string once, at startup.
+  valueReturn(appendStrings(edenRoot(thread), string(edenRoot(thread), "$"), target));
 @closure object
-!inspect
-  printf("<closure %x>", target); fflush(stdout);
-  normalReturn;
 @code object
 !interpret
   continuation c = threadContinuation(thread);
@@ -131,15 +174,23 @@
   obj o = continuationTarget(c);
   valueReturn(newClosure(edenRoot(thread), env(c), blockParams(o), blockBody(o)));
 @integer object newAtomVector(temp(), 1, 0)
+!serialized
+  char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
+  sprintf(buffer, "%d", integerValue(target));
+  valueReturn(string(edenRoot(thread), buffer));
 !== equals
+  if (proto(arg(0)) != oInteger) raise(thread, eBadArithmetic); // FIXME: Insufficient test.
   if (integerValue(target) == integerValue(arg(0))) normalReturn;
+  valueReturn(oFalse);
+!< isLessThan
+  if (integerValue(target) < integerValue(arg(0))) normalReturn;
+  valueReturn(oFalse);
+!> isGreaterThan
+  if (integerValue(target) > integerValue(arg(0))) normalReturn;
   valueReturn(oFalse);
 !- minus
   valueReturn(integer(edenRoot(thread), integerValue(target) - integerValue(arg(0))));
 !print
-  printf("%d", hiddenAtom(target)); fflush(stdout);
-  normalReturn;
-!inspect
   printf("%d", hiddenAtom(target)); fflush(stdout);
   normalReturn;
 !+ plus
@@ -151,9 +202,6 @@
   while (i) i = sleep(i);
   valueReturn(target);
 @byteVector object
-!inspect
-  printf("<byteVector %x>", target); fflush(stdout);
-  valueReturn(oNull);
 !length
   valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target)) / sizeof(int)));
 @file object
@@ -210,13 +258,7 @@
     raise(thread, eReadingFromSocket);
   valueReturn(string);
 @true object
-!inspect
-  printf("<true>"); fflush(stdout);
-  normalReturn;
 @false object
-!inspect
-  printf("<false>"); fflush(stdout);
-  normalReturn;
 @slotCollection object
 !includesKey:
   obj o = hiddenEntity(target), key = arg(0);
@@ -228,7 +270,8 @@
     if (slotName(o, i) == key)
       valueReturn(setSlotByIndex(o, i, value));
   valueReturn(addSlot(edenRoot(thread), o, key, value));
-@exceptions lobby
+@exception object
+~negativeVectorLength Attempted to create a vector with negative length.
 ~messageNotUnderstood Message not understood.
 ~readingFromSocket Error while reading from a socket.
 ~openingSocket Error while opening a socket.
@@ -242,7 +285,29 @@
 ~settingNonexistantSlot Attempted to set a nonexistant slot.
 ~gettingNonexistantSlot Attempted to access a nonexistant slot.
 ~badArithmetic Type error in arithmetic expression.
+# TODO: Store the arity of primitives and check number of arguments when dispatching.
+~missingArgument Too few arguments to primitive function.
 @lobby object
+!return:atDepth:
+  // TODO: This can fail if the user modifies "thisContext proto". Find ways to make it more robust?
+  obj frame = target;
+  for (int i = integerValue(arg(1)) + 1;;) {
+    if (frame == oLobby) raise(thread, eBadReturnDepth);
+    if (!i--) break;
+    frame = proto(frame);
+  }
+  obj v = setShelter(thread, arg(0));
+  setContinuation(thread, hiddenEntity(frame));
+  valueReturn(v);
+!thisContext
+  normalReturn;
+!recurse
+  if (target == oLobby) raise(thread, eTopLevelRecursion);
+  tailcall(doNext, setContinuation(thread, hiddenEntity(target)));
+!abortToREPL
+  tailcall(returnToREPL, thread);
+!self
+  normalReturn;
 !abort
   tailcall(returnToREPL, thread);
 !end
@@ -266,9 +331,9 @@ $block
 $primitive
 $string
 $symbol
-$stackFrame
 $interpreter
-$exceptions
+$exception
+$vector
 !dynamicContext
   valueReturn(dynamicEnv(threadContinuation(thread)));
 !collectGarbage
@@ -281,27 +346,3 @@ $exceptions
 !exit
   exit(0);
 @dynamicEnvironment object
-!raise:
-  fputs("\nUnhandled exception: ", stdout);
-  fflush(stdout);
-  call(edenRoot(thread), dynamicEnv(threadContinuation(thread)), arg(0), sPrint, emptyVector);
-  tailcall(returnToREPL, thread);
-@stackFrame lobby
-!return:atDepth:
-  // TODO: This can fail if the user modifies "thisContext proto". Find ways to make it more robust?
-  obj frame = target;
-  for (int i = integerValue(arg(1));;) {
-    if (frame == oStackFrame) raise(thread, eBadReturnDepth);
-    if (!i--) break;
-    frame = delegate(frame);
-  }
-  obj v = setShelter(thread, arg(0));
-  setContinuation(thread, hiddenEntity(frame));
-  valueReturn(v);
-!thisContext
-  normalReturn;
-!recurse
-  // TODO: The need for this logic suggests that top-level messages should not be sent to
-  //       the stackFrame prototype.
-  if (target == oStackFrame) raise(thread, eTopLevelRecursion);
-  tailcall(doNext, setContinuation(thread, hiddenEntity(target)));

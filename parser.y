@@ -70,13 +70,8 @@ statements:
   { $$ = cons(temp(), $3, $1); }
 ;
 
-statement:
-  expr
-| carets
-  { $$ = message(temp(), 0, sReturn_atDepth_, newVector(temp(), 2, oNull, integer(temp(), (int)$1))); }
-| carets expr
-  { $$ = message(temp(), 0, sReturn_atDepth_, newVector(temp(), 2, $2, integer(temp(), (int)$1))); }
-| optarget signature '{' body '}'
+declaration:
+  optarget signature '{' body '}'
   { pair sig = $2;
     $$ = message(temp(),
                  $1,
@@ -85,6 +80,14 @@ statement:
                            2,
                            car(sig),
                            block(temp(), listToVector(temp(), cdr(sig)), listToVector(temp(), $4)))); }
+;
+
+statement:
+  expr
+| carets
+  { $$ = message(temp(), 0, sReturn_atDepth_, newVector(temp(), 2, oNull, integer(temp(), (int)$1))); }
+| carets expr
+  { $$ = message(temp(), 0, sReturn_atDepth_, newVector(temp(), 2, $2, integer(temp(), (int)$1))); }
 ;
 carets:
   '^'
@@ -109,18 +112,13 @@ keywordsignature:
 ;
 
 expr:
-  parens
-| literal
-| name
-| operation
-| msg
-| assignment
-| arrow
+  arrow
+| dependency
 ;
 
 parens:
-  '(' line ')'
-  { $$ = $2; }
+ '(' body ')'
+  { $$ = expressionSequence(temp(), listToVector(temp(), $2)); }
 ;
 
 arrow:
@@ -134,6 +132,7 @@ dependency:
 | operation
 | msg
 | assignment
+| declaration
 ;
 
 assignment:
@@ -162,6 +161,7 @@ nametarget:
 | parens
 | literal
 | name
+| declaration
 ;
 
 operation:
@@ -201,6 +201,10 @@ literal:
   INTEGER
 | SYMBOL
 | STRING
+| '[' ']'
+  { $$ = vectorObject(temp(), emptyVector); }
+| '[' list ']'
+  { $$ = message(temp(), oInterpreter, sVectorLiteral, listToVector(temp(), nreverse($2))); }
 | '{' body '}'
   { $$ = block(temp(), emptyVector, listToVector(temp(), $2)); }
 | '{' params '|' body '}'
@@ -209,6 +213,12 @@ literal:
   { $$ = message(temp(), 0, sContentsOfSlot_, newVector(temp(), 1, $2)); }
 | '\\' '(' target param ')'
   { $$ = message(temp(), $3, sContentsOfSlot_, newVector(temp(), 1, $4)); }
+;
+list:
+  expr
+  { $$ = list(temp(), $1); }
+| list ',' expr
+  { $$ = cons(temp(), $3, $1); }
 ;
 params:
   { $$ = emptyList; }
@@ -223,15 +233,14 @@ param:
 ;
 
 body:
-  gap line
-  { $$ = list(temp(), $2); }
-| gap lines
+  gap lines gap
   { $$ = nreverse($2); }
 ;
 lines:
-  { $$ = emptyList; }
-| lines line '\n'
-  { $$ = cons(temp(), $2, $1); }
+  line
+  { $$ = list(temp(), $1); }
+| lines '\n' line
+  { $$ = cons(temp(), $3, $1); }
 ;
 
 %%
