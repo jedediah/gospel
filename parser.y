@@ -24,7 +24,7 @@
 #include <stdio.h>
 
 obj keywordMessage(obj target, pair args);
-void yyerror(const char *);
+void yyerror (YYLTYPE *, char const *);
 
 %}
 
@@ -56,9 +56,9 @@ input:
 | BATCH body
   { parserOutput = $2; YYACCEPT; }
 | INTERACTIVE error '\n'
-  { die("Syntax error at REPL, line %d", @2.first_line); }
+  { parserOutput = oNull; YYACCEPT; }
 | BATCH error
-  { die("Syntax error in batch mode at line %d.", @2.first_line); }
+  { parserOutput = list(temp(), oNull); YYACCEPT; }
 ;
 
 line:
@@ -205,8 +205,8 @@ literal:
 | STRING
 | '[' ']'
   { $$ = vectorObject(temp(), emptyVector); }
-| '[' list ']'
-  { $$ = message(temp(), oInterpreter, sVectorLiteral, listToVector(temp(), nreverse($2))); }
+| '[' gap list gap ']'
+  { $$ = message(temp(), oInterpreter, sVectorLiteral, listToVector(temp(), nreverse($3))); }
 | '{' body '}'
   { $$ = block(temp(), emptyVector, listToVector(temp(), $2)); }
 | '{' params '|' body '}'
@@ -219,8 +219,8 @@ literal:
 list:
   expr
   { $$ = list(temp(), $1); }
-| list ',' expr
-  { $$ = cons(temp(), $3, $1); }
+| list gap ',' gap expr
+  { $$ = cons(temp(), $5, $1); }
 ;
 params:
   { $$ = emptyList; }
@@ -235,7 +235,8 @@ param:
 ;
 
 body:
-  gap lines gap
+  { $$ = list(temp(), oNull); }
+| gap lines gap
   { $$ = nreverse($2); }
 ;
 lines:
@@ -254,6 +255,10 @@ obj keywordMessage(obj target, pair args) {
                  listToVector(temp(), map(temp(), cdr, args)));
 }
 
-void yyerror(const char *s) {
-//  die("Syntax error at line %d.", locp->first_line);
+void yyerror (YYLTYPE *location, char const *msg) {
+  fflush(stdout);
+  if (location->first_line == location->last_line)
+    printf("Syntax error at line %d.", location->last_line);
+  else
+    printf("Syntax error between lines %d and %d.", location->first_line, location->last_line);
 }

@@ -399,7 +399,7 @@ void dispatch(vector thread) {
              setSubexpressionContinuation(thread,
                                           origin(c),
                                           newObject(edenIdx(eden, 0),
-                                                    env(c),
+                                                    closureEnv(contents),
                                                     prefix(edenIdx(eden, 0), sSelf, params),
                                                     args,
                                                     c),
@@ -569,6 +569,8 @@ void setupInterpreter() {
   *lobbyShelter(garbageCollectorRoot) = oLobby;
 }
 
+void resetLineNumber() { currentLine = 1; }
+
 void loadFile(const char *filename) {
   // TODO: Find a way to feed the parser from the file exactly as is done from stdin in the interactive
   //       version, rather than having to keep all the temporary allocations made by the parser for the
@@ -578,7 +580,7 @@ void loadFile(const char *filename) {
   FILE *f = fopen(filename, "r");
   if (!f) die("Could not open \"%s\" for input.", filename);
   void *b = createLexerBuffer(f);
-  currentLine = 0;
+  resetLineNumber();
   yyparse();
   deleteLexerBuffer(b);
   fclose(f);
@@ -607,7 +609,7 @@ void REPL() {
     fflush(stdout);
     fputs("\n> ", stdout);
     yylex = interactiveLexer;
-    currentLine = 0;
+    resetLineNumber();
     yyparse();
     REPLPromise = newPromise(temp());
     newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sIdentity, emptyVector);
@@ -619,7 +621,6 @@ void REPL() {
       setLexerBuffer(lexerBuffer);
     }
 
-    if (result == oNull) continue;
     REPLPromise = newPromise(temp());
     newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, result, sSerialized, emptyVector);
     obj serialization = waitFor(REPLPromise);

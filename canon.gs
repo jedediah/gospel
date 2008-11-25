@@ -56,6 +56,16 @@ false  if: yes else: no { no   }
 object         else: no { self }
 false          else: no { no   }
 
+vector each: iterateOn: {
+  vector = self
+  index = 0
+  { index < vector length else: { ^^ vector }
+    iterateOn: vector :at: index
+    index := index + 1
+    recurse
+  } do
+}
+
 vector mapping: valueFor: {
   domain = self
   range = vector ofLength: domain length
@@ -91,6 +101,10 @@ vector serialized {
   self length == 0 if: { ^ "[]" }
   "[" ++ (self :mapping: { x | x serialized } injecting: { x y | x ++ ", " ++ y }) ++ "]"
 }
+
+integer print { self serialized print }
+
+vector print { self each: { x | x print } }
 
 integer times: iterate {
   count = self

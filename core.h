@@ -21,7 +21,15 @@
 #ifndef CORE_H
 #define CORE_H
 
-#define YYSTYPE void * // This needs to be seen by both Flex and Bison.
+// These need to be seen by both Flex and Bison.
+#define YYSTYPE void *
+#define YYLTYPE YYLTYPE
+typedef struct YYLTYPE {
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+} YYLTYPE;
 
 #include <stdio.h>
 
@@ -30,9 +38,9 @@ void *createLexerBuffer(FILE *);
 void setLexerBuffer(void *);
 void deleteLexerBuffer(void *);
 
-int (*yylex)(void);
-#define YY_DECL int mainLexer()
-YY_DECL;
+int (*yylex)(YYSTYPE *, YYLTYPE *);
+int mainLexer(YYSTYPE *, YYLTYPE *);
+#define YY_DECL int mainLexer(YYSTYPE *value, YYLTYPE *location)
 
 #include "gc.h"
 
