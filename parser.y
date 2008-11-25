@@ -24,7 +24,7 @@
 #include <stdio.h>
 
 obj keywordMessage(obj target, pair args);
-void yyerror(const char *s);
+void yyerror(const char *);
 
 %}
 
@@ -45,6 +45,8 @@ void yyerror(const char *s);
 %token BATCH
 
 %glr-parser
+%locations
+%pure-parser
 
 %%
 
@@ -54,9 +56,9 @@ input:
 | BATCH body
   { parserOutput = $2; YYACCEPT; }
 | INTERACTIVE error '\n'
-  { die("Syntax error at REPL."); }
+  { die("Syntax error at REPL, line %d", @2.first_line); }
 | BATCH error
-  { die("Syntax error in batch mode."); }
+  { die("Syntax error in batch mode at line %d.", @2.first_line); }
 ;
 
 line:
@@ -123,7 +125,7 @@ parens:
 
 arrow:
   dependency ARROW gap expr
-  { $$ = arrowCode(temp(), $1, $4) ; }
+  { $$ = message(temp(), slotlessObject(temp(), oArrowCode, $4), sFrom_, newVector(temp(), 1, $1)); }
 ;
 dependency:
   parens
@@ -253,5 +255,5 @@ obj keywordMessage(obj target, pair args) {
 }
 
 void yyerror(const char *s) {
-  //die("Bison sez: %s.\n", s);
+//  die("Syntax error at line %d.", locp->first_line);
 }

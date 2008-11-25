@@ -329,9 +329,9 @@ vector newThread(vector *life,
   return threadData;
 }
 
-promise originalInterpreterPromise;
+promise REPLPromise;
 void returnToREPL(vector thread) {
-  keep(thread, originalInterpreterPromise, oNull);
+  keep(thread, REPLPromise, oNull);
   // The return from this function ends the current thread.
 }
 #define abort(thread, ...) do { \
@@ -484,12 +484,6 @@ obj promiseCodeValue(obj p) {
   return hiddenEntity(p);
 }
 
-obj arrowCode(vector *live, obj promiser, obj follower) {
-  return slotlessObject(live, oArrowCode, newVector(live, 2, promiser, follower));
-}
-obj arrowPromiser(obj arrow) { return idx(hiddenEntity(arrow), 0); }
-obj arrowFollower(obj arrow) { return idx(hiddenEntity(arrow), 1); }
-
 void doNext();
 YYSTYPE yyparse();
 
@@ -526,11 +520,13 @@ void *safeIdx(vector thread, vector v, int i) {
 void *arg(vector thread, int i) {
   return safeIdx(thread, evaluated(threadContinuation(thread)), i + 1);
 }
-  
+
+obj *filenameToInclude;
+promise *promiseOfInclusion;
+
 #define normalReturn     messageReturn(thread, continuationTarget(threadContinuation(thread)))
 #define valueReturn(v)   messageReturn(thread, (v))
-#define arg(i)           arg(thread, (i))
-//(arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
+#define arg(i)           (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
 #define target           continuationTarget(threadContinuation(thread))
 #include "objects.c"
 #undef target
@@ -581,52 +577,56 @@ void loadFile(const char *filename) {
   yylex = batchLexer;
   FILE *f = fopen(filename, "r");
   if (!f) die("Could not open \"%s\" for input.", filename);
-  void *b = openInputFile(f);
+  void *b = createLexerBuffer(f);
+  currentLine = 0;
   yyparse();
-  closeInputFile(b);
+  deleteLexerBuffer(b);
+  fclose(f);
   for (pair code = parserOutput; !empty(code); code = cdr(code)) {
-    originalInterpreterPromise = newPromise(temp());
+    REPLPromise = newPromise(temp());
     newThread(temp(),
-              originalInterpreterPromise,
+              REPLPromise,
               oLobby,
               oDynamicEnvironment,
               car(code),
               sIdentity,
               emptyVector);
-    waitFor(originalInterpreterPromise);
+    waitFor(REPLPromise);
   }
 }
 
+int debuggingInclude = 0;
 void REPL() {
-  openInputFile(stdin);
+  void *lexerBuffer = createLexerBuffer(stdin);
   for (;;) {
     invalidateTemporaryLife();
+    
+    vector inclusionEden = makeVector(temp(), 2);
+    filenameToInclude = edenIdx(inclusionEden, 0);
+    promiseOfInclusion = edenIdx(inclusionEden, 1);
     fflush(stdout);
     fputs("\n> ", stdout);
     yylex = interactiveLexer;
+    currentLine = 0;
     yyparse();
-    originalInterpreterPromise = newPromise(temp());
-    newThread(temp(),
-              originalInterpreterPromise,
-              oLobby,
-              oDynamicEnvironment,
-              parserOutput,
-              sIdentity,
-              emptyVector);
-    obj result = waitFor(originalInterpreterPromise);
+    REPLPromise = newPromise(temp());
+    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sIdentity, emptyVector);
+    obj result = waitFor(REPLPromise);
+
+    if (*filenameToInclude) {
+      loadFile(stringData(*filenameToInclude));
+      fulfillPromise(*promiseOfInclusion, oNull);
+      setLexerBuffer(lexerBuffer);
+    }
+
     if (result == oNull) continue;
-    obj serialization = newPromise(temp());
-    newThread(temp(), serialization, oLobby, oDynamicEnvironment, result, sSerialized, emptyVector);
+    REPLPromise = newPromise(temp());
+    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, result, sSerialized, emptyVector);
+    obj serialization = waitFor(REPLPromise);
     fflush(stdout);
     fputs("\n=> ", stdout);
-    vector inspection = newPromise(temp());
-    newThread(temp(),
-              inspection,
-              oLobby,
-              oDynamicEnvironment,
-              waitFor(serialization),
-              sPrint,
-              emptyVector);
-    waitFor(inspection);
+    REPLPromise = newPromise(temp());
+    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);
+    waitFor(REPLPromise);
   }
 }

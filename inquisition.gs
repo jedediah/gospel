@@ -1,6 +1,10 @@
+exception failedAssertion = "Failed assertion in unit test."
+object assert { self }
+false  assert { raise: failedAssertion }
+
 declareTestSuite {
   self run {
-    (suite = self) :respondsTo: $setup else: { suite setup {} }
+    (suite = self) :respondsTo: $setup    else: { suite setup    {} }
      suite         :respondsTo: $teardown else: { suite teardown {} }
     failures = 0
     suite selectors each: { selector |

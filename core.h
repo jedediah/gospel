@@ -25,9 +25,10 @@
 
 #include <stdio.h>
 
-// Void pointers are actually YY_BUFFER_STATE.
-void *openInputFile(FILE *);
-void closeInputFile(void *);
+// Void pointers are actually YY_BUFFER_STATE, but core.c doesn't know about that type.
+void *createLexerBuffer(FILE *);
+void setLexerBuffer(void *);
+void deleteLexerBuffer(void *);
 
 int (*yylex)(void);
 #define YY_DECL int mainLexer()
@@ -60,16 +61,13 @@ obj primitive(life, void *);
 
 obj promiseCode(life, obj);
 
-obj arrowCode(life, obj, obj);
-obj arrowPromiser(obj);
-obj arrowFollower(obj);
-
 obj expressionSequence(life, vector);
 
 obj string(life, const char *);
 obj integer(life, int);
 int integerValue(obj);
 obj vectorObject(life, vector);
+obj slotlessObject(life, vector, vector);
 
 typedef vector pair;
 #define emptyList 0
@@ -96,5 +94,7 @@ vector live;
 void setupInterpreter(void);
 void loadFile(const char *);
 void REPL(void);
+
+int currentLine;
 
 #endif

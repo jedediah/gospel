@@ -18,11 +18,17 @@
 &raise:
 
 @null null
+!serialized
+  valueReturn(string(edenRoot(thread), "<null>")); // TODO: Create this once, at startup?
 !identity
   normalReturn;
 !interpret
   normalReturn;
 @interpreter object
+!include:
+  // Should only be called through a channel.
+  *filenameToInclude = arg(0);
+  valueReturn(*promiseOfInclusion = newPromise(edenRoot(thread)));
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
   vector v = makeVector(edenRoot(thread), c);
@@ -31,8 +37,6 @@
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
-!waitFor:
-  valueReturn(waitFor(arg(0)));
 @object null
 !== equals
   if (target == arg(0)) valueReturn(oTrue);
@@ -102,7 +106,7 @@
 @primitive object
 @string object newAtomVector(temp(), 1, 0)
 !serialized
-  // FIXME: This arguably doesn't handle e.g. '\n' and '\t' correctly.
+  // FIXME: This should probably convert e.g. newlines to "\n".
   vector eden = makeVector(edenRoot(thread), 2);
   obj quote = string(edenIdx(eden, 0), "\""); // TODO: Create this string once, at startup.
   valueReturn(appendStrings(edenIdx(eden, 1), quote, appendStrings(edenIdx(eden, 1), target, quote)));
@@ -111,9 +115,6 @@
 !print
   fputs(stringData(target), stdout); fflush(stdout);
   normalReturn;
-!die
-  puts(stringData(target));
-  exit(1);
 @symbol object newAtomVector(temp(), 1, 0)
 !serialized
   // TODO: Create the dollarsign string once, at startup.
@@ -146,28 +147,33 @@
             sIdentity,
             emptyVector);
   valueReturn(p);
-@arrowCode code
-!interpret
-  // FIXME: This code relies on message arguments being evaluated from left to right.
-  vector living = makeVector(edenRoot(thread), 2),
-         *live = idxPointer(living, 0);
-  promise p = newPromise(idxPointer(living, 1));
-  continuation c = threadContinuation(thread);
-  newThread(live,
-            p,
-            env(c),
-            dynamicEnv(c),
-            oInterpreter,
-            sMethodBody,
-            newVector(live,
-                      2,
-                      message(live, oInterpreter, sWaitFor_, newVector(live, 1, arrowPromiser(target))),
-                      arrowFollower(target)));
-  valueReturn(p);
-  // TODO: Check whether problems could be caused by code assuming that the continuation origin
-  //       is also a continuation, and referring to its data elements, when it's actually a promise.
-  //       (i.e. is it okay to call newThread() for the sMethodBody message as is done above,
-  //       rather than e.g. on a sIdentity message send to the result of sMethodBody?)
+@arrowCode object
+!from:
+  if (isPromise(arg(0))) {
+    vector eden = makeVector(edenRoot(thread), 2);
+    promise p = newPromise(edenIdx(eden, 0));
+    continuation c = threadContinuation(thread);
+    newThread(edenIdx(eden, 1),
+              p,
+              env(c),
+              dynamicEnv(c),
+              oInterpreter,
+              sMethodBody,
+              newVector(edenIdx(eden, 1),
+                        2,
+                        message(edenIdx(eden, 1), arg(0), sIdentity, emptyVector),
+                        hiddenEntity(target)));
+    valueReturn(p);
+  }
+  continuation c = origin(threadContinuation(thread));
+  tailcall(doNext,
+           setSubexpressionContinuation(thread,
+                                        c,
+                                        env(c),
+                                        dynamicEnv(c),
+                                        hiddenEntity(target),
+                                        sIdentity,
+                                        emptyVector));
 @block object
 !interpret
   continuation c = threadContinuation(thread);
@@ -299,6 +305,15 @@
   obj v = setShelter(thread, arg(0));
   setContinuation(thread, hiddenEntity(frame));
   valueReturn(v);
+!return
+  if (target == oLobby) raise(thread, eBadReturnDepth);
+  setContinuation(thread, hiddenEntity(proto(target)));
+  valueReturn(oNull);
+!return:
+  if (target == oLobby) raise(thread, eBadReturnDepth);
+  obj v = *edenRoot(thread) = arg(0);
+  setContinuation(thread, hiddenEntity(proto(target)));
+  valueReturn(v);
 !thisContext
   normalReturn;
 !recurse
@@ -331,7 +346,7 @@ $block
 $primitive
 $string
 $symbol
-$interpreter
+$interpreter newChannel(temp(), oInterpreter)
 $exception
 $vector
 !dynamicContext

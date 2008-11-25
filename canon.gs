@@ -100,3 +100,7 @@ integer times: iterate {
     recurse
   } do
 }
+
+# In a later release it will be possible to load a file with an arbitrary object (the target of $include:)
+# as the toplevel namespace. In the current release, files are always loaded into the lobby.
+lobby include: filename { interpreter @include: filename -> end. filename }

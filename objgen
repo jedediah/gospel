@@ -16,25 +16,27 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
-$id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
-while (<>) {
-  if    (/^(\#.*| *)$/           ) { }
-  elsif (/^&((?:$id:?)+)/        ) { push @symbols, $1;                              }
-  elsif (/^@($id) ($id)(.*)$/    ) { $parent{$currentObject = $1} = $2;
-                                     $objects{$currentObject} = {};
-                                     $hidden{$currentObject} = $3;                   }
-  elsif (/^~($id) ([^\n]*)$/     ) { $exceptions{$currentObject}{$1} = $2;           }
-  elsif (/^!($id(?::(?:$id:)*)?)/) { $methods{$currentMethod = $1} = $1;             }
-  elsif (/^!([^ ]+) ($id)/       ) { $methods{$currentMethod = $2} = $1;             }
-  elsif (/^\$($id)/              ) { push @{$constants{$currentObject}}, $1;         }
-  else                             { $objects{$currentObject}{$currentMethod} .= $_; }
-}
 
 # Convert a GoSPeL identifier to a C identifier.
 sub cname {
   my $name = ucfirst shift;
   $name =~ s/:/_/g;
   return $name;
+}
+
+$id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
+while (<>) {
+  if    (/^(\#.*| *)$/           ) {                                                            }
+  elsif (/^&((?:$id:?)+)/        ) { push @symbols, $1;                                         }
+  elsif (/^@($id) ($id)(.*)$/    ) { $parent{$currentObject = $1} = $2;
+                                     $objects{$currentObject} = {};
+                                     $hidden{$currentObject} = $3;                              }
+  elsif (/^~($id) ([^\n]*)$/     ) { $exceptions{$currentObject}{$1} = $2;                      }
+  elsif (/^!($id(?::(?:$id:)*)?)/) { $methods{$currentMethod = $1} = $1;                        }
+  elsif (/^!([^ ]+) ($id)/       ) { $methods{$currentMethod = $2} = $1;                        }
+  elsif (/^\$($id) ([^\n]+)/     ) { push @{$constants{$currentObject}}, [$1, $2];              }
+  elsif (/^\$($id)/              ) { push @{$constants{$currentObject}}, [$1, "o" . cname($1)]; }
+  else                             { $objects{$currentObject}{$currentMethod} .= $_;            }
 }
 
 open HEADER, ">objects.h" or die("ObjGen couldn't write objects.h");
@@ -44,7 +46,7 @@ print HEADER "obj ",
       (join "\n  , ",
            (map { "o" . cname $_ } keys %objects),
            (map { "s" . cname $_ } @symbols, keys %methods),
-           (map { join "\n  , ", map { "s" . cname $_ } @$_ } values %constants),
+           (map { join "\n  , ", map { "s" . cname $_->[0] } @$_ } values %constants),
            (map { join "\n  , ", map { "e" . cname $_ } keys %$_ } values %exceptions)),
       ";\n";
 
@@ -72,7 +74,7 @@ foreach (@symbols) {
   print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n";
 }
 foreach $objectConstants (values %constants) {
-  print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n"
+  print SOURCE "  s", cname($_->[0]), " = symbol(temp(), \"$_->[0]\");\n"
    foreach (@$objectConstants);
 }
 
@@ -85,7 +87,7 @@ foreach $object (keys %objects) {
   print SOURCE "\n  setSlotNames(temp(), o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});
   print SOURCE "\n  , s", cname($_)
    foreach (keys %{$objects{$object}});
-  print SOURCE "\n  , s", cname($_)
+  print SOURCE "\n  , s", cname($_->[0])
    foreach (@{$constants{$object}});
   print SOURCE "\n  , symbol(temp(), \"$_\")"
    foreach (keys %{$exceptions{$object}});
@@ -94,7 +96,7 @@ foreach $object (keys %objects) {
   print SOURCE "\n  setSlotValues(o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});
   print SOURCE "\n  , primitive(temp(), m", cname($object), cname($_), ")"
    foreach (keys %{$objects{$object}});
-  print SOURCE "\n  , o", cname($_)
+  print SOURCE "\n  , $_->[1]"
    foreach (@{$constants{$object}});
   print SOURCE "\n  , e", cname($_)
    foreach (keys %{$exceptions{$object}});

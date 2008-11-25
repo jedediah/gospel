@@ -370,7 +370,7 @@ vector waitFor(void *e) {
   if (existingValue != WATCHED_PROMISE && existingValue != UNWATCHED_PROMISE)
     return (vector)existingValue;
   while (*pvf == WATCHED_PROMISE) futexWait(pvf, WATCHED_PROMISE);
-  return (vector)*pvf;
+  return waitFor((void *)*pvf);
 }
 
 // The allocator lock.

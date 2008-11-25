@@ -23,12 +23,16 @@
 #include "core.h"
 #include "y.tab.h" // This needs to be read after mytalk.h or else the default for YYSTYPE gets used.
 
-void *openInputFile(FILE *f) {
-  YY_BUFFER_STATE b = yy_create_buffer(f, YY_BUF_SIZE);
+// To insulate file-handling code in core.c from knowledge of Flex.
+void setLexerBuffer(void *b) {
   yy_switch_to_buffer(b);
+}
+void *createLexerBuffer(FILE *f) {
+  YY_BUFFER_STATE b = yy_create_buffer(f, YY_BUF_SIZE);
+  setLexerBuffer(b);
   return b;
 }
-void closeInputFile(void *b) {
+void deleteLexerBuffer(void *b) {
   yy_delete_buffer(b);
 }
 
@@ -43,8 +47,13 @@ char *stringLiteral;
 <INITIAL>{
 \"([^"]|\\\")*\"                   { char *s = yytext + 1;
                                      int remainder = strlen(s);
+                                     yylloc.first_line = currentLine; 
                                      while (*s != '"') {
                                        --remainder;
+                                       if (*s == '\n') {
+                                         currentLine++;
+                                         continue;
+                                       }
                                        if (*s++ != '\\') continue;
                                        switch (*s) {
                                          case 'n': s[-1] = '\n'; break;
@@ -53,22 +62,58 @@ char *stringLiteral;
                                        memmove(s, s + 1, --remainder);
                                      }
                                      *s = 0;
-                                     yylval = string(temp(), yytext + 1);     return STRING; }
-\$[^ \n.,;]+                         yylval = symbol(temp(), yytext + 1);     return SYMBOL;
--?[0-9]+                             yylval = integer(temp(), atoi(yytext));  return INTEGER;
-=                                                                             return ADDSLOT;
-:=                                                                            return SETSLOT;
-[a-zA-Z_0-9]+                        yylval = symbol(temp(), yytext);         return NAME;
-[a-zA-Z_0-9]+:                       yylval = symbol(temp(), yytext);         return KEYWORD;
-:[a-zA-Z_0-9]+:                      yylval = symbol(temp(), yytext + 1);     return OPERATOR;
-([a-zA-Z_0-9]+:){2,}                 yylval = symbol(temp(), yytext);         return KEYWORDS;
-->                                                                            return ARROW;
-[^ \n.,;#^@a-zA-Z0-9|{}()\[\]\\]+    yylval = symbol(temp(), yytext);         return OPERATOR;
-(#[^\n]*)?\n                         BEGIN(NEWLINES);                         return '\n';
+                                     yylval = string(temp(), yytext + 1);
+                                     return STRING;
+                                   }
+\$[^ \n.,;]+                       { yylval = symbol(temp(), yytext + 1);
+                                     yylloc.first_line = currentLine;
+                                     return SYMBOL;
+                                   }
+-?[0-9]+                           { yylval = integer(temp(), atoi(yytext));
+                                     yylloc.first_line = currentLine;
+                                     return INTEGER;
+                                   }
+=                                  { yylloc.first_line = currentLine;
+                                     return ADDSLOT;
+                                   }
+:=                                 { yylloc.first_line = currentLine;
+                                     return SETSLOT;
+                                   }
+[a-zA-Z_0-9]+                      { yylval = symbol(temp(), yytext);
+                                     yylloc.first_line = currentLine;
+                                     return NAME;
+                                   }
+[a-zA-Z_0-9]+:                     { yylval = symbol(temp(), yytext);
+                                     yylloc.first_line = currentLine;
+                                     return KEYWORD;
+                                   }
+:[a-zA-Z_0-9]+:                    { yylval = symbol(temp(), yytext + 1);
+                                     yylloc.first_line = currentLine;
+                                     return OPERATOR;
+                                   }
+([a-zA-Z_0-9]+:){2,}               { yylval = symbol(temp(), yytext);
+                                     yylloc.first_line = currentLine;
+                                     return KEYWORDS;
+                                   }
+->                                 { yylloc.first_line = currentLine;
+                                     return ARROW;
+                                   }
+[^ \n.,;#^@a-zA-Z0-9|{}()\[\]\\]+  { yylval = symbol(temp(), yytext);
+                                     yylloc.first_line = currentLine;
+                                     return OPERATOR;
+                                   }
+(#[^\n]*)?\n                       { BEGIN(NEWLINES);
+                                     currentLine++;
+                                     yylloc.first_line = currentLine;
+                                     return '\n';
+                                   }
 \                                    /* discard */
-.                                                                             return *yytext;
+.                                  { yylloc.first_line = currentLine;
+                                     return *yytext;
+                                   }
 }
 <NEWLINES>{
-[\n\ ]|#[^\n]*\n                     /* discard */
+\n|#[^\n]*\n                         currentLine++;
+\                                    /* discard */
 .                                    yyless(0); BEGIN(INITIAL);
 }
