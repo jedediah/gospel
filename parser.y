@@ -206,7 +206,7 @@ literal:
 | '[' ']'
   { $$ = vectorObject(temp(), emptyVector); }
 | '[' gap list gap ']'
-  { $$ = message(temp(), oInterpreter, sVectorLiteral, listToVector(temp(), nreverse($3))); }
+  { $$ = message(temp(), oInternals, sVectorLiteral, listToVector(temp(), nreverse($3))); }
 | '{' body '}'
   { $$ = block(temp(), emptyVector, listToVector(temp(), $2)); }
 | '{' params '|' body '}'

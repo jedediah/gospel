@@ -81,7 +81,7 @@ foreach $objectConstants (values %constants) {
 foreach $object (keys %objects) {
   print SOURCE "\n  setHiddenData(o", cname($object), ", ", $hidden{$object}, ");"
    if ($hidden{$object} !~ /^ *$/);
-  print SOURCE "\n  setDelegate(temp(), o", cname($object), ", o", cname($parent{$object}), ");"
+  print SOURCE "\n  setProto(temp(), o", cname($object), ", o", cname($parent{$object}), ");"
    if ($parent{$object});
 
   print SOURCE "\n  setSlotNames(temp(), o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});

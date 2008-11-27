@@ -23,11 +23,8 @@ $serialized string(temp(), "<null>")
   normalReturn;
 !interpret
   normalReturn;
-@interpreter object
-!include:
-  // Not threadsafe, should only be accessed through the channel in the lobby.
-  *filenameToInclude = waitFor(arg(0));
-  valueReturn(*promiseOfInclusion = newPromise(edenRoot(thread)));
+@internals null
+# Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
   vector v = makeVector(edenRoot(thread), c);
@@ -36,6 +33,11 @@ $serialized string(temp(), "<null>")
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
+@interpreter object
+!include:
+  // Not threadsafe, should only be accessed through the channel in the lobby.
+  *filenameToInclude = waitFor(arg(0));
+  valueReturn(*promiseOfInclusion = newPromise(edenRoot(thread)));
 @object null
 !== equals
   if (target == waitFor(arg(0))) valueReturn(oTrue);
@@ -57,7 +59,7 @@ $serialized string(temp(), "<null>")
 !selectors
   valueReturn(vectorObject(edenRoot(thread), slotNameVector(edenRoot(thread), target)));
 !proto
-  valueReturn(delegate(target));
+  valueReturn(proto(target));
 !channel
   valueReturn(newChannel(edenRoot(thread), target));
 !slots
@@ -157,31 +159,20 @@ $serialized string(temp(), "<null>")
   valueReturn(p);
 @arrowCode object
 !from:
-  if (isPromise(arg(0))) {
-    vector eden = makeVector(edenRoot(thread), 2);
-    promise p = newPromise(edenIdx(eden, 0));
-    continuation c = threadContinuation(thread);
-    newThread(edenIdx(eden, 1),
-              p,
-              env(c),
-              dynamicEnv(c),
-              oInterpreter,
-              sMethodBody,
-              newVector(edenIdx(eden, 1),
-                        2,
-                        message(edenIdx(eden, 1), arg(0), sIdentity, emptyVector),
-                        hiddenEntity(target)));
-    valueReturn(p);
-  }
-  continuation c = origin(threadContinuation(thread));
-  tailcall(doNext,
-           setSubexpressionContinuation(thread,
-                                        c,
-                                        env(c),
-                                        dynamicEnv(c),
-                                        hiddenEntity(target),
-                                        sIdentity,
-                                        emptyVector));
+  vector eden = makeVector(edenRoot(thread), 2);
+  promise p = newPromise(edenIdx(eden, 0));
+  continuation c = threadContinuation(thread);
+  newThread(edenIdx(eden, 1),
+            p,
+            env(c),
+            dynamicEnv(c),
+            oInternals,
+            sMethodBody,
+            newVector(edenIdx(eden, 1),
+                      2,
+                      message(edenIdx(eden, 1), arg(0), sIdentity, emptyVector),
+                      hiddenEntity(target)));
+  valueReturn(p);
 @block object
 !interpret
   continuation c = threadContinuation(thread);
@@ -215,7 +206,7 @@ $serialized string(temp(), "<null>")
 !+ plus
   // TODO: Better typechecking.
   obj n = waitFor(arg(0));
-  if (delegate(n) != oInteger) raise(thread, eBadArithmetic);
+  if (proto(n) != oInteger) raise(thread, eBadArithmetic);
   valueReturn(integer(edenRoot(thread), integerValue(target) + integerValue(n)));
 !secondsDelay
   int i = integerValue(target);
@@ -307,7 +298,7 @@ $serialized string(temp(), "<null>")
 ~badArithmetic Type error in arithmetic expression.
 # TODO: Store the arity of primitives and check number of arguments when dispatching.
 ~missingArgument Too few arguments to primitive function.
-@lobby object
+@lobby object oInternals
 !return:atDepth:
   // TODO: This can fail if the user modifies "thisContext proto". Find ways to make it more robust?
   obj frame = target;

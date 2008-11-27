@@ -68,7 +68,7 @@ char *stringLiteral;
                                      location->last_line = currentLine;
                                      return STRING;
                                    }
-\$[^ \n.,;]+                       { *value = symbol(temp(), yytext + 1);
+\$[^ \[\]\(\)\{\}\n.,;]+           { *value = symbol(temp(), yytext + 1);
                                      oneLine;
                                      return SYMBOL;
                                    }

@@ -120,17 +120,14 @@ void setClass(obj o, vector c)      { setIdx(o, 0, c); }
 void setInstance(obj o, vector i)   { setIdx(o, 1, i); }
 void setHiddenData(obj o, vector h) { setIdx(o, 2, h); }
 
-vector delegate(obj o) {
-  return idx(class(o), 0);
-}
-void setDelegate(vector *live, obj o, obj d) {
-  vector c = duplicateVector(live, class(o));
-  setIdx(c, 0, d);
-  setClass(o, c);
-}
 vector proto(obj o) {
   return idx(class(o), 0);
 }
+void setProto(vector *live, obj o, obj d) {
+  vector c = duplicateVector(live, class(o));
+  setIdx(c, 0, d);
+  setClass(o, c);
+}  
 
 obj newObject(vector *live, vector proto, vector slotNames, vector slotValues, void *hidden) {
   vector eden = newVector(live, 4, proto, slotNames, slotValues, hidden);
@@ -243,10 +240,10 @@ obj appendStrings(vector *live, obj s1, obj s2) {
 
 // FIXME: This is not a good enough test, primitives and closures need to be specially tagged.
 int isPrimitive(vector o) {
-  return delegate(o) == oPrimitive;
+  return proto(o) == oPrimitive;
 }
 int isClosure(obj o) {
-  return delegate(o) == oClosure;
+  return proto(o) == oClosure;
 }
 
 vector listToVector(life, vector);
@@ -264,7 +261,7 @@ vector closureParams(obj c) { return idx(hiddenEntity(c), 1); }
 vector closureBody(obj c)   { return idx(hiddenEntity(c), 2); }
 
 void setSlotNames(vector *live, obj o, vector slotNames) {
-  setClass(o, prefix(live, delegate(o), slotNames));
+  setClass(o, prefix(live, proto(o), slotNames));
 }
 void setSlotValues(obj o, vector slotValues) {
   setInstance(o, slotValues);
@@ -288,7 +285,7 @@ void **shallowLookup(obj o, obj name) {
 void **deepLookup(obj o, obj name) {
   void **slot;
   if (slot = shallowLookup(o, name)) return slot;
-  return o == oNull ? 0 : deepLookup(delegate(o), name);
+  return o == oNull ? 0 : deepLookup(proto(o), name);
 }
 
 obj primitive(vector *live, void *code) {
@@ -332,7 +329,6 @@ vector newThread(vector *life,
 promise REPLPromise;
 void returnToREPL(vector thread) {
   keep(thread, REPLPromise, oNull);
-  // The return from this function ends the current thread.
 }
 #define abort(thread, ...) do { \
   printf(__VA_ARGS__); \
@@ -404,7 +400,7 @@ void dispatch(vector thread) {
                                                     args,
                                                     c),
                                           slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
-                                          oInterpreter,
+                                          oInternals,
                                           sMethodBody,
                                           closureBody(contents)));
   }
@@ -475,7 +471,7 @@ obj message(vector *live, obj target, obj selector, vector args) {
   return slotlessObject(live, oCode, newVector(live, 3, target, selector, args));
 }
 obj expressionSequence(vector *live, vector exprs) {
-  return message(live, oInterpreter, sMethodBody, exprs);
+  return message(live, oInternals, sMethodBody, exprs);
 }
 obj promiseCode(vector *live, obj message) {
   return slotlessObject(live, oPromiseCode, message);
@@ -537,17 +533,18 @@ promise *promiseOfInclusion;
 void (*primitiveCode(obj p))(continuation);
 
 obj appendSymbols(vector *live, pair symbols) {
-  vector living = newVector(live, 2, symbols, 0);
-  obj s = symbol(edenIdx(living, 1), "");
+  vector e = newVector(live, 2, symbols, 0);
+  obj s = string(edenIdx(e, 0), "");
   for (; !empty(symbols); symbols = cdr(symbols))
-    s = appendStrings(edenIdx(living, 1), s, car(symbols));
+    s = appendStrings(edenIdx(e, 0), s, car(symbols));
+  setProto(edenIdx(e, 1), s, oSymbol);
   return intern(live, s);
 }
 
 obj symbol(vector *live, const char *s) {
   vector eden = makeVector(live, 2);
   obj o = string(edenIdx(eden, 0), s);
-  setDelegate(edenIdx(eden, 1), o, oSymbol);
+  setProto(edenIdx(eden, 1), o, oSymbol);
   return intern(live, o);
 }
 

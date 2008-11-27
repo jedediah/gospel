@@ -164,7 +164,7 @@ void mark(vector v) {
   }
 }
 
-vector symbolTable, oLobby, oInterpreter;
+vector symbolTable;
 void flip() {
   whiteList = constructWhiteList();
   blackList = emptyVector;
@@ -356,11 +356,11 @@ void fulfillPromise(promise p, vector o) {
   int oldValue = compareAndExchange(pvf, UNWATCHED_PROMISE, (int)o);
   if (oldValue == WATCHED_PROMISE) {
     if (compareAndExchange(pvf, WATCHED_PROMISE, (int)o) != WATCHED_PROMISE)
-      die("Promise fulfillment stolen between comparisons.");
+      return; // Someone else fulfilled this promise between our comparisons.
     if (syscall(SYS_futex, pvf, FUTEX_WAKE, -1) == -1)
       die("Weird error while waking up threads waiting for promise fulfillment.");
   }
-  else if (oldValue != UNWATCHED_PROMISE) die("Promise fulfillment stolen.");
+  else if (oldValue != UNWATCHED_PROMISE) return; // This promise has already been fulfilled.
 }
 
 vector waitFor(void *e) {
