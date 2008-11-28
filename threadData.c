@@ -19,8 +19,6 @@
 #include "mutex.h"
 #include "gc.h"
 
-// TODO: Factor out the definition of "obj" into its own file.
-typedef vector obj;
 typedef vector continuation;
 
 // Thread data objects are connected into a doubly-linked list for the benefit of the garbage collector.

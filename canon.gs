@@ -102,7 +102,7 @@ vector serialized {
   "[" ++ (self :mapping: { x | x serialized } injecting: { x y | x ++ ", " ++ y }) ++ "]"
 }
 
-integer print { self serialized print }
+object print { self serialized print }
 
 vector print { self each: { x | x print } }
 

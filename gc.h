@@ -32,7 +32,7 @@ typedef struct vectorStruct {
 } *vector;
 
 int isMarked(vector);
-void mark(vector v);
+void mark(vector);
 
 // The following are only exposed because they're used in unit tests.
 void scan(void);
@@ -71,7 +71,6 @@ void permitGC(void);
 void spawn(void *, void *, void *);
 
 typedef vector promise;
-int isPromise(void *);
 promise newPromise(life);
 vector promiseValue(promise);
 vector *promiseValueField(promise);
@@ -80,7 +79,6 @@ void fulfillPromise(promise, vector);
 
 typedef vector channel;
 channel newChannel(life, vector);
-int isChannel(vector);
 vector channelTarget(channel);
 int *channelCount(channel);
 int *channelFlag(channel);
@@ -94,5 +92,52 @@ void collectGarbage(void);
 void requireGC(void);
 
 vector garbageCollectorRoot;
+
+typedef vector obj;
+
+int isPromise(vector);
+int isChannel(vector);
+int isInteger(obj);
+int isPrimitive(obj);
+int isClosure(obj);
+int isString(obj);
+int isSymbol(obj);
+int isStackFrame(obj);
+
+vector suffix(life, void *, vector);
+vector prefix(life, void *, vector);
+
+vector class(obj);
+vector instance(obj);
+vector hiddenEntity(obj);
+void *hiddenAtom(obj);
+void *setSlotByIndex(obj, int, obj);
+void setSlotNames(life, obj, vector);
+void setSlotValues(obj, vector);
+int slotCount(obj);
+void *slotName(obj, int);
+vector slotNameVector(life, obj o);
+void setClass(obj, vector);
+void setInstance(obj, vector);
+void setHiddenData(obj, vector);
+obj proto(obj);
+obj setProto(life, obj, obj);
+obj newObject(life, obj, vector, vector, void *);
+obj slotlessObject(life, obj, vector);
+obj fixnumObject(life, obj, int);
+
+obj newClosure(life, obj, vector, vector);
+vector closureEnv(obj);
+vector closureParams(obj);
+vector closureBody(obj);
+
+obj primitive(life, void *);
+obj integer(life, int);
+int integerValue(obj);
+
+obj stackFrame(life, obj, vector, vector, vector);
+vector stackFrameContinuation(obj);
+
+void initializePrototypeTags();
 
 #endif

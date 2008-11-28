@@ -47,8 +47,6 @@ int mainLexer(YYSTYPE *, YYLTYPE *);
 life temp(void);
 void invalidateTemporaryLife(void);
 
-typedef vector obj;
-
 obj symbol(life, const char *c);
 obj appendSymbols(life, vector);
 
@@ -65,17 +63,12 @@ vector vectorAppend(life, vector, vector);
 
 obj appendStrings(life, obj, obj);
 
-obj primitive(life, void *);
-
 obj promiseCode(life, obj);
 
 obj expressionSequence(life, vector);
 
 obj string(life, const char *);
-obj integer(life, int);
-int integerValue(obj);
 obj vectorObject(life, vector);
-obj slotlessObject(life, vector, vector);
 
 typedef vector pair;
 #define emptyList 0
@@ -89,9 +82,6 @@ int length(pair);
 pair listToVector(life, pair);
 pair map(life, void *, pair);
 pair nreverse(pair);
-
-int isPrimitive(obj);
-int isClosure(obj);
 
 int isEmpty(vector);
 

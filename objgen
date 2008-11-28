@@ -28,7 +28,7 @@ $id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
 while (<>) {
   if    (/^(\#.*| *)$/           ) {                                                            }
   elsif (/^&((?:$id:?)+)/        ) { push @symbols, $1;                                         }
-  elsif (/^@($id) ($id)(.*)$/    ) { $parent{$currentObject = $1} = $2;
+  elsif (/^@($id) ($id) ?(.*)$/  ) { $parent{$currentObject = $1} = $2;
                                      $objects{$currentObject} = {};
                                      $hidden{$currentObject} = $3;                              }
   elsif (/^~($id) ([^\n]*)$/     ) { $exceptions{$currentObject}{$1} = $2;                      }
@@ -42,13 +42,13 @@ while (<>) {
 open HEADER, ">objects.h" or die("ObjGen couldn't write objects.h");
 open SOURCE, ">objects.c" or die("ObjGen couldn't write objects.c");
 
-print HEADER "obj ",
+print HEADER "#ifndef OBJECTS_H\n#define OBJECTS_H\n\nobj ",
       (join "\n  , ",
            (map { "o" . cname $_ } keys %objects),
            (map { "s" . cname $_ } @symbols, keys %methods),
            (map { join "\n  , ", map { "s" . cname $_->[0] } @$_ } values %constants),
            (map { join "\n  , ", map { "e" . cname $_ } keys %$_ } values %exceptions)),
-      ";\n";
+      ";\n\n#endif\n";
 
 foreach $object (keys %objects) {
   foreach (keys %{$objects{$object}}) {

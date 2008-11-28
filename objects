@@ -23,6 +23,9 @@ $serialized string(temp(), "<null>")
   normalReturn;
 !interpret
   normalReturn;
+!print
+  fputs("<null>", stdout);
+  normalReturn;
 @internals null
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
 !vectorLiteral
@@ -36,9 +39,16 @@ $serialized string(temp(), "<null>")
 @interpreter object
 !include:
   // Not threadsafe, should only be accessed through the channel in the lobby.
-  *filenameToInclude = waitFor(arg(0));
+  // TODO: Check that filename is really a string?
+  obj a = waitFor(arg(0));
+  if (!isString(a)) raise(thread, eStringExpected);
+  *filenameToInclude = a;
   valueReturn(*promiseOfInclusion = newPromise(edenRoot(thread)));
 @object null
+!setProto:
+  obj p = arg(0);
+  setProto(edenRoot(thread), target, p);
+  valueReturn(p);
 !== equals
   if (target == waitFor(arg(0))) valueReturn(oTrue);
   valueReturn(oFalse);
@@ -62,8 +72,6 @@ $serialized string(temp(), "<null>")
   valueReturn(proto(target));
 !channel
   valueReturn(newChannel(edenRoot(thread), target));
-!slots
-  valueReturn(slotlessObject(edenRoot(thread), oSlotCollection, target));
 !identity
   normalReturn;
 !addSlot:as:
@@ -76,13 +84,11 @@ $serialized string(temp(), "<null>")
   void **slot = deepLookup(target, waitFor(arg(0)));
   if (!slot) raise(thread, eGettingNonexistantSlot);
   valueReturn(*slot);
-!interpret
-  normalReturn;
 !new
   valueReturn(slotlessObject(edenRoot(thread), oObject, 0));
 @vector object
 !ofLength:containing:
-  int l = integerValue(waitFor(arg(0)));
+  int l = safeIntegerValue(waitFor(arg(0)));
   if (l < 0) raise(thread, eNegativeVectorLength);
   obj o = arg(1);
   vector v = makeVector(edenRoot(thread), l);
@@ -91,7 +97,7 @@ $serialized string(temp(), "<null>")
 !length
   valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target))));
 !at:put:ifAbsent:
-  int i = integerValue(waitFor(arg(0)));
+  int i = safeIntegerValue(waitFor(arg(0)));
   obj v = hiddenEntity(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
@@ -101,7 +107,7 @@ $serialized string(temp(), "<null>")
   }
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
-  int i = integerValue(waitFor(arg(0)));
+  int i = safeIntegerValue(waitFor(arg(0)));
   obj v = hiddenEntity(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
@@ -110,7 +116,7 @@ $serialized string(temp(), "<null>")
              setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(1), sDo, emptyVector));
   }
   valueReturn(idx(v, i));
-@primitive object
+@primitive object newAtomVector(temp(), 1, prototypePrimitiveHiddenValue)
 @string object newAtomVector(temp(), 1, 0)
 !serialized
   // FIXME: This should probably convert e.g. newlines to "\n".
@@ -118,16 +124,18 @@ $serialized string(temp(), "<null>")
   obj quote = string(edenIdx(eden, 0), "\""); // TODO: Create this string once, at startup.
   valueReturn(appendStrings(edenIdx(eden, 1), quote, appendStrings(edenIdx(eden, 1), target, quote)));
 !++ appending:
-  // TODO: Typechecking.
+  obj a = waitFor(arg(0));
+  if (!isString(target) || !isString(a)) raise(thread, eStringExpected);
   valueReturn(appendStrings(edenRoot(thread), target, waitFor(arg(0))));
 !print
-  fputs(stringData(target), stdout); fflush(stdout);
+  if (!isString(target)) raise(thread, eStringExpected);
+  fputs(stringData(target), stdout);
   normalReturn;
 @symbol object newAtomVector(temp(), 1, 0)
 !serialized
   // TODO: Create the dollarsign string once, at startup.
   valueReturn(appendStrings(edenRoot(thread), string(edenRoot(thread), "$"), target));
-@closure object
+@closure object newVector(temp(), 3, oNull, emptyVector, newVector(temp(), 1, oClosure))
 !environment
   valueReturn(closureEnv(target));
 @code object
@@ -181,55 +189,42 @@ $serialized string(temp(), "<null>")
 @integer object newAtomVector(temp(), 1, 0)
 !serialized
   char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
-  sprintf(buffer, "%d", integerValue(target));
+  sprintf(buffer, "%d", safeIntegerValue(target));
   valueReturn(string(edenRoot(thread), buffer));
 !== equals
-  // TODO: Better typechecking.
-  obj a = waitFor(arg(0));
-  if (proto(a) != oInteger) raise(thread, eBadArithmetic);
-  if (integerValue(target) == integerValue(a)) normalReturn;
+  if (safeIntegerValue(target) == safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
 !< isLessThan
-  // TODO: Typechecking.
-  if (integerValue(target) < integerValue(waitFor(arg(0)))) normalReturn;
+  if (safeIntegerValue(target) < safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
 !> isGreaterThan
-  // TODO: Typechecking.
-  if (integerValue(target) > integerValue(waitFor(arg(0)))) normalReturn;
+  if (safeIntegerValue(target) > safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
-!- minus
-  // TODO: Typechecking.
-  valueReturn(integer(edenRoot(thread), integerValue(target) - integerValue(waitFor(arg(0)))));
-!print
-  printf("%d", hiddenAtom(target)); fflush(stdout);
-  normalReturn;
-!+ plus
-  // TODO: Better typechecking.
-  obj n = waitFor(arg(0));
-  if (proto(n) != oInteger) raise(thread, eBadArithmetic);
-  valueReturn(integer(edenRoot(thread), integerValue(target) + integerValue(n)));
+!- minus:
+  valueReturn(integer(edenRoot(thread),
+              safeIntegerValue(target) - safeIntegerValue(waitFor(arg(0)))));
+!+ plus:
+  valueReturn(integer(edenRoot(thread),
+                      safeIntegerValue(target) + safeIntegerValue(waitFor(arg(0)))));
 !secondsDelay
-  int i = integerValue(target);
+  int i = safeIntegerValue(target);
   while (i) i = sleep(i);
   valueReturn(target);
 @byteVector object
 !length
+  // TODO: Typechecking?
   valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target)) / sizeof(int)));
 @file object
+# This could be made more abstract by having methods obtain the target's file descriptor through
+# a message ("$posixFileDescriptor"?) instead of assuming that it is the target's hidden atom.
 !close
-  if (close((int)hiddenAtom(target))) raise(thread, eClosingFile);
+  if (close(safeIntegerValue(target))) raise(thread, eClosingFile);
   normalReturn;
 !readBytes:
   vector *live = edenRoot(thread), living = makeVector(live, 3);
-  int length = integerValue(waitFor(arg(0)));
+  int length = safeIntegerValue(waitFor(arg(0)));
   vector buffer = makeAtomVector(idxPointer(living, 0), (length + sizeof(int) - 1) / sizeof(int));
-  int count = read(integerValue(call(idxPointer(living, 1),
-                                     dynamicEnv(threadContinuation(thread)),
-                                     target,
-                                     sPosixFileDescriptor,
-                                     emptyVector)),
-                   buffer->data,
-                   length);
+  int count = read(safeIntegerValue(target), buffer->data, length);
   vector result = makeAtomVector(idxPointer(living, 2), (count + sizeof(int) - 1) / sizeof(int));
   memcpy(result->data, buffer->data, count);
   valueReturn(slotlessObject(live, oByteVector, result));
@@ -239,49 +234,40 @@ $serialized string(temp(), "<null>")
 !new
   int s = socket(PF_INET, SOCK_STREAM, 0);
   if (s == -1) raise(thread, eOpeningSocket);
-  vector *live = edenRoot(thread);
-  valueReturn(slotlessObject(live, oSocket, newAtomVector(live, 1, s)));
+  valueReturn(setProto(edenRoot(thread), integer(edenRoot(thread), s), oSocket));
 !bind:
   struct sockaddr_in s;
   memset(&s, 0, sizeof(struct sockaddr_in));
   s.sin_family = AF_INET;
-  s.sin_port = htons(integerValue(waitFor(arg(0))));
+  s.sin_port = htons(safeIntegerValue(waitFor(arg(0))));
   s.sin_addr.s_addr = htonl(INADDR_ANY);//inet_addr("127.0.0.1");
-  if (bind((int)hiddenAtom(target), (struct sockaddr *)&s, sizeof(struct sockaddr_in)))
+  if (bind(safeIntegerValue(target), (struct sockaddr *)&s, sizeof(struct sockaddr_in)))
     raise(thread, eBindingSocket);
   normalReturn;
 !listenWithBacklog:
-  if (listen((int)hiddenAtom(target), integerValue(waitFor(arg(0)))))
+  if (listen((int)hiddenAtom(target), safeIntegerValue(waitFor(arg(0)))))
     raise(thread, eListeningOnSocket);
   normalReturn;
 !accept
   struct sockaddr socketParameters;
   int socketParametersSize = sizeof(struct sockaddr);
-  int socketHandle = accept((int)hiddenAtom(target), &socketParameters, &socketParametersSize);
+  int socketHandle = accept(safeIntegerValue(target), &socketParameters, &socketParametersSize);
   if (socketHandle == -1) raise(thread, eAcceptingSocketConnection);
   vector *live = edenRoot(thread);
-  valueReturn(slotlessObject(live, oSocket, newAtomVector(live, 1, socketHandle)));
+  valueReturn(setProto(edenRoot(thread), integer(edenRoot(thread), socketHandle), oSocket));
 !read:
-  int length = integerValue(waitFor(arg(0)));
+  int length = safeIntegerValue(waitFor(arg(0)));
   vector *live = edenRoot(thread);
   obj string = slotlessObject(live, oString, makeAtomVector(live, length));
-  if (recv((int)hiddenAtom(target), vectorData(hiddenEntity(string)), length, 0) == -1)
+  if (recv(safeIntegerValue(target), vectorData(hiddenEntity(string)), length, 0) == -1)
     raise(thread, eReadingFromSocket);
   valueReturn(string);
 @true object
 @false object
-@slotCollection object
-!includesKey:
-  obj o = hiddenEntity(target), key = waitFor(arg(0));
-  for (int i = 0; i < slotCount(o); i++) if (slotName(o, i) == key) valueReturn(oTrue);
-  valueReturn(oFalse);
-!at:put:
-  obj o = hiddenEntity(target), key = waitFor(arg(0)), value = waitFor(arg(1));
-  for (int i = 0; i < slotCount(o); i++)
-    if (slotName(o, i) == key)
-      valueReturn(setSlotByIndex(o, i, value));
-  valueReturn(addSlot(edenRoot(thread), o, key, value));
 @exception object
+~stringExpected Non-string encountered where string expected.
+~stackFrameExpected Something other than a stack frame encountered where stack frame expected.
+~integerExpected Non-integer encountered where integer expected.
 ~negativeVectorLength Attempted to create a vector with negative length.
 ~messageNotUnderstood Message not understood.
 ~readingFromSocket Error while reading from a socket.
@@ -295,35 +281,32 @@ $serialized string(temp(), "<null>")
 ~topLevelRecursion Attempted to recurse at the top level.
 ~settingNonexistantSlot Attempted to set a nonexistant slot.
 ~gettingNonexistantSlot Attempted to access a nonexistant slot.
-~badArithmetic Type error in arithmetic expression.
-# TODO: Store the arity of primitives and check number of arguments when dispatching.
 ~missingArgument Too few arguments to primitive function.
 @lobby object oInternals
 !return:atDepth:
-  // TODO: This can fail if the user modifies "thisContext proto". Find ways to make it more robust?
   obj frame = target;
-  for (int i = integerValue(waitFor(arg(1)));;) {
+  for (int i = safeIntegerValue(waitFor(arg(1)));;) {
     if (frame == oLobby) raise(thread, eBadReturnDepth);
     if (!i--) break;
     frame = proto(frame);
   }
-  obj v = setShelter(thread, arg(0));
-  setContinuation(thread, hiddenEntity(frame));
+  obj v = *edenRoot(thread) = arg(0); // Because it might be orphaned when we change continuations.
+  setContinuation(thread, safeStackFrameContinuation(frame));
   valueReturn(v);
 !return
   if (target == oLobby) raise(thread, eBadReturnDepth);
-  setContinuation(thread, hiddenEntity(target));
+  setContinuation(thread, safeStackFrameContinuation(target));
   valueReturn(oNull);
 !return:
   if (target == oLobby) raise(thread, eBadReturnDepth);
-  obj v = *edenRoot(thread) = arg(0);
-  setContinuation(thread, hiddenEntity(target));
+  obj v = *edenRoot(thread) = arg(0); // Because it might be orphaned when we change continuations.
+  setContinuation(thread, safeStackFrameContinuation(target));
   valueReturn(v);
 !thisContext
   normalReturn;
 !recurse
   if (target == oLobby) raise(thread, eTopLevelRecursion);
-  tailcall(doNext, setContinuation(thread, hiddenEntity(target)));
+  tailcall(doNext, setContinuation(thread, safeStackFrameContinuation(target)));
 !abortToREPL
   tailcall(returnToREPL, thread);
 !self
@@ -342,7 +325,6 @@ $null
 $lobby
 $file
 $socket
-$slotCollection
 $byteVector
 $code
 $promiseCode
@@ -361,8 +343,6 @@ $vector
   collectGarbage();
   permitGC();
   normalReturn;
-!freeSpaceCount
-  valueReturn(integer(edenRoot(thread), freeSpaceCount()));
 !exit
   exit(0);
 @dynamicEnvironment object

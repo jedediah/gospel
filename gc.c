@@ -26,6 +26,8 @@
 #include "mutex.h"
 #include "death.h"
 
+#include "objects.h" // Because we define some object creation functions.
+
 #define _GNU_SOURCE
 #include <sys/syscall.h>
 #include <sched.h>
@@ -38,13 +40,24 @@ int liveSegmentCount = 0;
 
 #define ARENA_CELLS (1024 * 1024)
 
+#define TYPE_BIT_MASK 7
+// "Tag bits" are the type bits plus the GC mark bit.
+#define TAG_BIT_MASK  (TYPE_BIT_MASK * 2 + 1)
+#define TAG_BIT_COUNT 4
+
+
 #define ATOM_VECTOR   0
 #define ENTITY_VECTOR 1
 #define PROMISE       2
 #define CHANNEL       3
+#define FIXNUM        4
+#define PRIMITIVE     5
+#define CLOSURE       6
+#define STACK_FRAME   7
+#define MARK_BIT      8
 
 int vectorLength(vector v) {
-  return v->type >> 3;
+  return v->type >> TAG_BIT_COUNT;
 }
 vector endOfVector(vector v) {
   return (vector)&v->data[vectorLength(v)];
@@ -53,25 +66,50 @@ vector endOfEmptyVector(vector v) {
   return (vector)v->data;
 }
 void setVectorLength(vector v, int l) {
-  v->type = l << 3 | v->type & 7;
+  v->type = l << TAG_BIT_COUNT | v->type & TAG_BIT_MASK;
 }
 
 int vectorType(vector v) {
-  return v->type & 3;
+  return v->type & TYPE_BIT_MASK;
 }
 void setVectorType(vector v, int t) {
-  v->type = v->type & ~7 | t; // Clears the GC mark bit.
+  v->type = v->type & ~TAG_BIT_MASK | t; // Clears the GC mark bit.
+}
+
+// Strictly speaking, we don't need to distinguish closures at the primitive-type level to avoid segfaults;
+// they could just be entity vectors. But requiring the dispatch code to traverse every object's prototype
+// chain in case it leads to the closure prototype would really suck, and in fact it might be desirable to
+// allow the possibility of executable closure-like objects that don't inherit from the closure prototype.
+// In any event, the extra type safety doesn't hurt.
+
+int isPromise(vector v)   { return vectorType(v) == PROMISE;   }
+int isChannel(vector v)   { return vectorType(v) == CHANNEL;   }
+
+int isInteger(obj o)    { return vectorType(o) == FIXNUM;      }
+int isPrimitive(obj o)  { return vectorType(o) == PRIMITIVE;   }
+int isClosure(obj o)    { return vectorType(o) == CLOSURE;     }
+int isStackFrame(obj o) { return vectorType(o) == STACK_FRAME; }
+
+// These typechecks are at least sufficient to prevent a segmentation fault, unless there is no null
+// terminator between the beginning of the hidden atom vector and the end of the program's segment.
+// TODO: Consider giving strings their own type label, in future tagging schemes that have the room?
+int isString(obj o) {
+  vector v = hiddenEntity(o);
+  return vectorType(v) == ATOM_VECTOR;
+}
+int isSymbol(obj o) {
+  return isString(o);
 }
 
 // Used only during a garbage collection cycle.
 int isMarked(vector v) {
-  return v->type & 4;
+  return v->type & MARK_BIT;
 }
 void setMarkBit(vector v) {
-  v->type |= 4;
+  v->type |= MARK_BIT;
 }
 void clearMarkBit(vector v) {
-  v->type &= ~4;
+  v->type &= ~MARK_BIT;
 }
 
 vector replace(vector v, vector replacement) {
@@ -148,6 +186,7 @@ vector constructWhiteList() {
 }
 
 // Return the number of cells occupied by the segments of the white list, including headers.
+// Should only be called from inside the allocator lock, to avoid the possibility of a GC interrupting.
 int freeSpaceCount() {
   int result = 0;
   vector current = whiteList;
@@ -174,9 +213,13 @@ void flip() {
   setMarkBit(garbageCollectorRoot);
 }
 
+// TODO: Now that e.g. primitives and integers have their own typetag values, they can be
+//       implemented more efficiently.
 void scan() {
   switch (vectorType(grayList)) {
     case ENTITY_VECTOR:
+    case CLOSURE:
+    case STACK_FRAME:
       for (int i = 0; i < vectorLength(grayList); i++) mark(idx(grayList, i));
       break;
     case PROMISE:
@@ -184,7 +227,7 @@ void scan() {
       break;
     case CHANNEL:
       mark(channelTarget((channel)grayList));
-    // Atom vectors have nothing in them to scan.
+    // Atom vectors, fixnums abd primitives have nothing in them to scan.
   }
   grayList = grayList->next;
 }
@@ -333,9 +376,6 @@ void releaseFutex(volatile int *futexCount, volatile int *futexFlag) {
 #define WATCHED_PROMISE   -1
 #define UNWATCHED_PROMISE  0
 
-int isPromise(void *e) {
-  return vectorType((vector)e) == PROMISE;
-}
 promise newPromise(vector *live) {
   vector n = makeVector(live, 1);
   setVectorType(n, PROMISE);
@@ -378,9 +418,6 @@ int GCMutexCount = 0, GCMutexFlag = 0;
 void forbidGC() { acquireFutex(&GCMutexCount, &GCMutexFlag); }
 void permitGC() { releaseFutex(&GCMutexCount, &GCMutexFlag); }
 
-int isChannel(vector v) {
-  return vectorType(v) == CHANNEL;
-}
 vector  channelTarget(vector c) { return (vector)idx(c, 0);  }
 int    *channelCount(vector c)  { return (int *)&c->data[1]; }
 int    *channelFlag(vector c)   { return (int *)&c->data[2]; }
@@ -400,4 +437,122 @@ void spawn(void *topOfStack, void *f, void *a) {
             CLONE_FS | CLONE_FILES | CLONE_PTRACE | CLONE_VM | CLONE_THREAD | CLONE_SYSVSEM | CLONE_SIGHAND,
             a)
       == -1) die("Failed spawning.");
+}
+
+vector suffix(vector *live, void *e, vector v) {
+  int l = vectorLength(v);
+  vector living = newVector(live, 3, e, v, 0),
+         nv = makeVector(edenIdx(living, 2), l + 1);
+  nv->data[l] = e;
+  memcpy(nv->data, v->data, l * sizeof(void *));
+  return nv;
+}
+vector prefix(vector *live, void *e, vector v) {
+  int l = vectorLength(v);
+  vector living = newVector(live, 3, e, v, 0),
+         nv = makeVector(edenIdx(living, 2), l + 1);
+  setIdx(nv, 0, e);
+  memcpy(edenIdx(nv, 1), vectorData(v), l * sizeof(void *));
+  return nv;
+}
+
+vector  class(obj o)        { return     idx(o, 0);     }
+vector  instance(obj o)     { return     idx(o, 1);     }
+vector  hiddenEntity(obj o) { return     idx(o, 2);     }
+void   *hiddenAtom(obj o)   { return idx(idx(o, 2), 0); }
+
+// Encapsulate the way slot names are stored within the class vector.
+int slotCount(obj o) {
+  return vectorLength(idx(o, 0)) - 1;
+}
+void *slotName(obj o, int i) {
+  return idx(class(o), i + 1);
+}
+vector slotNameVector(vector *eden, obj o) {
+  vector c = class(o);
+  int l = vectorLength(c) - 1;
+  vector s = makeVector(edenIdx(newVector(eden, 2, c, 0), 1), l);
+  memcpy(vectorData(s), idxPointer(c, 1), l * sizeof(vector));
+  return s;
+}
+
+// Encapsulate the way slot values are stored within the instance vector.
+void *setSlotByIndex(obj o, int i, obj v) {
+  return setIdx(instance(o), i, v);
+}
+
+void setClass(obj o, vector c)      { setIdx(o, 0, c); }
+void setInstance(obj o, vector i)   { setIdx(o, 1, i); }
+void setHiddenData(obj o, vector h) { setIdx(o, 2, h); }
+
+void setSlotNames(vector *live, obj o, vector slotNames) {
+  setClass(o, prefix(live, proto(o), slotNames));
+}
+void setSlotValues(obj o, vector slotValues) {
+  setInstance(o, slotValues);
+}
+
+obj proto(obj o) {
+  return idx(class(o), 0);
+}
+obj setProto(vector *live, obj o, obj p) {
+  vector c = duplicateVector(live, class(o));
+  setIdx(c, 0, p);
+  setClass(o, c);
+  return o;
+}
+obj newObject(vector *live, obj proto, vector slotNames, vector slotValues, void *hidden) {
+  vector eden = newVector(live, 4, proto, slotNames, slotValues, hidden);
+  return newVector(live,
+                   3,
+                   prefix(edenIdx(eden, 0), proto, slotNames),
+                   slotValues,
+                   hidden);
+}
+obj slotlessObject(vector *live, obj proto, vector hidden) {
+  return newObject(live, proto, emptyVector, emptyVector, hidden);
+}
+
+obj fixnumObject(vector *live, obj proto, int hidden) {
+  obj o = slotlessObject(live, proto, newAtomVector(live, 1, hidden));
+  setVectorType(o, FIXNUM);
+  return o;
+}
+
+obj primitive(vector *live, void *code) {
+  obj o = slotlessObject(live, oPrimitive, newAtomVector(live, 1, code));
+  setVectorType(o, PRIMITIVE);
+  return o;
+}
+
+obj newClosure(vector *live, obj env, vector params, vector body) {
+  obj o = slotlessObject(live, oClosure, newVector(live, 3, env, params, body));
+  setVectorType(o, CLOSURE);
+  return o;
+}
+vector closureEnv(obj c)    { return idx(hiddenEntity(c), 0); }
+vector closureParams(obj c) { return idx(hiddenEntity(c), 1); }
+vector closureBody(obj c)   { return idx(hiddenEntity(c), 2); }
+
+obj integer(vector *live, int value) {
+  return fixnumObject(live, oInteger, value);
+}
+int integerValue(obj i) {
+  return (int)hiddenAtom(i);
+}
+
+obj stackFrame(vector *life, obj parent, vector names, vector values, vector continuation) {
+  obj o = newObject(life, parent, names, values, continuation);
+  setVectorType(o, STACK_FRAME);
+  return o;
+}
+vector stackFrameContinuation(obj sf) {
+  return hiddenEntity(sf);  
+}
+
+// Certain objects have to be given special type tags.
+void initializePrototypeTags() {
+  setVectorType(oInteger, FIXNUM);
+  setVectorType(oPrimitive, PRIMITIVE);
+  setVectorType(oClosure, CLOSURE);
 }

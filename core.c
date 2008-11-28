@@ -74,73 +74,6 @@ pair map(life live, void *fn, pair list) {
                      : cons(live, ((void *(*)(void *))fn)(car(list)), map(live, fn, cdr(list)));
 }
 
-vector suffix(vector *live, void *e, vector v) {
-  int l = vectorLength(v);
-  vector living = newVector(live, 3, e, v, 0),
-         nv = makeVector(edenIdx(living, 2), l + 1);
-  nv->data[l] = e;
-  memcpy(nv->data, v->data, l * sizeof(void *));
-  return nv;
-}
-vector prefix(vector *live, void *e, vector v) {
-  int l = vectorLength(v);
-  vector living = newVector(live, 3, e, v, 0),
-         nv = makeVector(edenIdx(living, 2), l + 1);
-  setIdx(nv, 0, e);
-  memcpy(edenIdx(nv, 1), vectorData(v), l * sizeof(void *));
-  return nv;
-}
-
-vector  class(obj o)        { return     idx(o, 0);     }
-vector  instance(obj o)     { return     idx(o, 1);     }
-vector  hiddenEntity(obj o) { return     idx(o, 2);     }
-void   *hiddenAtom(obj o)   { return idx(idx(o, 2), 0); }
-
-// Encapsulate the way slot names are stored within the class vector.
-int slotCount(obj o) {
-  return vectorLength(idx(o, 0)) - 1;
-}
-void *slotName(obj o, int i) {
-  return idx(class(o), i + 1);
-}
-vector slotNameVector(vector *eden, obj o) {
-  vector c = class(o);
-  int l = vectorLength(c) - 1;
-  vector s = makeVector(edenIdx(newVector(eden, 2, c, 0), 1), l);
-  memcpy(vectorData(s), idxPointer(c, 1), l * sizeof(vector));
-  return s;
-}
-
-// Encapsulate the way slot values are stored within the instance vector.
-void *setSlotByIndex(obj o, int i, obj v) {
-  return setIdx(instance(o), i, v);
-}
-
-void setClass(obj o, vector c)      { setIdx(o, 0, c); }
-void setInstance(obj o, vector i)   { setIdx(o, 1, i); }
-void setHiddenData(obj o, vector h) { setIdx(o, 2, h); }
-
-vector proto(obj o) {
-  return idx(class(o), 0);
-}
-void setProto(vector *live, obj o, obj d) {
-  vector c = duplicateVector(live, class(o));
-  setIdx(c, 0, d);
-  setClass(o, c);
-}  
-
-obj newObject(vector *live, vector proto, vector slotNames, vector slotValues, void *hidden) {
-  vector eden = newVector(live, 4, proto, slotNames, slotValues, hidden);
-  return newVector(live,
-                   3,
-                   prefix(edenIdx(eden, 0), proto, slotNames),
-                   slotValues,
-                   hidden);
-}
-obj slotlessObject(vector *live, vector proto, vector hidden) {
-  return newObject(live, proto, emptyVector, emptyVector, hidden);
-}
-
 typedef vector continuation;
 
 continuation newContinuation(vector *live,
@@ -238,34 +171,11 @@ obj appendStrings(vector *live, obj s1, obj s2) {
   return slotlessObject(live, oString, s);
 }
 
-// FIXME: This is not a good enough test, primitives and closures need to be specially tagged.
-int isPrimitive(vector o) {
-  return proto(o) == oPrimitive;
-}
-int isClosure(obj o) {
-  return proto(o) == oClosure;
-}
-
-vector listToVector(life, vector);
 obj block(vector *live, vector params, vector body) {
   return slotlessObject(live, oBlock, newVector(live, 2, params, body));
 }
 vector blockParams(obj b) { return idx(hiddenEntity(b), 0); }
 vector blockBody(obj b)   { return idx(hiddenEntity(b), 1); }
-
-obj newClosure(vector *live, obj env, vector params, vector body) {
-  return slotlessObject(live, oClosure, newVector(live, 3, env, params, body));
-}
-vector closureEnv(obj c)    { return idx(hiddenEntity(c), 0); }
-vector closureParams(obj c) { return idx(hiddenEntity(c), 1); }
-vector closureBody(obj c)   { return idx(hiddenEntity(c), 2); }
-
-void setSlotNames(vector *live, obj o, vector slotNames) {
-  setClass(o, prefix(live, proto(o), slotNames));
-}
-void setSlotValues(obj o, vector slotValues) {
-  setInstance(o, slotValues);
-}
 
 vector vectorAppend(vector *live, vector v1, vector v2) {
   int length1 = vectorLength(v1), length2 = vectorLength(v2);
@@ -286,17 +196,6 @@ void **deepLookup(obj o, obj name) {
   void **slot;
   if (slot = shallowLookup(o, name)) return slot;
   return o == oNull ? 0 : deepLookup(proto(o), name);
-}
-
-obj primitive(vector *live, void *code) {
-  return slotlessObject(live, oPrimitive, newAtomVector(live, 1, code));
-}
-
-obj integer(vector *live, int value) {
-  return slotlessObject(live, oInteger, newAtomVector(live, 1, value));
-}
-int integerValue(obj i) {
-  return (int)hiddenAtom(i);
 }
 
 obj vectorObject(vector *eden, vector v) {
@@ -364,15 +263,7 @@ void dispatch(vector thread) {
   }
 
   void **slot = deepLookup(t, selector(c));
-  if (!slot) {
-    printf("Message $%s (%d arguments) not understood by %x.\nSlots in target:\n",
-           stringData(selector(c)),
-           vectorLength(evaluated(c)) - 1,
-           t);
-    for (int i = 1; i < vectorLength(class(t)); i++)
-      printf("(%d) $%s ", i, stringData(idx(class(t), i)));
-    raise(thread, eMessageNotUnderstood);
-  }
+  if (!slot) raise(thread, eMessageNotUnderstood);
 
   // TODO: Consider having messages sent to slots containing promises return promises.
   //       Unary messages could return the promise as-is, but if there are arguments then
@@ -394,11 +285,11 @@ void dispatch(vector thread) {
     tailcall(doNext,
              setSubexpressionContinuation(thread,
                                           origin(c),
-                                          newObject(edenIdx(eden, 0),
-                                                    closureEnv(contents),
-                                                    prefix(edenIdx(eden, 0), sSelf, params),
-                                                    args,
-                                                    c),
+                                          stackFrame(edenIdx(eden, 0),
+                                                     closureEnv(contents),
+                                                     prefix(edenIdx(eden, 0), sSelf, params),
+                                                     args,
+                                                     c),
                                           slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
                                           oInternals,
                                           sMethodBody,
@@ -520,15 +411,27 @@ void *arg(vector thread, int i) {
 obj *filenameToInclude;
 promise *promiseOfInclusion;
 
-#define normalReturn     messageReturn(thread, continuationTarget(threadContinuation(thread)))
-#define valueReturn(v)   messageReturn(thread, (v))
-#define arg(i)           (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
-#define target           continuationTarget(threadContinuation(thread))
+// The prototype primitive's behaviour should be to return itself, so that it doesn't have to be "escaped"
+// with a $contentsOfSlot: message in order to e.g. have new methods added to it.
+void prototypePrimitiveHiddenValue(vector thread) {
+  messageReturn(thread, oPrimitive);
+}
+
+#define safeIntegerValue(i) (isInteger(i) ? integerValue(i) : ({ raise(thread, eIntegerExpected); 0; }))
+#define safeStackFrameContinuation(f) (isStackFrame(f) ? stackFrameContinuation(f) \
+                                                       : ({ raise(thread, eStackFrameExpected); \
+                                                            (vector)0; \
+                                                          }))
+#define normalReturn messageReturn(thread, continuationTarget(threadContinuation(thread)))
+#define valueReturn(v) messageReturn(thread, (v))
+#define arg(i) (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
+#define target continuationTarget(threadContinuation(thread))
 #include "objects.c"
 #undef target
 #undef arg
 #undef valueReturn
 #undef normalReturn
+#undef safeIntegerValue
 
 void (*primitiveCode(obj p))(continuation);
 
@@ -563,7 +466,9 @@ void setupInterpreter() {
   vector dummyEden;
   garbageCollectorRoot = createGarbageCollectorRoot(&dummyEden);
   initializeObjects();
+  initializePrototypeTags();
   *lobbyShelter(garbageCollectorRoot) = oLobby;
+  intern(temp(), oSymbol);
 }
 
 void resetLineNumber() { currentLine = 1; }
@@ -594,7 +499,6 @@ void loadFile(const char *filename) {
   }
 }
 
-int debuggingInclude = 0;
 void REPL() {
   void *lexerBuffer = createLexerBuffer(stdin);
   for (;;) {
@@ -608,20 +512,21 @@ void REPL() {
     yylex = interactiveLexer;
     resetLineNumber();
     yyparse();
-    REPLPromise = newPromise(temp());
-    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sIdentity, emptyVector);
-    obj result = waitFor(REPLPromise);
 
+    // We just serialize first, to give the expression a chance to do its own terminal output, before
+    // displaying the "=>" and printing.
+    REPLPromise = newPromise(temp());
+    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
+    obj serialization = waitFor(REPLPromise);
+
+    // Only the REPL's thread has a kernel-managed C stack with well-defined overflow behaviour, so it has
+    // to be responsible for e.g. using the parser on behalf of other threads through this interface.
     if (*filenameToInclude) {
       loadFile(stringData(*filenameToInclude));
       fulfillPromise(*promiseOfInclusion, oNull);
       setLexerBuffer(lexerBuffer);
     }
 
-    REPLPromise = newPromise(temp());
-    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, result, sSerialized, emptyVector);
-    obj serialization = waitFor(REPLPromise);
-    fflush(stdout);
     fputs("\n=> ", stdout);
     REPLPromise = newPromise(temp());
     newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);

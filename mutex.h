@@ -16,6 +16,9 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef MUTEX_H
+#define MUTEX_H
+
 int compareAndExchange(volatile int *, int, int);
 int exchangeAndAdd(volatile int *, int);
 void increment(volatile int *);
@@ -23,3 +26,5 @@ void decrement(volatile int *);
 
 int futexWait(volatile int *, int);
 void futexWake(volatile int *, int);
+
+#endif
