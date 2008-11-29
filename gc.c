@@ -227,7 +227,11 @@ void scan() {
       break;
     case CHANNEL:
       mark(channelTarget((channel)grayList));
-    // Atom vectors, fixnums abd primitives have nothing in them to scan.
+      break;
+    case FIXNUM:
+    case PRIMITIVE:
+      mark(hiddenEntity(grayList));
+    // Atom vectors have nothing in them to scan.
   }
   grayList = grayList->next;
 }
