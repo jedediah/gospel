@@ -21,12 +21,6 @@
 
 typedef vector continuation;
 
-// Thread data objects are connected into a doubly-linked list for the benefit of the garbage collector.
-volatile int threadListLockCount = 0;
-volatile int threadListLockFlag = 0;
-void acquireThreadListLock() { acquireFutex(&threadListLockCount, &threadListLockFlag); }
-void releaseThreadListLock() { releaseFutex(&threadListLockCount, &threadListLockFlag); }
-
 vector newThreadData(vector *life,
                      vector stack,
                      obj dynamicEnv,

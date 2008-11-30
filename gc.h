@@ -45,6 +45,8 @@ typedef vector *life;
 
 vector emptyVector;
 
+void acquireThreadListLock();
+void releaseThreadListLock();
 int freeSpaceCount(void);
 
 vector makeVector(life, int);
@@ -70,12 +72,15 @@ void permitGC(void);
 
 void spawn(void *, void *, void *);
 
+
+typedef vector obj;
+
 typedef vector promise;
 promise newPromise(life);
-vector promiseValue(promise);
+obj promiseValue(promise);
 vector *promiseValueField(promise);
-vector waitFor(void *);
-void fulfillPromise(promise, vector);
+obj waitFor(void *);
+void fulfillPromise(promise, obj);
 
 typedef vector channel;
 channel newChannel(life, vector);
@@ -92,8 +97,6 @@ void collectGarbage(void);
 void requireGC(void);
 
 vector garbageCollectorRoot;
-
-typedef vector obj;
 
 int isPromise(vector);
 int isChannel(vector);

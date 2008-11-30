@@ -17,6 +17,9 @@
 &do
 &raise:
 
+# A primitive must not do anything that will prevent GCC's sibling call optimization, including taking a
+# pointer to anything in its own automatic memory.
+
 @null null
 $serialized string(temp(), "<null>")
 !identity
@@ -25,6 +28,7 @@ $serialized string(temp(), "<null>")
   normalReturn;
 !print
   fputs("<null>", stdout);
+  fflush(stdout);
   normalReturn;
 @internals null
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
@@ -132,6 +136,7 @@ $serialized string(temp(), "<null>")
 !print
   if (!isString(target)) raise(thread, eStringExpected);
   fputs(stringData(target), stdout);
+  fflush(stdout);
   normalReturn;
 @symbol object newAtomVector(temp(), 1, 0)
 !serialized
@@ -190,9 +195,7 @@ $serialized string(temp(), "<null>")
   valueReturn(newClosure(edenRoot(thread), env(c), blockParams(o), blockBody(o)));
 @integer object newAtomVector(temp(), 1, 0)
 !serialized
-  char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
-  sprintf(buffer, "%d", safeIntegerValue(target));
-  valueReturn(string(edenRoot(thread), buffer));
+  valueReturn(integerAsString(edenRoot(thread), safeIntegerValue(target)));
 !== equals
   if (safeIntegerValue(target) == safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
@@ -238,12 +241,7 @@ $serialized string(temp(), "<null>")
   if (s == -1) raise(thread, eOpeningSocket);
   valueReturn(setProto(edenRoot(thread), integer(edenRoot(thread), s), oSocket));
 !bind:
-  struct sockaddr_in s;
-  memset(&s, 0, sizeof(struct sockaddr_in));
-  s.sin_family = AF_INET;
-  s.sin_port = htons(safeIntegerValue(waitFor(arg(0))));
-  s.sin_addr.s_addr = htonl(INADDR_ANY);//inet_addr("127.0.0.1");
-  if (bind(safeIntegerValue(target), (struct sockaddr *)&s, sizeof(struct sockaddr_in)))
+  if (bindSocket(safeIntegerValue(target), safeIntegerValue(waitFor(arg(0)))))
     raise(thread, eBindingSocket);
   normalReturn;
 !listenWithBacklog:
@@ -251,12 +249,10 @@ $serialized string(temp(), "<null>")
     raise(thread, eListeningOnSocket);
   normalReturn;
 !accept
-  struct sockaddr socketParameters;
-  int socketParametersSize = sizeof(struct sockaddr);
-  int socketHandle = accept(safeIntegerValue(target), &socketParameters, &socketParametersSize);
-  if (socketHandle == -1) raise(thread, eAcceptingSocketConnection);
-  vector *live = edenRoot(thread);
-  valueReturn(setProto(edenRoot(thread), integer(edenRoot(thread), socketHandle), oSocket));
+  int newSocket = acceptSocket(safeIntegerValue(target));
+  if (newSocket == -1) raise(thread, eAcceptingSocketConnection);
+  life eden = edenRoot(thread);
+  valueReturn(setProto(eden, integer(eden, newSocket), oSocket));
 !read:
   int length = safeIntegerValue(waitFor(arg(0)));
   vector *live = edenRoot(thread);

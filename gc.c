@@ -28,17 +28,15 @@
 
 #include "objects.h" // Because we define some object creation functions.
 
-#define _GNU_SOURCE
-#include <sys/syscall.h>
-#include <sched.h>
-#include <linux/futex.h>
-#include <sys/time.h>
+#include <pthread.h>
 
 void *heap;
 
 int liveSegmentCount = 0;
 
 #define ARENA_CELLS (1024 * 1024)
+
+#define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(int) - 1) / sizeof(int))
 
 #define TYPE_BIT_MASK 7
 // "Tag bits" are the type bits plus the GC mark bit.
@@ -73,7 +71,7 @@ int vectorType(vector v) {
   return v->type & TYPE_BIT_MASK;
 }
 void setVectorType(vector v, int t) {
-  v->type = v->type & ~TAG_BIT_MASK | t; // Clears the GC mark bit.
+  v->type = v->type & ~TYPE_BIT_MASK | t;
 }
 
 // Strictly speaking, we don't need to distinguish closures at the primitive-type level to avoid segfaults;
@@ -217,27 +215,24 @@ void flip() {
 //       implemented more efficiently.
 void scan() {
   switch (vectorType(grayList)) {
-    case ENTITY_VECTOR:
-    case CLOSURE:
-    case STACK_FRAME:
-      for (int i = 0; i < vectorLength(grayList); i++) mark(idx(grayList, i));
-      break;
     case PROMISE:
       mark(promiseValue(grayList));
       break;
     case CHANNEL:
       mark(channelTarget((channel)grayList));
       break;
-    case FIXNUM:
-    case PRIMITIVE:
-      mark(hiddenEntity(grayList));
-    // Atom vectors have nothing in them to scan.
-  }
+    case ATOM_VECTOR:
+      break;
+//  case FIXNUM: case PRIMITIVE: case ENTITY_VECTOR: case CLOSURE: case STACK_FRAME:
+    default:
+      for (int i = 0; i < vectorLength(grayList); i++) mark(idx(grayList, i));
+      break;
+    }
   grayList = grayList->next;
 }
 
+#include <stdio.h>
 void collectGarbage() {
-  int freeSpaceBefore = freeSpaceCount();
   while (grayList != blackList) scan();
   flip();
 }
@@ -365,82 +360,89 @@ void initializeHeap() {
   whiteList->prev = whiteList->next = whiteList;
 }
 
-void acquireFutex(volatile int *futexCount, volatile int *futexFlag) {
-  increment(futexCount);
-  while (compareAndExchange(futexFlag, 0, -1)) futexWait(futexFlag, -1);
+pthread_mutex_t threadListMutex = PTHREAD_MUTEX_INITIALIZER;
+void acquireThreadListLock() {
+  if (pthread_mutex_lock(&threadListMutex)) die("Error while acquiring thread list lock.");
 }
-void releaseFutex(volatile int *futexCount, volatile int *futexFlag) {
-  *futexFlag = 0;
-  if (exchangeAndAdd(futexCount, -1) == 1) return;
-  // It's okay if another thread grabs the futex here. The thread we're waking up will see
-  // that *futexFlag is set when it does its spurious wakeup check, and go back to sleep.
-  futexWake(futexFlag, 1);
+void releaseThreadListLock() {
+  if (pthread_mutex_unlock(&threadListMutex)) die("Error while releasing thread list lock.");
 }
 
-#define WATCHED_PROMISE   -1
-#define UNWATCHED_PROMISE  0
+typedef struct {
+  obj value;
+  pthread_cond_t conditionVariable;
+  pthread_mutex_t mutex;
+} promiseData;
 
 promise newPromise(vector *live) {
-  vector n = makeVector(live, 1);
-  setVectorType(n, PROMISE);
-  setIdx(n, 0, 0);
-  return n;
+  promise p = makeVector(live, CELLS_REQUIRED_FOR_BYTES(sizeof(promiseData)));
+  setVectorType(p, PROMISE);
+  promiseData *pd = (promiseData *)vectorData(p);
+  if (pthread_mutex_init(&pd->mutex, NULL))
+    die("Error while initializing promise mutex.");
+  return p;
 }
-vector *promiseValueField(promise p) {
-  return (vector *)&p->data[0];
+obj promiseValue(promise p) {
+  return ((promiseData *)vectorData(p))->value;
 }
-vector promiseValue(promise p) {
-  // The external interface to promises, hiding whether they're watched or unwatched and only
-  // revealing whether or not they've been fulfilled.
-  vector v = *promiseValueField(p);
-  return v == (vector)WATCHED_PROMISE || v == (vector)UNWATCHED_PROMISE ? 0 : v;
-}
-void fulfillPromise(promise p, vector o) {
-  int *pvf = (int *)promiseValueField(p);
-  int oldValue = compareAndExchange(pvf, UNWATCHED_PROMISE, (int)o);
-  if (oldValue == WATCHED_PROMISE) {
-    if (compareAndExchange(pvf, WATCHED_PROMISE, (int)o) != WATCHED_PROMISE)
-      return; // Someone else fulfilled this promise between our comparisons.
-    if (syscall(SYS_futex, pvf, FUTEX_WAKE, -1) == -1)
-      die("Weird error while waking up threads waiting for promise fulfillment.");
-  }
-  else if (oldValue != UNWATCHED_PROMISE) return; // This promise has already been fulfilled.
+void fulfillPromise(promise p, obj o) {
+  promiseData *pd = (promiseData *)vectorData(p);
+  if (pthread_mutex_lock(&pd->mutex)) die("Error while acquiring a promise lock before fulfillment.");
+  if (!pd->value) pd->value = o;
+  if (pthread_cond_broadcast(&pd->conditionVariable))
+    die("Error while waking up threads waiting on a promise.");
+  if (pthread_mutex_unlock(&pd->mutex)) die("Error while releasing a promise lock after fulfillment.");
+  return;
 }
 
-vector waitFor(void *e) {
+obj waitFor(void *e) {
   if (!isPromise(e)) return e;
-  int *pvf = (int *)promiseValueField(e);
-  int existingValue = compareAndExchange(pvf, UNWATCHED_PROMISE, WATCHED_PROMISE);
-  if (existingValue != WATCHED_PROMISE && existingValue != UNWATCHED_PROMISE)
-    return (vector)existingValue;
-  while (*pvf == WATCHED_PROMISE) futexWait(pvf, WATCHED_PROMISE);
-  return waitFor((void *)*pvf);
+  promiseData *pd = (promiseData *)vectorData(e);
+  if (pthread_mutex_lock(&pd->mutex)) die("Error while acquiring a promise lock before a wait.");
+  while (!pd->value)
+    if (pthread_cond_wait(&pd->conditionVariable, &pd->mutex))
+      die("Error while attempting to wait on a promise.");
+  if (pthread_mutex_unlock(&pd->mutex)) die("Error while releasing a promise lock after a wait.");
+  return pd->value;
 }
 
-// The allocator lock.
-int GCMutexCount = 0, GCMutexFlag = 0;
-void forbidGC() { acquireFutex(&GCMutexCount, &GCMutexFlag); }
-void permitGC() { releaseFutex(&GCMutexCount, &GCMutexFlag); }
-
-vector  channelTarget(vector c) { return (vector)idx(c, 0);  }
-int    *channelCount(vector c)  { return (int *)&c->data[1]; }
-int    *channelFlag(vector c)   { return (int *)&c->data[2]; }
-vector newChannel(vector *live, vector o) {
-  vector n = makeVector(live, 3);
-  setVectorType(n, CHANNEL);
-  setIdx(n, 0, o);
-  // Other two elements remain zeroed.
-  return n;
+pthread_mutex_t GCLock = PTHREAD_MUTEX_INITIALIZER;
+void forbidGC() {
+  if (pthread_mutex_lock(&GCLock)) die("Error while acquiring GC mutex.");
 }
-void acquireChannelLock(vector c) { acquireFutex(channelCount(c), channelFlag(c)); }
-void releaseChannelLock(vector c) { releaseFutex(channelCount(c), channelFlag(c)); }
+void permitGC() {
+  if (pthread_mutex_unlock(&GCLock)) die("Error while releasing GC mutex.");
+}
 
-void spawn(void *topOfStack, void *f, void *a) {
-  if (clone((int (*)(void *))f,
-            topOfStack,
-            CLONE_FS | CLONE_FILES | CLONE_PTRACE | CLONE_VM | CLONE_THREAD | CLONE_SYSVSEM | CLONE_SIGHAND,
-            a)
-      == -1) die("Failed spawning.");
+typedef struct {
+  obj target;
+  pthread_mutex_t mutex;
+} channelData;
+
+channel newChannel(vector *live, obj target) {
+  channel c = makeVector(live, CELLS_REQUIRED_FOR_BYTES(sizeof(channelData)));
+  setVectorType(c, CHANNEL);
+  channelData *cd = (channelData *)vectorData(c);
+  cd->target = target;
+  if (pthread_mutex_init(&cd->mutex, NULL))
+    die("Error while initializing a channel mutex.");
+  return c;
+}
+obj channelTarget(channel c) {
+  return ((channelData *)vectorData(c))->target;
+}
+void acquireChannelLock(channel c) {
+  if (pthread_mutex_lock(&((channelData *)vectorData(c))->mutex))
+    die("Error while acquiring a channel lock.");
+}
+void releaseChannelLock(channel c) {
+  if (pthread_mutex_unlock(&((channelData *)vectorData(c))->mutex))
+    die("Error while releasing a channel lock.");
+}
+
+void spawn(void *ignored, void *f, void *a) {
+  pthread_t thread;
+  if (pthread_create(&thread, NULL, f, a)) die("Failed spawning.");
 }
 
 vector suffix(vector *live, void *e, vector v) {

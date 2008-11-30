@@ -15,12 +15,12 @@
 #    along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
 gospel : threadData.c death.c gc.c mutex.c core.c objects.c y.tab.c lex.yy.c main.c
-	gcc -ggdb -O3 -std=gnu99 lex.yy.c y.tab.c death.c threadData.c gc.c mutex.c core.c main.c -o gospel
+	gcc -ggdb -O3 -std=gnu99 -pthread lex.yy.c y.tab.c death.c threadData.c gc.c mutex.c core.c main.c -o gospel
 
 lex.yy.o y.tab.o gc.o mutex.o death.o threadData.o test.o : test.c gc.c core.c objects.c y.tab.c lex.yy.c mutex.c death.c threadData.c
 	gcc -c -O3 -std=gnu99 lex.yy.c y.tab.c gc.c mutex.c death.c threadData.c test.c
 test : lex.yy.o y.tab.o gc.o test.o death.o mutex.o threadData.o cgreen/cgreen.a
-	gcc lex.yy.o y.tab.o gc.o test.o death.o mutex.o threadData.o cgreen/cgreen.a -o test
+	gcc -pthread lex.yy.o y.tab.o gc.o test.o death.o mutex.o threadData.o cgreen/cgreen.a -o test
 
 main.c : core.h ;
 

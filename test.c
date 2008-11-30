@@ -149,22 +149,6 @@ test(decrement,
   decrement(&x);
   assert_equal(x, 42);
 )
-test(acquireFutex,
-  volatile int count1 = 0;
-  volatile int flag1 = 0;
-  volatile int count2 = 0;
-  volatile int flag2 = 0;
-  volatile int x = 0;
-  void t() { acquireFutex(&count1, &flag1); x = 42; releaseFutex(&count2, &flag2); }
-
-  acquireFutex(&count1, &flag1);
-  acquireFutex(&count2, &flag2);
-  spawn(&makeVector(temp(), STACKDEPTH)->data[STACKDEPTH - 1], t, 0);
-  assert_false(x);
-  releaseFutex(&count1, &flag1); // Permit t() to set x to 42.
-  acquireFutex(&count2, &flag2); // Wait for t() to do it.
-  assert_equal(x, 42);
-)
 test(collectGarbage,
   invalidateTemporaryLife();
   collectGarbage();
