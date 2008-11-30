@@ -20,6 +20,8 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "string.h" // On some systems Flex fails to do this inclusion.
+
 #include "core.h"
 #include "y.tab.h" // This needs to be read after core.h or else the default for YYSTYPE gets used.
 

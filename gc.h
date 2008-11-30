@@ -106,6 +106,7 @@ int isClosure(obj);
 int isString(obj);
 int isSymbol(obj);
 int isStackFrame(obj);
+int isVectorObject(obj);
 
 int vectorType(vector);
 void setVectorType(vector, int);
@@ -138,6 +139,7 @@ vector closureParams(obj);
 vector closureBody(obj);
 
 obj primitive(life, void *);
+void (*primitiveCode(obj))(vector);
 obj integer(life, int);
 int integerValue(obj);
 

@@ -91,11 +91,13 @@ int isStackFrame(obj o) { return vectorType(o) == STACK_FRAME; }
 // terminator between the beginning of the hidden atom vector and the end of the program's segment.
 // TODO: Consider giving strings their own type label, in future tagging schemes that have the room?
 int isString(obj o) {
-  vector v = hiddenEntity(o);
-  return vectorType(v) == ATOM_VECTOR;
+  return vectorType(o) == ENTITY_VECTOR && vectorType(hiddenEntity(o)) == ATOM_VECTOR;
 }
 int isSymbol(obj o) {
   return isString(o);
+}
+int isVectorObject(obj o) {
+  return vectorType(o) == ENTITY_VECTOR && vectorType(hiddenEntity(o)) == ENTITY_VECTOR;
 }
 
 // Used only during a garbage collection cycle.
@@ -379,6 +381,8 @@ promise newPromise(vector *live) {
   promiseData *pd = (promiseData *)vectorData(p);
   if (pthread_mutex_init(&pd->mutex, NULL))
     die("Error while initializing promise mutex.");
+  if (pthread_cond_init(&pd->conditionVariable, NULL))
+    die("Error while initializing promise condition variable.");
   return p;
 }
 obj promiseValue(promise p) {
@@ -528,6 +532,9 @@ obj primitive(vector *live, void *code) {
   obj o = slotlessObject(live, oPrimitive, newAtomVector(live, 1, code));
   setVectorType(o, PRIMITIVE);
   return o;
+}
+void (*primitiveCode(obj p))(vector) {
+  return hiddenAtom(p);
 }
 
 obj newClosure(vector *live, obj env, vector params, vector body) {

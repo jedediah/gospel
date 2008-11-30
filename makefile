@@ -40,7 +40,7 @@ parser.l : core.h y.tab.h ;
 
 cgreen/cgreen.h : ;
 cgreen/cgreen.a : ;
-test.c : core.c ;
+test.c : core.h core.c ;
 
 objects.c objects.h : objgen objects
 	./objgen objects
