@@ -104,6 +104,9 @@ int isString(obj);
 int isSymbol(obj);
 int isStackFrame(obj);
 
+int vectorType(vector);
+void setVectorType(vector, int);
+
 vector suffix(life, void *, vector);
 vector prefix(life, void *, vector);
 

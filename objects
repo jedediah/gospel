@@ -85,7 +85,9 @@ $serialized string(temp(), "<null>")
   if (!slot) raise(thread, eGettingNonexistantSlot);
   valueReturn(*slot);
 !new
-  valueReturn(slotlessObject(edenRoot(thread), oObject, 0));
+  obj o = slotlessObject(edenRoot(thread), target, hiddenEntity(target));
+  setVectorType(o, vectorType(target));
+  valueReturn(o);
 @vector object
 !ofLength:containing:
   int l = safeIntegerValue(waitFor(arg(0)));
