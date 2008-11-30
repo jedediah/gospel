@@ -23,7 +23,6 @@
 #include <errno.h>
 
 #include "gc.h"
-#include "mutex.h"
 #include "death.h"
 
 #include "objects.h" // Because we define some object creation functions.

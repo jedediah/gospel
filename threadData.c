@@ -16,7 +16,6 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "mutex.h"
 #include "gc.h"
 
 typedef vector continuation;

@@ -20,8 +20,6 @@
 
 #include "core.c"
 
-#include "mutex.h"
-
 #include <string.h>
 
 #define test(name, ...) \
@@ -126,28 +124,6 @@ test(insertBetween,
   assert_equal(m->prev, s);
   assert_equal(s->next, m);
   assert_equal(s->prev, m);
-)
-test(compareAndExchange,
-  int x = 42;
-  assert_equal(compareAndExchange(&x, 4, 2), 42);
-  assert_equal(x, 42);
-  assert_equal(compareAndExchange(&x, 42, 420), 42);
-  assert_equal(x, 420);
-)
-test(exchangeAndAdd,
-  int x = 40;
-  assert_equal(exchangeAndAdd(&x, 2), 40);
-  assert_equal(x, 42);
-)
-test(increment,
-  int x = 41;
-  increment(&x);
-  assert_equal(x, 42);
-)
-test(decrement,
-  int x = 43;
-  decrement(&x);
-  assert_equal(x, 42);
 )
 test(collectGarbage,
   invalidateTemporaryLife();
