@@ -97,7 +97,8 @@ int isSymbol(obj o) {
   return isString(o);
 }
 int isVectorObject(obj o) {
-  return vectorType(o) == ENTITY_VECTOR && vectorType(hiddenEntity(o)) == ENTITY_VECTOR;
+  return vectorType(o) == ENTITY_VECTOR
+         && (vectorType(hiddenEntity(o)) == ENTITY_VECTOR || hiddenEntity(o) == emptyVector);
 }
 
 // Used only during a garbage collection cycle.

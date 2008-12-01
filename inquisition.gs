@@ -21,23 +21,28 @@ false  assert { raise: exception failedAssertion }
 # Turn an object into a test suite. Should be used after all test slots are added but before
 # any non-test slots (including $setup and/or $teardown) are added.
 object declareTestSuite {
-  tests = (suite = self) selectors
-  suite setup {}
-  suite teardown {}
-  suite run {
+  tests = self selectors
+  self setup {}
+  self teardown {}
+  self run {
     failures = exceptions = 0
     tests each: { selector |
-      suite setup
-      { { suite send: selector } except: { e |
+      self setup
+      { { self send: selector } except: { e |
           e == exception failedAssertion if: { ^^ failures := failures + 1 }
           ^ exceptions := exceptions + 1
         }
       } do
-      suite teardown
+      self teardown
     }
-    tests length serialized ++ " test(s) run. " ++
-     (tests length - failures - exceptions) serialized ++ " pass(es), " ++
-      failures serialized ++ " failure(s), " ++
-       exceptions serialized ++ " unhandled exception(s)."
+    inflect: string with: suffix for: number {
+      number serialized ++ (number == 1 if: string else: { string ++ suffix })
+    }
+    total = tests length
+    passes = total - failures - exceptions
+    (inflect: " test" with: "s" for: total) ++ " run: " ++
+     (inflect: " pass" with: "es" for: passes) ++ ", " ++
+      (inflect: " failure" with: "s" for: failures) ++ ", " ++
+       (inflect: " exception" with: "s" for: exceptions) ++ "."
   }
 }

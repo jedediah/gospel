@@ -201,6 +201,9 @@ void **deepLookup(obj o, obj name) {
 obj vectorObject(vector *eden, vector v) {
   return slotlessObject(eden, oVector, v);
 }
+obj vectorObjectVector(obj v) {
+  return hiddenEntity(v);
+}
 
 void doNext(vector);
 vector newThread(vector *life,
@@ -271,11 +274,10 @@ void dispatch(vector thread) {
   obj contents = waitFor(*slot);
 
   if (isPrimitive(contents))
-    tailcall((void (*)(vector))hiddenAtom(contents), thread);
+    tailcall(primitiveCode(contents), thread);
   if (isClosure(contents)) {
     vector params = closureParams(contents), args = evaluated(c);
-    if (vectorLength(args) - 1 != vectorLength(params))
-      raise(thread, string(edenRoot(thread), "Wrong number of arguments to closure."));
+    if (vectorLength(args) != vectorLength(params)) raise(thread, eBadArity);
 
     // Discard the expression wherein the arguments were evaluated. Replace it with an expression
     // wherein the body of the closure is evaluated. The value of this expression is the value we
@@ -287,7 +289,7 @@ void dispatch(vector thread) {
                                           origin(c),
                                           stackFrame(edenIdx(eden, 0),
                                                      closureEnv(contents),
-                                                     prefix(edenIdx(eden, 0), sSelf, params),
+                                                     params,
                                                      args,
                                                      c),
                                           slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),

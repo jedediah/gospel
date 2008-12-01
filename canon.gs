@@ -25,10 +25,10 @@ dynamicContext raise: exception {
   "\nUnhandled exception: " print. exception print
   abortToREPL
 }
-lobby raise: exception { dynamicContext raise: exception }
+lobby raise: exception { dynamicContext applyHandlerTo: exception }
 closure except: handle: {
-  dynamicContext raise: exception {
-    self raise: exception { self proto raise: exception } # For when $handle: reraises.
+  dynamicContext applyHandlerTo: exception {
+    self applyHandlerTo: exception { self proto applyHandlerTo: exception } # For when $handle: reraises.
     handle: exception
   }
   self
@@ -56,64 +56,48 @@ false  if: yes else: no { no   }
 object         else: no { self }
 false          else: no { no   }
 
+object target: target with: arguments {
+  \self target: target withArgumentVector: arguments asVector
+}
+object target: target {
+  \self target: target withArgumentVector: []
+}
+
+vector asVector { self } 
 vector each: iterateOn: {
-  vector = self
   index = 0
-  { index < vector length else: { ^^ vector }
-    iterateOn: vector :at: index
+  { index < self length else: { ^^ self }
+    iterateOn: self :at: index
     index := index + 1
     recurse
   } do
 }
-
 vector mapping: valueFor: {
-  domain = self
-  range = vector ofLength: domain length
+  result = vector ofLength: self length
   index = 0
-  { index < domain length else: { ^^ range }
-    range at: index put: (valueFor: domain :at: index)
+  { index < self length else: { ^^ result }
+    result at: index put: (valueFor: self :at: index)
     index := index + 1
     recurse
   } do
 }
-
-vector injecting: using:with: {
-  vector = self
-  accumulation = vector at: 0
+vector injecting: valueOf:with: {
+  accumulation = self at: 0
   index = 1
-  { index < vector length else: { ^^ accumulation }
-    accumulation := using: accumulation with: vector :at: index
+  { index < self length else: { ^^ accumulation }
+    accumulation := valueOf: accumulation with: self :at: index
     index := index + 1
     recurse
   } do
 }
-vector injecting: using:with: with: accumulation {
-  vector = self
-  index = 0
-  { index < vector length else: { ^^ accumulation }
-    accumulation := using: accumulation with: vector :at: index
-    index := index + 1
-    recurse
-  } do
-}
-
 vector serialized {
   self length == 0 if: { ^ "[]" }
-  "[" ++ (self :mapping: { x | x serialized } injecting: { x y | x ++ ", " ++ y }) ++ "]"
+  "[" ++ (self :mapping: { x | x serialized } :injecting: { x y | x ++ ", " ++ y } ++ "]")
 }
 
 object print { self serialized print }
 
 vector print { self each: { x | x print } }
-
-integer times: iterate {
-  count = self
-  { count == 0 if: { ^^ }
-    iterate
-    count := count - 1
-    recurse
-  } do
-}
 
 # In a later release it will be possible to load a file with an arbitrary object (the target of $include:)
 # as the toplevel namespace. In the current release, files are always loaded into the lobby.

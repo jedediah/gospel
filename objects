@@ -15,7 +15,9 @@
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
 &do
+&self
 &raise:
+&currentMessageTarget
 
 # A primitive must not do anything that will prevent GCC's sibling call optimization, including taking a
 # pointer to anything in its own automatic memory.
@@ -123,6 +125,21 @@ $serialized string(temp(), "<null>")
   }
   valueReturn(idx(v, i));
 @primitive object newAtomVector(temp(), 1, prototypePrimitiveHiddenValue)
+!target:withArgumentVector:
+  obj code = target, argsObject = waitFor(arg(1));
+  if (!isPrimitive(code)) raise(thread, ePrimitiveExpected);
+  if (!isVectorObject(argsObject)) raise(thread, eVectorExpected);
+  continuation c = threadContinuation(thread);
+  life e = edenRoot(thread);
+  tailcall(primitiveCode(code),
+           setContinuation(thread,
+                           newContinuation(e,
+                                           origin(c),
+                                           oNull,
+                                           prefix(e, waitFor(arg(0)), vectorObjectVector(argsObject)),
+                                           NIL, // There should be no reason for anyone to examine this.
+                                           env(c),
+                                           dynamicEnv(c))));
 @string object newAtomVector(temp(), 1, 0)
 !serialized
   // FIXME: This should probably convert e.g. newlines to "\n".
@@ -142,7 +159,28 @@ $serialized string(temp(), "<null>")
 !serialized
   // TODO: Create the dollarsign string once, at startup.
   valueReturn(appendStrings(edenRoot(thread), string(edenRoot(thread), "$"), target));
-@closure object newVector(temp(), 3, oNull, emptyVector, newVector(temp(), 1, oClosure))
+@closure object newVector(temp(), 3, oNull, newVector(temp(), 1, oNull), newVector(temp(), 1, oClosure))
+!target:withArgumentVector:
+  obj code = target, argsObject = waitFor(arg(1));
+  if (!isClosure(code)) raise(thread, eClosureExpected);
+  if (!isVectorObject(argsObject)) raise(thread, eVectorExpected);
+  vector args = vectorObjectVector(argsObject),
+         params = closureParams(code),
+         e = makeVector(edenRoot(thread), 2);
+  if (vectorLength(args) + 1 != vectorLength(params)) raise(thread, eBadArity);
+  continuation c = threadContinuation(thread);
+  tailcall(doNext,
+           setSubexpressionContinuation(thread,
+                                        origin(c),
+                                        stackFrame(edenIdx(e, 0),
+                                                   closureEnv(code),
+                                                   params,
+                                                   prefix(edenIdx(e, 0), waitFor(arg(0)), args),
+                                                   c),
+                                        slotlessObject(edenIdx(e, 1), dynamicEnv(c), NIL),
+                                        oInternals,
+                                        sMethodBody,
+                                        closureBody(code)));
 !environment
   valueReturn(closureEnv(target));
 @code object
@@ -263,8 +301,12 @@ $serialized string(temp(), "<null>")
 @true object
 @false object
 @exception object
+~badArity Wrong number of arguments to closure.
 ~stringExpected Non-string encountered where string expected.
 ~stackFrameExpected Something other than a stack frame encountered where stack frame expected.
+~primitiveExpected Non-primitive encountered where primitive expected.
+~closureExpected Non-closure encountered where closure expected.
+~vectorExpected Non-vector encountered where vector expected.
 ~integerExpected Non-integer encountered where integer expected.
 ~negativeVectorLength Attempted to create a vector with negative length.
 ~messageNotUnderstood Message not understood.
@@ -307,8 +349,6 @@ $serialized string(temp(), "<null>")
   tailcall(doNext, setContinuation(thread, safeStackFrameContinuation(target)));
 !abortToREPL
   tailcall(returnToREPL, thread);
-!self
-  normalReturn;
 !abort
   tailcall(returnToREPL, thread);
 !end

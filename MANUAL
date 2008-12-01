@@ -53,13 +53,16 @@ An asynchronous message is indicated by prefixing the selector (or the first key
 
 There is a special syntax, with lower precedence than keyword messages, for creating and assigning slots. "foo x = 42" creates a slot called $x, on the object resulting from the expression "foo", with an initial value of 42. "foo x := 42" looks for an existing slot called $x in the object resulting from "foo", and then in the prototype of that object, et cetera, and sets the contents of the first one it encounters to 42. These operators are syntactic sugar, equivalent to "foo addSlot: $x as: 42" and "foo setSlot: $x to: 42", respectively.
 
-There is also a special syntax for defining methods (i.e. slots containing blocks):
-"foo { 42 }" is equivalent to "foo = { 42 }".
-"foo: x { x + 42 }" is equivalent to "foo: = { x | x + 42 }".
-"foo: x bar: y { x + y }" is equivalent to "foo:bar: = { x y | x + y }".
-"foo { 42 } bar" is equivalent to "foo = { 42 } bar".
+There is also a special syntax for defining methods (i.e. slots containing blocks). The following pairs are almost equivalent:
 
-Whenever the target of a message is not specified, it is sent to the object that represents the current lexical context. "Local variables" are just slots in the current lexical context object.
+foo { 42 }                 foo = { 42 }
+foo: x { x + 42 }          foo: = { x | x + 42 }
+foo: x bar: y { x + y }    foo:bar: = { x y | x + y }
+foo { 42 } bar             foo = { 42 } bar
+
+The only difference between a method declaration and a block literal is that within the body of a declaration, the target of the message to which the method is responding can be obtained with the $self message. A block literal will generally not be interested in the target of the message to which it is responding, this often being the lexical context object of a method into which the block was passed as an argument, but the value can nonetheless be obtain with $currentMessageTarget.
+
+Whenever the target of a message is not specified, it is sent to the object that represents the current lexical context. "Local variables" are slots in the current lexical context object.
 
 When execution reaches the end of a block, it returns with the value of the last statement. There is a syntax for returning early:
 > { { ^ "this will be returned" } do. "this will not be printed" print } do

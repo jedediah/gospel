@@ -81,9 +81,10 @@ declaration:
                  newVector(temp(),
                            2,
                            car(sig),
-                           block(temp(), listToVector(temp(), cdr(sig)), listToVector(temp(), $4)))); }
+                           block(temp(),
+                                 listToVector(temp(), cons(temp(), sSelf, cdr(sig))),
+                                 listToVector(temp(), $4)))); }
 ;
-
 statement:
   expr
 | carets
@@ -157,6 +158,8 @@ name:
   { $$ = message(temp(), $1, $2, emptyVector); }
 | nametarget '@' NAME
   { $$ = promiseCode(temp(), message(temp(), $1, $3, emptyVector)); }
+| nametarget '\\' param
+  { $$ = message(temp(), $1, sContentsOfSlot_, newVector(temp(), 1, $3)); }
 ;
 nametarget:
   { $$ = 0; }
@@ -208,13 +211,11 @@ literal:
 | '[' gap list gap ']'
   { $$ = message(temp(), oInternals, sVectorLiteral, listToVector(temp(), nreverse($3))); }
 | '{' body '}'
-  { $$ = block(temp(), emptyVector, listToVector(temp(), $2)); }
+  { $$ = block(temp(), newVector(temp(), 1, sCurrentMessageTarget), listToVector(temp(), $2)); }
 | '{' params '|' body '}'
-  { $$ = block(temp(), listToVector(temp(), nreverse($2)), listToVector(temp(), $4)); }
-| '\\' param
-  { $$ = message(temp(), 0, sContentsOfSlot_, newVector(temp(), 1, $2)); }
-| '\\' '(' target param ')'
-  { $$ = message(temp(), $3, sContentsOfSlot_, newVector(temp(), 1, $4)); }
+  { $$ = block(temp(),
+               listToVector(temp(), cons(temp(), sCurrentMessageTarget, nreverse($2))),
+               listToVector(temp(), $4)); }
 ;
 list:
   expr
