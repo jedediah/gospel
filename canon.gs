@@ -21,7 +21,7 @@ false serialized = "<false>"
 object do { self }
 
 # The exception-handling system that the core expects.
-dynamicContext raise: exception {
+dynamicContext applyHandlerTo: exception {
   "\nUnhandled exception: " print. exception print
   abortToREPL
 }
