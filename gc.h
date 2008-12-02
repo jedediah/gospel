@@ -126,7 +126,7 @@ void *slotName(obj, int);
 vector slotNameVector(life, obj o);
 void setClass(obj, vector);
 void setInstance(obj, vector);
-void setHiddenData(obj, vector);
+vector setHiddenData(obj, vector);
 obj proto(obj);
 obj setProto(life, obj, obj);
 obj newObject(life, obj, vector, vector, void *);

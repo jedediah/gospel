@@ -491,9 +491,9 @@ void *setSlotByIndex(obj o, int i, obj v) {
   return setIdx(instance(o), i, v);
 }
 
-void setClass(obj o, vector c)      { setIdx(o, 0, c); }
-void setInstance(obj o, vector i)   { setIdx(o, 1, i); }
-void setHiddenData(obj o, vector h) { setIdx(o, 2, h); }
+void   setClass(obj o, vector c)      {        setIdx(o, 0, c); }
+void   setInstance(obj o, vector i)   {        setIdx(o, 1, i); }
+vector setHiddenData(obj o, vector h) { return setIdx(o, 2, h); }
 
 void setSlotNames(vector *live, obj o, vector slotNames) {
   setClass(o, prefix(live, proto(o), slotNames));

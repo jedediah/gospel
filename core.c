@@ -419,30 +419,6 @@ void prototypePrimitiveHiddenValue(vector thread) {
   messageReturn(thread, oPrimitive);
 }
 
-// These functions exist to isolate the use of pointers to automatic memory, which would otherwise prevent
-// the primitives using them from having their sibling calls optimized away.
-obj integerAsString(vector *, int) __attribute__ ((noinline));
-obj integerAsString(vector *eden, int i) {
-  char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
-  sprintf(buffer, "%d", i);
-  return string(eden, buffer);
-}
-int bindSocket(int, int) __attribute__ ((noinline));
-int bindSocket(int id, int port) {
-  struct sockaddr_in s;
-  memset(&s, 0, sizeof(struct sockaddr_in));
-  s.sin_family = AF_INET;
-  s.sin_port = htons(port);
-  s.sin_addr.s_addr = htonl(INADDR_ANY);
-  return bind(id, (struct sockaddr *)&s, sizeof(struct sockaddr_in));
-}
-int acceptSocket(int) __attribute__ ((noinline));
-int acceptSocket(int id) {
-  struct sockaddr socketParameters;
-  int socketParametersSize = sizeof(struct sockaddr);
-  return accept(id, &socketParameters, &socketParametersSize);
-}
-
 #define safeIntegerValue(i) (isInteger(i) ? integerValue(i) : ({ raise(thread, eIntegerExpected); 0; }))
 #define safeStackFrameContinuation(f) (isStackFrame(f) ? stackFrameContinuation(f) \
                                                        : ({ raise(thread, eStackFrameExpected); \

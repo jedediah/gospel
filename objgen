@@ -26,17 +26,27 @@ sub cname {
 
 $id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
 while (<>) {
-  if    (/^(\#.*| *)$/           ) {                                                            }
-  elsif (/^&((?:$id:?)+)/        ) { push @symbols, $1;                                         }
-  elsif (/^@($id) ($id) ?(.*)$/  ) { $parent{$currentObject = $1} = $2;
-                                     $objects{$currentObject} = {};
-                                     $hidden{$currentObject} = $3;                              }
-  elsif (/^~($id) ([^\n]*)$/     ) { $exceptions{$currentObject}{$1} = $2;                      }
-  elsif (/^!($id(?::(?:$id:)*)?)/) { $methods{$currentMethod = $1} = $1;                        }
-  elsif (/^!([^ ]+) ($id)/       ) { $methods{$currentMethod = $2} = $1;                        }
-  elsif (/^\$($id) ([^\n]+)/     ) { push @{$constants{$currentObject}}, [$1, $2];              }
-  elsif (/^\$($id)/              ) { push @{$constants{$currentObject}}, [$1, "o" . cname($1)]; }
-  else                             { $objects{$currentObject}{$currentMethod} .= $_;            }
+  if    (/^(\#.*| *)$/            ) {                                                            }
+  elsif (/^&((?:$id:?)+)/         ) { push @symbols, $1;                                         }
+  elsif (/^@($id) ($id) ?(.*)$/   ) { $parent{$currentObject = $1} = $2;
+                                      $objects{$currentObject} = [];
+                                      $hidden{$currentObject} = $3;                              }
+  elsif (/^~($id) ([^\n]*)$/      ) { $exceptions{$currentObject}{$1} = $2;                      }
+  elsif (/^!($id(?::(?:$id:)*)?)/ ) { $methods{$currentMethod = $1} = $1; $callable = 0;         }
+  elsif (/^!([^ ]+) ($id)/        ) { $methods{$currentMethod = $2} = $1; $callable = 0;         }
+  elsif (/^\?($id(?::(?:$id:)*)?)/) { $callableMethods{$currentMethod = $1} = $1; $callable = 1; }
+  elsif (/^\?([^ ]+) ($id)/       ) { $callableMethods{$currentMethod = $2} = $1; $callable = 1; }
+  elsif (/^\$($id) ([^\n]+)/      ) { push @{$constants{$currentObject}}, [$1, $2];              }
+  elsif (/^\$($id)/               ) { push @{$constants{$currentObject}}, [$1, "o" . cname($1)]; }
+  else                              { $objects{$currentObject}[$callable]{$currentMethod} .= $_; }
+}
+
+sub slotCount {
+  $_ = shift;
+  return (keys %{$objects{$_}[0]})
+       + (keys %{$objects{$_}[1]})
+       + @{$constants{$_}}
+       + (keys %{$exceptions{$_}});
 }
 
 open HEADER, ">objects.h" or die("ObjGen couldn't write objects.h");
@@ -45,14 +55,18 @@ open SOURCE, ">objects.c" or die("ObjGen couldn't write objects.c");
 print HEADER "#ifndef OBJECTS_H\n#define OBJECTS_H\n\nobj ",
       (join "\n  , ",
            (map { "o" . cname $_ } keys %objects),
-           (map { "s" . cname $_ } @symbols, keys %methods),
+           (map { "s" . cname $_ } @symbols, keys(%methods), keys %callableMethods),
            (map { join "\n  , ", map { "s" . cname $_->[0] } @$_ } values %constants),
            (map { join "\n  , ", map { "e" . cname $_ } keys %$_ } values %exceptions)),
       ";\n\n#endif\n";
 
 foreach $object (keys %objects) {
-  foreach (keys %{$objects{$object}}) {
-    print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n", $objects{$object}{$_}, "}\n";
+  foreach (keys %{$objects{$object}[0]}) {
+    print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n", $objects{$object}[0]{$_}, "}\n";
+  }
+  foreach (keys %{$objects{$object}[1]}) {
+    my $id = cname($object) . cname($_);
+    print SOURCE "void *b$id(vector) __attribute__ ((noinline));\nvoid *b$id(vector thread) {\n", $objects{$object}[1]{$_}, "}\nvoid m$id(vector thread) { valueReturn(b$id(thread)); }\n";
   }
   print SOURCE "\n";
 }
@@ -70,6 +84,9 @@ foreach $objectExceptions (values %exceptions) {
 foreach (keys %methods) {
   print SOURCE "  s", cname($_), " = symbol(temp(), \"$methods{$_}\");\n";
 }
+foreach (keys %callableMethods) {
+  print SOURCE "  s", cname($_), " = symbol(temp(), \"$callableMethods{$_}\");\n";
+}
 foreach (@symbols) {
   print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n";
 }
@@ -84,18 +101,18 @@ foreach $object (keys %objects) {
   print SOURCE "\n  setProto(temp(), o", cname($object), ", o", cname($parent{$object}), ");"
    if ($parent{$object});
 
-  print SOURCE "\n  setSlotNames(temp(), o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});
+  print SOURCE "\n  setSlotNames(temp(), o", cname($object), ", newVector(temp(), ", slotCount $object;
   print SOURCE "\n  , s", cname($_)
-   foreach (keys %{$objects{$object}});
+   foreach ((keys %{$objects{$object}[0]}), keys %{$objects{$object}[1]});
   print SOURCE "\n  , s", cname($_->[0])
    foreach (@{$constants{$object}});
   print SOURCE "\n  , symbol(temp(), \"$_\")"
    foreach (keys %{$exceptions{$object}});
   print SOURCE "));";
 
-  print SOURCE "\n  setSlotValues(o", cname($object), ", newVector(temp(), ", scalar(keys %{$objects{$object}}) + scalar(@{$constants{$object}}) + scalar(keys %{$exceptions{$object}});
+  print SOURCE "\n  setSlotValues(o", cname($object), ", newVector(temp(), ", slotCount $object;
   print SOURCE "\n  , primitive(temp(), m", cname($object), cname($_), ")"
-   foreach (keys %{$objects{$object}});
+   foreach ((keys %{$objects{$object}[0]}), keys %{$objects{$object}[1]});
   print SOURCE "\n  , $_->[1]"
    foreach (@{$constants{$object}});
   print SOURCE "\n  , e", cname($_)

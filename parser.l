@@ -75,7 +75,7 @@ char *stringLiteral;
                                      return SYMBOL;
                                    }
 -?[0-9]+                           { *value = integer(temp(), atoi(yytext));
-                                     location->first_line = location->last_line = currentLine;
+                                     oneLine;
                                      return INTEGER;
                                    }
 =                                  oneLine; return ADDSLOT;

@@ -43,9 +43,10 @@ $serialized string(temp(), "<null>")
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @interpreter object
+?debug
+  printf("foo"); fflush(stdout); return oNull;
 !include:
   // Not threadsafe, should only be accessed through the channel in the lobby.
-  // TODO: Check that filename is really a string?
   obj a = waitFor(arg(0));
   if (!isString(a)) raise(thread, eStringExpected);
   *filenameToInclude = a;
@@ -232,8 +233,10 @@ $serialized string(temp(), "<null>")
   obj o = continuationTarget(c);
   valueReturn(newClosure(edenRoot(thread), env(c), blockParams(o), blockBody(o)));
 @integer object newAtomVector(temp(), 1, 0)
-!serialized
-  valueReturn(integerAsString(edenRoot(thread), safeIntegerValue(target)));
+?serialized
+  char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
+  sprintf(buffer, "%d", safeIntegerValue(target));
+  return string(edenRoot(thread), buffer);
 !== equals
   if (safeIntegerValue(target) == safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
@@ -278,19 +281,26 @@ $serialized string(temp(), "<null>")
   int s = socket(PF_INET, SOCK_STREAM, 0);
   if (s == -1) raise(thread, eOpeningSocket);
   valueReturn(setProto(edenRoot(thread), integer(edenRoot(thread), s), oSocket));
-!bind:
-  if (bindSocket(safeIntegerValue(target), safeIntegerValue(waitFor(arg(0)))))
+?bind:
+  struct sockaddr_in s;
+  memset(&s, 0, sizeof(struct sockaddr_in));
+  s.sin_family = AF_INET;
+  s.sin_port = htons(safeIntegerValue(waitFor(arg(0))));
+  s.sin_addr.s_addr = htonl(INADDR_ANY);
+  if (bind(safeIntegerValue(target), (struct sockaddr *)&s, sizeof(struct sockaddr_in)))
     raise(thread, eBindingSocket);
-  normalReturn;
+  return target;
 !listenWithBacklog:
   if (listen((int)hiddenAtom(target), safeIntegerValue(waitFor(arg(0)))))
     raise(thread, eListeningOnSocket);
   normalReturn;
-!accept
-  int newSocket = acceptSocket(safeIntegerValue(target));
+?accept
+  struct sockaddr socketParameters;
+  int socketParametersSize = sizeof(struct sockaddr),
+      newSocket = accept(safeIntegerValue(target), &socketParameters, &socketParametersSize);
   if (newSocket == -1) raise(thread, eAcceptingSocketConnection);
-  life eden = edenRoot(thread);
-  valueReturn(setProto(eden, integer(eden, newSocket), oSocket));
+  life e = edenRoot(thread);
+  return setProto(e, integer(e, newSocket), oSocket);
 !read:
   int length = safeIntegerValue(waitFor(arg(0)));
   vector *live = edenRoot(thread);
