@@ -14,43 +14,48 @@
 #    You should have received a copy of the GNU General Public License
 #    along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
-gospel : threadData.c death.c gc.c core.c objects.c y.tab.c lex.yy.c main.c
-	gcc -ggdb -O3 -std=gnu99 -pthread lex.yy.c y.tab.c death.c threadData.c gc.c core.c main.c -o gospel
+CC=gcc
+CFLAGS=-std=gnu99 -O3 -ggdb
 
-lex.yy.o y.tab.o gc.o death.o threadData.o test.o : test.c gc.c core.c objects.c y.tab.c lex.yy.c death.c threadData.c
-	gcc -c -O3 -std=gnu99 lex.yy.c y.tab.c gc.c death.c threadData.c test.c
-test : lex.yy.o y.tab.o gc.o test.o death.o threadData.o cgreen/cgreen.a
-	gcc -pthread lex.yy.o y.tab.o gc.o test.o death.o threadData.o cgreen/cgreen.a -o test
-
-main.c : core.h ;
+gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o
+	gcc -pthread $^ -o $@
 
 objgen : ;
 objects : ;
-
-threadData.h : threadData.c gc.h ;
-threadData.c : gc.h ;
-gc.h : gc.c ;
-gc.c : death.h ;
-death.h: death.c ;
-death.c: ;
-core.h : core.c ;
-core.c : objects.c death.h gc.h objects.h threadData.h ;
-parser.y : core.h objects.h ;
-parser.l : core.h y.tab.h ;
-
-cgreen/cgreen.h : ;
-cgreen/cgreen.a : ;
-test.c : core.h core.c ;
-
 objects.c objects.h : objgen objects
 	./objgen objects
 
 y.tab.c y.tab.h : parser.y
-	bison -d -y parser.y
+	bison -d -y $^
 
 lex.yy.c : parser.l
-	flex parser.l
+	flex $^
+
+threadData.h : threadData.o gc.h ;
+gc.h : gc.o ;
+death.h : death.o ;
+core.h : core.o ;
+#parser.h : lex.yy.o ; # Would just create a circular dependency and be dropped.
+
+lex.yy.o : lex.yy.c death.h core.h y.tab.h
+y.tab.o : y.tab.c core.h objects.h
+threadData.o : threadData.c gc.h
+gc.o : gc.c objects.h death.h
+death.o : death.c
+core.o : core.c objects.c objects.h death.h gc.h threadData.h parser.h
+main.o : main.c core.h
+
+
+test : threadData.o death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
+	gcc -pthread $^ -o $@
+
+cgreen/cgreen.a : ;
+cgreen/cgreen.h : cgreen/cgreen.a ;
+# Dependencies cause core.c to be compiled twice anyway, might as well depend on core.o as a convenient
+# shorthand for all the things that core.c depends on.
+test.o : test.c cgreen/cgreen.h core.o
+
 
 .PHONY : clean
 clean :
-	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o threadData.o test.o gospel test
+	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o threadData.o test.o main.o gospel test

@@ -448,6 +448,9 @@ void spawn(void *ignored, void *f, void *a) {
   pthread_t thread;
   if (pthread_create(&thread, NULL, f, a)) die("Failed spawning.");
 }
+void explicitlyEndThread() {
+  pthread_exit(0);
+}
 
 vector suffix(vector *live, void *e, vector v) {
   int l = vectorLength(v);

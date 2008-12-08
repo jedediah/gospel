@@ -22,11 +22,18 @@
 #include <stdarg.h>
 #include <unistd.h>
 
+// Used by socket objects:
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
 #include "death.h"
 #include "core.h"
 #include "gc.h"
 #include "objects.h"
 #include "threadData.h"
+#include "parser.h"
 
 #define NIL 0
 
@@ -130,13 +137,15 @@ vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
                                          dynamicEnv(c)));
 }
 
+#define gotoNext(thread) tailcall(doNext, (thread))
+
 #define messageReturn(thread, value) do { \
   vector mr_t = (thread), mr_v = (value); \
   continuation mr_c = origin(threadContinuation(mr_t)); \
   /* This logic can't easily be moved from the macro into the function call,
      because the return from keep() is what kills the thread. */ \
   if (isPromise(mr_c)) tailcall(keep, mr_t, mr_c, mr_v); \
-  tailcall(doNext, setMessageReturnContinuation(mr_t, mr_c, mr_v)); \
+  gotoNext(setMessageReturnContinuation(mr_t, mr_c, mr_v)); \
 } while (0)
 
 vector setExceptionContinuation(vector thread, obj exception) {
@@ -151,7 +160,7 @@ vector setExceptionContinuation(vector thread, obj exception) {
 }
 
 #define raise(thread, exception) \
-  tailcall(doNext, setExceptionContinuation((thread), (exception)))
+  gotoNext(setExceptionContinuation((thread), (exception)))
 
 obj string(vector *live, const char *s) {
   // TODO: Write a macro to express the subtract-one-and-divide technique of finding size in cells.
@@ -374,7 +383,6 @@ obj promiseCodeValue(obj p) {
 }
 
 void doNext();
-YYSTYPE yyparse();
 
 obj addSlot(vector *live, obj o, obj s, obj v) {
   vector living = newVector(live, 3, o, s, v);
@@ -395,12 +403,6 @@ void invalidateTemporaryLife() {
   setShelter(garbageCollectorRoot, 0);
 }
 
-// Used by socket objects.
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
 
 void *safeIdx(vector thread, vector v, int i) {
@@ -413,8 +415,8 @@ void *arg(vector thread, int i) {
 obj *filenameToInclude;
 promise *promiseOfInclusion;
 
-// The prototype primitive's behaviour should be to return itself, so that it doesn't have to be "escaped"
-// with a $contentsOfSlot: message in order to e.g. have new methods added to it.
+// The prototype primitive's behaviour should be to return itself, so that it won't be neceesary to write
+// e.g. "\primitive foo {}".
 void prototypePrimitiveHiddenValue(vector thread) {
   messageReturn(thread, oPrimitive);
 }
@@ -454,16 +456,6 @@ obj symbol(vector *live, const char *s) {
   return intern(live, o);
 }
 
-#include "y.tab.h"
-int interactiveLexer() {
-  yylex = mainLexer;
-  return INTERACTIVE;
-}
-int batchLexer() {
-  yylex = mainLexer;
-  return BATCH;
-}
-
 void setupInterpreter() {
   initializeHeap();
   vector dummyEden;
@@ -474,61 +466,35 @@ void setupInterpreter() {
   intern(temp(), oSymbol);
 }
 
-void resetLineNumber() { currentLine = 1; }
-
-void loadFile(const char *filename) {
-  // TODO: Find a way to feed the parser from the file exactly as is done from stdin in the interactive
-  //       version, rather than having to keep all the temporary allocations made by the parser for the
-  //       entire file alive until the very end.
-  invalidateTemporaryLife();
-  yylex = batchLexer;
+void *loadFile(vector *eden, const char *filename) {
   FILE *f = fopen(filename, "r");
   if (!f) die("Could not open \"%s\" for input.", filename);
-  void *b = createLexerBuffer(f);
-  resetLineNumber();
-  yyparse();
-  deleteLexerBuffer(b);
-  fclose(f);
-  for (pair code = parserOutput; !empty(code); code = cdr(code)) {
-    REPLPromise = newPromise(temp());
-    newThread(temp(),
-              REPLPromise,
-              oLobby,
-              oDynamicEnvironment,
-              car(code),
-              sIdentity,
-              emptyVector);
-    waitFor(REPLPromise);
+  void *scanner = beginParsing(f);
+  obj parserOutput, lastValue = oNull;
+  while (parserOutput = parse(scanner)) {
+    promise p = newPromise(eden ?: temp()); // FIXME: Null eden option is kind of ugly.
+    newThread(temp(), p, oLobby, oDynamicEnvironment, parserOutput, sIdentity, emptyVector);
+    lastValue = waitFor(p);
+    invalidateTemporaryLife();
   }
+  endParsing(scanner);
+  fclose(f);
+  return lastValue;
 }
 
 void REPL() {
-  void *lexerBuffer = createLexerBuffer(stdin);
+  void *scanner = beginParsing(stdin);
   for (;;) {
     invalidateTemporaryLife();
-    filenameToInclude = temp();
-    promiseOfInclusion = temp();
     fputs("\n> ", stdout);
     fflush(stdout);
-    yylex = interactiveLexer;
-    resetLineNumber();
-    yyparse();
-
     // We just serialize first, to give the expression a chance to do its own terminal output, before
     // displaying the "=>" and printing.
     REPLPromise = newPromise(temp());
-    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
+    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parse(scanner), sSerialized, emptyVector);
     obj serialization = waitFor(REPLPromise);
-
-    // Only the REPL's thread has a kernel-managed C stack with well-defined overflow behaviour, so it has
-    // to be responsible for e.g. using the parser on behalf of other threads through this interface.
-    if (*filenameToInclude) {
-      loadFile(stringData(*filenameToInclude));
-      fulfillPromise(*promiseOfInclusion, oNull);
-      setLexerBuffer(lexerBuffer);
-    }
-
     fputs("\n=> ", stdout);
+    fflush(stdout);
     REPLPromise = newPromise(temp());
     newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);
     waitFor(REPLPromise);

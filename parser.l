@@ -1,5 +1,3 @@
-%option noyywrap
-
 %{
 
 /*
@@ -20,82 +18,131 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "string.h" // On some systems Flex fails to do this inclusion.
+#include <string.h> // Flex needs this, but on some systems fails to generate the inclusion.
+#include <stdlib.h>
 
+#include "death.h"
 #include "core.h"
 #include "y.tab.h" // This needs to be read after core.h or else the default for YYSTYPE gets used.
 
-// To insulate file-handling code in core.c from knowledge of Flex.
-void setLexerBuffer(void *b) {
-  yy_switch_to_buffer(b);
-}
-void *createLexerBuffer(FILE *f) {
-  YY_BUFFER_STATE b = yy_create_buffer(f, YY_BUF_SIZE);
-  setLexerBuffer(b);
-  return b;
-}
-void deleteLexerBuffer(void *b) {
-  yy_delete_buffer(b);
-}
-
-char *stringLiteral;
-
-#define oneLine (location->first_line = location->last_line = currentLine)
-
 %}
+
+%option noyywrap
+%option reentrant
 
 %x NEWLINES
 
+ID  [a-zA-Z_0-9]+
+OP  [!%&*\-+=<>?/]+
+
 %%
 
+<<EOF>>                   return ENDOFFILE;
 <INITIAL>{
-\"([^"]|\\\")*\"                   { char *s = yytext + 1;
-                                     int remainder = strlen(s);
-                                     location->first_line = currentLine; 
-                                     while (*s != '"') {
-                                       --remainder;
-                                       if (*s == '\n') {
-                                         currentLine++;
-                                         continue;
-                                       }
-                                       if (*s++ != '\\') continue;
-                                       switch (*s) {
-                                         case 'n': s[-1] = '\n'; break;
-                                         case 't': s[-1] = '\t';
-                                       }
-                                       memmove(s, s + 1, --remainder);
-                                     }
-                                     *s = 0;
-                                     *value = string(temp(), yytext + 1);
-                                     location->last_line = currentLine;
-                                     return STRING;
-                                   }
-\$[^ \[\]\(\)\{\}\n.,;]*           { *value = symbol(temp(), yytext + 1);
-                                     oneLine;
-                                     return SYMBOL;
-                                   }
--?[0-9]+                           { *value = integer(temp(), atoi(yytext));
-                                     oneLine;
-                                     return INTEGER;
-                                   }
-=                                  oneLine; return ADDSLOT;
-:=                                 oneLine; return SETSLOT;
-[a-zA-Z_0-9]+                      *value = symbol(temp(), yytext); oneLine; return NAME;
-[a-zA-Z_0-9]+:                     *value = symbol(temp(), yytext); oneLine; return KEYWORD;
-:[a-zA-Z_0-9]+:                    *value = symbol(temp(), yytext + 1); oneLine; return OPERATOR;
-([a-zA-Z_0-9]+:){2,}               *value = symbol(temp(), yytext); oneLine; return KEYWORDS;
-->                                 oneLine; return ARROW;
-[^ \n.,;#^@a-zA-Z0-9|{}()\[\]\\]+  *value = symbol(temp(), yytext); oneLine; return OPERATOR;
-(#[^\n]*)?\n                       { BEGIN(NEWLINES);
-                                     oneLine;
-                                     currentLine++;
-                                     return '\n';
-                                   }
-\                                  /* discard */
-.                                  oneLine; return *yytext;
+\"([^"]|\\\")*\"          { char *s = yytext + 1;
+                            int remainder = strlen(s);
+                            location->last_line = location->first_line;
+                            while (*s != '"') {
+                              --remainder;
+                              if (*s == '\n') {
+                                location->last_line++;
+                                continue;
+                              }
+                              if (*s++ != '\\') continue;
+                              switch (*s) {
+                                case 'n': s[-1] = '\n'; break;
+                                case 't': s[-1] = '\t';
+                              }
+                              memmove(s, s + 1, --remainder);
+                            }
+                            *s = 0;
+                            *value = string(temp(), yyget_text(yyscanner) + 1);
+                            return STRING;
+                          }
+\$[^ \[\]\(\)\{\}\n.,;]*  { *value = symbol(temp(), yyget_text(yyscanner) + 1);
+                            return SYMBOL;
+                          }
+-?[0-9]+                  { *value = integer(temp(), atoi(yyget_text(yyscanner)));
+                            return INTEGER;
+                          }
+=                         { BEGIN(NEWLINES);
+                            return ADDSLOT;
+                          }
+:=                        { BEGIN(NEWLINES);
+                            return SETSLOT;
+                          }
+{ID}                      { *value = symbol(temp(), yyget_text(yyscanner));
+                            return NAME;
+                          }
+{ID}:                     { *value = symbol(temp(), yyget_text(yyscanner));
+                            BEGIN(NEWLINES);
+                            return KEYWORD;
+                          }
+:{ID}:                    { *value = symbol(temp(), yyget_text(yyscanner) + 1);
+                            BEGIN(NEWLINES);
+                            return OPERATOR;
+                          }
+({ID}:){2,}               { *value = symbol(temp(), yyget_text(yyscanner));
+                            BEGIN(NEWLINES);
+                            return KEYWORDS;
+                          }
+\\({ID}|({ID}:)+|{OP})    { *value = symbol(temp(), yyget_text(yyscanner) + 1);
+                            return ESCAPE;
+                          }
+->                        { BEGIN(NEWLINES);
+                            return ARROW;
+                          }
+[\(\[\{]                  { ++*nesting;
+                            return *yyget_text(yyscanner);
+                          }
+[\)\]\}]                  { --*nesting;
+                            return *yyget_text(yyscanner);
+                          }
+{OP}                      { *value = symbol(temp(), yyget_text(yyscanner));
+                            BEGIN(NEWLINES);
+                            return OPERATOR;
+                          }
+(#[^\n]*)?\n              { BEGIN(NEWLINES);
+                            location->last_line = ++location->first_line;
+                            if (*nesting) return '\n';
+                            return 0;
+                          }
+\                         /* discard */
+.                         return *yyget_text(yyscanner);
 }
 <NEWLINES>{
-\n|#[^\n]*\n                       currentLine++;
-\                                  /* discard */
-.                                  yyless(0); BEGIN(INITIAL);
+\ *(#[^\n]*)?\n           location->last_line = ++location->first_line;
+.                         yyless(0); BEGIN(INITIAL);
+}
+
+%%
+
+// TODO: Find a better way than this to get rid of the compiler warning.
+int yyparse(int *, int *, void **, yyscan_t);
+
+typedef struct {
+  FILE *file;
+  int line;
+  YY_BUFFER_STATE buffer;
+  yyscan_t scanner;
+} scannerData;
+
+scannerData *beginParsing(FILE *input) {
+  scannerData *sd = malloc(sizeof(scannerData));
+  sd->line = 0;
+  if (yylex_init(&sd->scanner)) die("Unable to initialize scanner.");
+  yy_switch_to_buffer(sd->buffer = yy_create_buffer(sd->file = input, YY_BUF_SIZE, sd->scanner),
+                      sd->scanner);
+  return sd;                            
+}
+void *parse(scannerData *sd) {
+  void *result;
+  int nesting = 0;
+  yyparse(&sd->line, &nesting, &result, sd->scanner);
+  return result;
+}
+void endParsing(scannerData *sd) {
+  yy_delete_buffer(sd->buffer, sd->scanner);
+  yylex_destroy(sd->scanner);
+  free(sd);
 }

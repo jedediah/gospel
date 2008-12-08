@@ -61,15 +61,33 @@ print HEADER "#ifndef OBJECTS_H\n#define OBJECTS_H\n\nobj ",
       ";\n\n#endif\n";
 
 foreach $object (keys %objects) {
-  foreach (keys %{$objects{$object}[0]}) {
-    print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n", $objects{$object}[0]{$_}, "}\n";
-  }
+  print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n",
+                  $objects{$object}[0]{$_},
+               "}\n"
+    foreach (keys %{$objects{$object}[0]});
   foreach (keys %{$objects{$object}[1]}) {
     my $id = cname($object) . cname($_);
-    print SOURCE "void *b$id(vector) __attribute__ ((noinline));\nvoid *b$id(vector thread) {\n", $objects{$object}[1]{$_}, "}\nvoid m$id(vector thread) { valueReturn(b$id(thread)); }\n";
+    print SOURCE "void *b$id(vector) __attribute__ ((noinline));\n",
+                 "void m$id(vector thread) { gotoNext(b$id(thread)); }\n";
   }
   print SOURCE "\n";
 }
+print SOURCE "#undef tailcall\n",
+             "#undef gotoNext\n",
+             "#define tailcall(f, ...) do { f(__VA_ARGS__); terminateThread(thread); } while (0)\n",
+             "#define gotoNext(t) return (t)\n";
+foreach $object (keys %objects) {
+  print SOURCE "void *b", cname($object), cname($_), "(vector thread) {\n",
+                  $objects{$object}[1]{$_},
+               "}\n"
+   foreach (keys %{$objects{$object}[1]});
+  print SOURCE "\n";
+}
+print SOURCE "#undef tailcall\n",
+             "#undef gotoNext\n",
+             "#define tailcall(f, ...) do { f(__VA_ARGS__); return; } while (0)\n",
+             "#define gotoNext(t) tailcall(doNext, (t))\n";
+
 
 print SOURCE "void initializeObjects() {\n";
 # Objects need to be initialized first, since the symbols and exceptions that come next will refer

@@ -19,12 +19,18 @@
 */
 
 #include "core.h"
-#include "death.h"
 #include "objects.h"
 #include <stdio.h>
 
 obj keywordMessage(obj target, pair args);
-void yyerror (YYLTYPE *, char const *);
+void yyerror(YYLTYPE *, int *, int *, void **, void *, char const *);
+
+#define fail(...) do { \
+  printf(__VA_ARGS__); \
+  fflush(stdout); \
+  *parserOutput = oNull; \
+  YYABORT; \
+} while (0)
 
 %}
 
@@ -41,24 +47,34 @@ void yyerror (YYLTYPE *, char const *);
 %token ADDSLOT
 %token SETSLOT
 
-%token INTERACTIVE
-%token BATCH
+%token ESCAPE
+
+%token ENDOFFILE
 
 %glr-parser
 %locations
 %pure-parser
+%lex-param {int *nesting}
+%lex-param {void *scanner}
+
+%parse-param {int *lineNumber}
+%parse-param {int *nesting}
+%parse-param {void **parserOutput}
+%parse-param {void *scanner}
+
+%initial-action { @$.first_line = @$.last_line = *lineNumber; }
 
 %%
 
 input:
-  INTERACTIVE gap line '\n'
-  { parserOutput = $3; YYACCEPT; }
-| BATCH body
-  { parserOutput = $2; YYACCEPT; }
-| INTERACTIVE error '\n'
-  { parserOutput = oNull; YYACCEPT; }
-| BATCH error
-  { parserOutput = list(temp(), oNull); YYACCEPT; }
+  gap ENDOFFILE
+  { *parserOutput = 0; YYACCEPT; }
+| gap
+  { *parserOutput = oNull; *lineNumber = @1.last_line; YYACCEPT; }
+| gap line gap
+  { *parserOutput = $2; *lineNumber = @3.last_line; YYACCEPT; }
+| error
+  { *parserOutput = oNull; *lineNumber = @1.last_line; YYABORT; }
 ;
 
 line:
@@ -158,8 +174,8 @@ name:
   { $$ = message(temp(), $1, $2, emptyVector); }
 | nametarget '@' NAME
   { $$ = promiseCode(temp(), message(temp(), $1, $3, emptyVector)); }
-| nametarget '\\' param
-  { $$ = message(temp(), $1, sContentsOfSlot_, newVector(temp(), 1, $3)); }
+| nametarget ESCAPE
+  { $$ = message(temp(), $1, sContentsOfSlot_, newVector(temp(), 1, $2)); }
 ;
 nametarget:
   { $$ = 0; }
@@ -236,6 +252,7 @@ param:
 ;
 
 body:
+  gap
   { $$ = list(temp(), oNull); }
 | gap lines gap
   { $$ = nreverse($2); }
@@ -256,10 +273,14 @@ obj keywordMessage(obj target, pair args) {
                  listToVector(temp(), map(temp(), cdr, args)));
 }
 
-void yyerror (YYLTYPE *location, char const *msg) {
-  fflush(stdout);
-  if (location->first_line == location->last_line)
-    printf("Syntax error at line %d.", location->last_line);
+void yyerror (YYLTYPE *location,
+              int *line,
+              int *nesting,
+              void **parserOutput,
+              void *scanner,
+              char const *msg) {
+  if (location->first_line == (*line = location->last_line))
+    printf("\nSyntax error at line %d.", location->last_line);
   else
-    printf("Syntax error between lines %d and %d.", location->first_line, location->last_line);
+    printf("\nSyntax error between lines %d and %d.", location->first_line, location->last_line);
 }

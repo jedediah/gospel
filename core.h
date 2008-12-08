@@ -16,8 +16,6 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// An interface for the parser.
-
 #ifndef CORE_H
 #define CORE_H
 
@@ -33,14 +31,10 @@ typedef struct YYLTYPE {
 
 #include <stdio.h>
 
-// Void pointers are actually YY_BUFFER_STATE, but core.c doesn't know about that type.
-void *createLexerBuffer(FILE *);
-void setLexerBuffer(void *);
-void deleteLexerBuffer(void *);
-
-int (*yylex)(YYSTYPE *, YYLTYPE *);
-int mainLexer(YYSTYPE *, YYLTYPE *);
-#define YY_DECL int mainLexer(YYSTYPE *value, YYLTYPE *location)
+//int (*yylex)(YYSTYPE *, YYLTYPE *, int *, void *);
+int mainLexer(YYSTYPE *, YYLTYPE *, int *, void *);
+#define YY_DECL int yylex(YYSTYPE *value, YYLTYPE *location, int *nesting, yyscan_t yyscanner)
+int yylex(YYSTYPE *, YYLTYPE *, int *, void *);
 
 #include "gc.h"
 
@@ -53,9 +47,6 @@ obj appendSymbols(life, vector);
 obj message(life, obj, obj, vector);
 
 obj block(life, vector, vector);
-
-obj parserOutput;
-vector parserThreadData;
 
 vector emptyVector;
 
@@ -87,12 +78,8 @@ int isEmpty(vector);
 
 void dispatch(vector);
 
-vector live;
-
 void setupInterpreter(void);
-void loadFile(const char *);
+void *loadFile(life, const char *);
 void REPL(void);
-
-int currentLine;
 
 #endif

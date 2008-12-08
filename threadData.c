@@ -91,3 +91,8 @@ void keep(vector thread, promise p, vector o) {
   // The return from this function is intended to terminate the thread as per clone(2).
   // It must therefore only be called in tail context.
 }
+
+void terminateThread(vector thread) {
+  killThreadData(thread);
+  explicitlyEndThread();
+}

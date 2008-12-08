@@ -32,3 +32,4 @@ vector *symbolTableShelter(vector);
 vector *lobbyShelter(vector);
 
 void keep(vector, promise, vector);
+void terminateThread(vector);

@@ -71,7 +71,7 @@ void forbidGC(void);
 void permitGC(void);
 
 void spawn(void *, void *, void *);
-
+void explicitlyEndThread(void);
 
 typedef vector obj;
 

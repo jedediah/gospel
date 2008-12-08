@@ -16,11 +16,13 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "core.h"
+#ifndef PARSER_H
+#define PARSER_H
 
-int main(int argc, char **argv) {
-  setupInterpreter();
-  loadFile(temp(), "canon.gs");
-  for (int i = argc; --i;) loadFile(0, argv[i]);
-  REPL();
-}
+#include <stdio.h>
+
+void *beginParsing(FILE *);
+void *parse(void *);
+void endParsing(void *);
+
+#endif
