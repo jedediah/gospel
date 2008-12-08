@@ -31,8 +31,6 @@ typedef struct YYLTYPE {
 
 #include <stdio.h>
 
-//int (*yylex)(YYSTYPE *, YYLTYPE *, int *, void *);
-int mainLexer(YYSTYPE *, YYLTYPE *, int *, void *);
 #define YY_DECL int yylex(YYSTYPE *value, YYLTYPE *location, int *nesting, yyscan_t yyscanner)
 int yylex(YYSTYPE *, YYLTYPE *, int *, void *);
 
@@ -79,7 +77,7 @@ int isEmpty(vector);
 void dispatch(vector);
 
 void setupInterpreter(void);
-void *loadFile(life, const char *);
+void *loadFile(life, const char *, obj, obj);
 void REPL(void);
 
 #endif

@@ -24,6 +24,8 @@
 
 @null null
 $serialized string(temp(), "<null>")
+!raise:
+  die("Exception raised in an environment with no understanding of the $raise: message.");
 !identity
   normalReturn;
 !interpret
@@ -44,10 +46,10 @@ $serialized string(temp(), "<null>")
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @interpreter object
 @object null
-!include:
-  obj a = waitFor(arg(0));
-  if (!isString(a)) raise(thread, eStringExpected);
-  valueReturn(loadFile(edenRoot(thread), stringData(a)));
+!include:in:
+  obj filename = waitFor(arg(0));
+  if (!isString(filename)) raise(thread, eStringExpected);
+  valueReturn(loadFile(edenRoot(thread), stringData(filename), target, waitFor(arg(1))));
 !setProto:
   obj p = arg(0);
   setProto(edenRoot(thread), target, p);

@@ -466,14 +466,14 @@ void setupInterpreter() {
   intern(temp(), oSymbol);
 }
 
-void *loadFile(vector *eden, const char *filename) {
+void *loadFile(vector *eden, const char *filename, obj staticEnv, obj dynamicEnv) {
   FILE *f = fopen(filename, "r");
   if (!f) die("Could not open \"%s\" for input.", filename);
   void *scanner = beginParsing(f);
   obj parserOutput, lastValue = oNull;
   while (parserOutput = parse(scanner)) {
     promise p = newPromise(eden ?: temp()); // FIXME: Null eden option is kind of ugly.
-    newThread(temp(), p, oLobby, oDynamicEnvironment, parserOutput, sIdentity, emptyVector);
+    newThread(temp(), p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
     lastValue = waitFor(p);
     invalidateTemporaryLife();
   }
@@ -491,7 +491,9 @@ void REPL() {
     // We just serialize first, to give the expression a chance to do its own terminal output, before
     // displaying the "=>" and printing.
     REPLPromise = newPromise(temp());
-    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parse(scanner), sSerialized, emptyVector);
+    obj parserOutput = parse(scanner);
+    if (!parserOutput) exit(0); // EOF character was input.
+    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
     obj serialization = waitFor(REPLPromise);
     fputs("\n=> ", stdout);
     fflush(stdout);

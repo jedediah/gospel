@@ -17,10 +17,11 @@
 */
 
 #include "core.h"
+#include "objects.h"
 
 int main(int argc, char **argv) {
   setupInterpreter();
-  loadFile(temp(), "canon.gs");
-  for (int i = argc; --i;) loadFile(0, argv[i]);
+  loadFile(temp(), "canon.gs", oLobby, oDynamicEnvironment);
+  for (int i = argc; --i;) loadFile(0, argv[i], oLobby, oDynamicEnvironment);
   REPL();
 }

@@ -43,7 +43,7 @@ threadData.o : threadData.c gc.h
 gc.o : gc.c objects.h death.h
 death.o : death.c
 core.o : core.c objects.c objects.h death.h gc.h threadData.h parser.h
-main.o : main.c core.h
+main.o : main.c core.h objects.h
 
 
 test : threadData.o death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a

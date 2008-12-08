@@ -14,6 +14,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
+
 object serialized = "<object>"
 true serialized = "<true>"
 false serialized = "<false>"
@@ -34,6 +35,10 @@ closure except: handle: {
   self
 }
 
+object include: fileName {
+  self include: fileName in: dynamicContext
+}
+
 exception missingElement = "Missing collection element."
 vector at: index {
   self at: index ifAbsent: { raise: exception missingElement }
@@ -45,9 +50,6 @@ vector ofLength: n {
   self ofLength: n containing: null
 }
 
-# The preceding code must be present in order for the interpreter to function correctly.
-# The following code creates core library functionality, things that the interpreter doesn't
-#  require but which any real program likely will.
 
 object if: yes          { yes  }
 false  if: yes          { self }
