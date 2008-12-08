@@ -44,8 +44,15 @@ $serialized string(temp(), "<null>")
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
-@interpreter object
 @object null
+!evaluate:in:
+  gotoNext(setSubexpressionContinuation(thread,
+                                        origin(threadContinuation(thread)),
+                                        target,
+                                        waitFor(arg(1)),
+                                        parseString(safeStringValue(waitFor(arg(0))),
+                                        sIdentity,
+                                        emptyVector));
 !include:in:
   obj filename = waitFor(arg(0));
   if (!isString(filename)) raise(thread, eStringExpected);
@@ -379,7 +386,6 @@ $block
 $primitive
 $string
 $symbol
-$interpreter newChannel(temp(), oInterpreter)
 $exception
 $vector
 !dynamicContext

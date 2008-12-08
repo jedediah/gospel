@@ -24,5 +24,6 @@
 void *beginParsing(FILE *);
 void *parse(void *);
 void endParsing(void *);
+void *parseString(char *);
 
 #endif
