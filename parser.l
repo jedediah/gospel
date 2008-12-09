@@ -46,12 +46,14 @@ OP  [!%&*\-+=<>?/]+
                               --remainder;
                               if (*s == '\n') {
                                 location->last_line++;
+                                s++;
                                 continue;
                               }
                               if (*s++ != '\\') continue;
                               switch (*s) {
                                 case 'n': s[-1] = '\n'; break;
-                                case 't': s[-1] = '\t';
+                                case 't': s[-1] = '\t'; break;
+                                default:  s[-1] = *s;
                               }
                               memmove(s, s + 1, --remainder);
                             }
@@ -127,13 +129,18 @@ typedef struct {
   yyscan_t scanner;
 } scannerData;
 
-scannerData *beginParsing(FILE *input) {
+scannerData *newScanner() {
   scannerData *sd = malloc(sizeof(scannerData));
   sd->line = 0;
   if (yylex_init(&sd->scanner)) die("Unable to initialize scanner.");
+  return sd;
+}
+
+scannerData *beginParsing(FILE *input) {
+  scannerData *sd = newScanner();
   yy_switch_to_buffer(sd->buffer = yy_create_buffer(sd->file = input, YY_BUF_SIZE, sd->scanner),
                       sd->scanner);
-  return sd;                            
+  return sd;
 }
 void *parse(scannerData *sd) {
   void *result;
@@ -145,4 +152,12 @@ void endParsing(scannerData *sd) {
   yy_delete_buffer(sd->buffer, sd->scanner);
   yylex_destroy(sd->scanner);
   free(sd);
+}
+
+void *parseString(char *string) {
+  scannerData *sd = newScanner();
+  sd->buffer = yy_scan_string(string, sd->scanner);
+  void *result = parse(sd);
+  endParsing(sd);
+  return result;
 }

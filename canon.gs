@@ -38,6 +38,9 @@ closure except: handle: {
 object include: fileName {
   self include: fileName in: dynamicContext
 }
+object evaluate: string {
+  self evaluate: string in: dynamicContext
+}
 
 exception missingElement = "Missing collection element."
 vector at: index {

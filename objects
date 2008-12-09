@@ -50,7 +50,7 @@ $serialized string(temp(), "<null>")
                                         origin(threadContinuation(thread)),
                                         target,
                                         waitFor(arg(1)),
-                                        parseString(safeStringValue(waitFor(arg(0))),
+                                        parseString(safeStringValue(waitFor(arg(0)))),
                                         sIdentity,
                                         emptyVector));
 !include:in:

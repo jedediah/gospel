@@ -426,7 +426,7 @@ void prototypePrimitiveHiddenValue(vector thread) {
                                                        : ({ raise(thread, eStackFrameExpected); \
                                                             (vector)0; \
                                                           }))
-#define safeStringValue(s) (isString(s) ? stringData(s) : ({ raise(thread, eStringExpected); 0; }))
+#define safeStringValue(s) (isString(s) ? stringData(s) : ({ raise(thread, eStringExpected); (char *)0; }))
 #define normalReturn messageReturn(thread, continuationTarget(threadContinuation(thread)))
 #define valueReturn(v) messageReturn(thread, (v))
 #define arg(i) (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
