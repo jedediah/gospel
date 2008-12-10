@@ -117,17 +117,21 @@ carets:
 signature:
   NAME
   { $$ = list(temp(), $1); }
-| OPERATOR param
+| OPERATOR signatureparam
   { $$ = cons(temp(), $1, list(temp(), $2)); }
 | keywordsignature
   { pair keywords = nreverse($1);
     $$ = cons(temp(), appendSymbols(temp(), map(temp(), car, keywords)), map(temp(), cdr, keywords)); }
 ;
 keywordsignature:
-  KEYWORD gap param
+  KEYWORD gap signatureparam
   { $$ = list(temp(), cons(temp(), $1, $3)); }
-| keywordsignature KEYWORD gap param
+| keywordsignature KEYWORD gap signatureparam
   { $$ = cons(temp(), cons(temp(), $2, $4), $1); }
+;
+signatureparam:
+  NAME
+| ESCAPE
 ;
 
 expr:
@@ -185,11 +189,18 @@ nametarget:
 | declaration
 ;
 
+impliedoperation:
+  OPERATOR gap operand
+  { $$ = message(temp(), 0, $1, newVector(temp(), 1, $3)); }
+| '@' gap OPERATOR gap operand
+  { $$ = promiseCode(temp(), message(temp(), 0, $3, newVector(temp(), 1, $5))); }
+;
+ 
 operation:
   optarget OPERATOR gap operand
   { $$ = message(temp(), $1, $2, newVector(temp(), 1, $4)); }
-| optarget '@' OPERATOR gap operand
-  { $$ = promiseCode(temp(), message(temp(), $1, $3, newVector(temp(), 1, $5))); }
+| optarget '@' gap OPERATOR gap operand
+  { $$ = promiseCode(temp(), message(temp(), $1, $4, newVector(temp(), 1, $6))); }
 ;
 optarget:
   nametarget
@@ -199,6 +210,15 @@ operand:
   parens
 | literal
 | name
+| impliedoperation
+| impliedmsg
+;
+
+impliedmsg:
+  keywords
+  { $$ = keywordMessage(0, nreverse($1)); }
+| '@' gap keywords
+  { $$ = promiseCode(temp(), keywordMessage(0, nreverse($3))); }
 ;
 
 msg:
@@ -206,6 +226,10 @@ msg:
   { $$ = keywordMessage($1, nreverse($2)); }
 | optarget '@' gap keywords
   { $$ = promiseCode(temp(), keywordMessage($1, nreverse($4))); }
+| optarget KEYWORD gap impliedoperation
+  { $$ = message(temp(), $1, $2, newVector(temp(), 1, $4)); }
+| optarget '@' gap KEYWORD impliedmsg
+  { $$ = promiseCode(temp(), message(temp(), $1, $4, newVector(temp(), 1, $5))); }
 ;
 keywords:
   KEYWORD gap msgarg

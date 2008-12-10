@@ -27,7 +27,7 @@ dynamicContext applyHandlerTo: exception {
   abortToREPL
 }
 lobby raise: exception { dynamicContext applyHandlerTo: exception }
-closure except: handle: {
+closure except: \handle: {
   dynamicContext applyHandlerTo: exception {
     self applyHandlerTo: exception { self proto applyHandlerTo: exception } # For when $handle: reraises.
     handle: exception
@@ -69,7 +69,7 @@ object target: target {
 }
 
 vector asVector { self } 
-vector each: iterateOn: {
+vector each: \iterateOn: {
   index = 0
   { index < self length else: { ^^ self }
     iterateOn: self :at: index
@@ -77,7 +77,7 @@ vector each: iterateOn: {
     recurse
   } do
 }
-vector mapping: valueFor: {
+vector mapping: \valueFor: {
   result = vector ofLength: self length
   index = 0
   { index < self length else: { ^^ result }
@@ -86,7 +86,7 @@ vector mapping: valueFor: {
     recurse
   } do
 }
-vector injecting: valueOf:with: {
+vector injecting: \valueOf:with: {
   accumulation = self at: 0
   index = 1
   { index < self length else: { ^^ accumulation }
