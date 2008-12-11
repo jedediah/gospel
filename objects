@@ -23,7 +23,11 @@
 # pointer to anything in its own automatic memory.
 
 @null null
-$serialized string(temp(), "<null>")
+  void **slot = shallowLookup(oNull, selector(threadContinuation(thread)));
+  if (!slot) raise(thread, eMessageNotUnderstood);
+  tailcall(primitiveCode(*slot), thread);
+!serialized
+  valueReturn(string(edenRoot(thread), "<null>"));
 !raise:
   die("Exception raised in an environment with no understanding of the $raise: message.");
 !identity

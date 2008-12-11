@@ -114,6 +114,9 @@ void setVectorType(vector, int);
 vector suffix(life, void *, vector);
 vector prefix(life, void *, vector);
 
+obj dispatchMethod(obj);
+void setDispatchMethod(obj, obj);
+
 vector class(obj);
 vector instance(obj);
 vector hiddenEntity(obj);

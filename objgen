@@ -30,7 +30,8 @@ while (<>) {
   elsif (/^&((?:$id:?)+)/         ) { push @symbols, $1;                                         }
   elsif (/^@($id) ($id) ?(.*)$/   ) { $parent{$currentObject = $1} = $2;
                                       $objects{$currentObject} = [];
-                                      $hidden{$currentObject} = $3;                              }
+                                      $hidden{$currentObject} = $3;
+                                      $currentMethod = 0;                                        }
   elsif (/^~($id) ([^\n]*)$/      ) { $exceptions{$currentObject}{$1} = $2;                      }
   elsif (/^!($id(?::(?:$id:)*)?)/ ) { $methods{$currentMethod = $1} = $1; $callable = 0;         }
   elsif (/^!([^ ]+) ($id)/        ) { $methods{$currentMethod = $2} = $1; $callable = 0;         }
@@ -38,7 +39,10 @@ while (<>) {
   elsif (/^\?([^ ]+) ($id)/       ) { $callableMethods{$currentMethod = $2} = $1; $callable = 1; }
   elsif (/^\$($id) ([^\n]+)/      ) { push @{$constants{$currentObject}}, [$1, $2];              }
   elsif (/^\$($id)/               ) { push @{$constants{$currentObject}}, [$1, "o" . cname($1)]; }
-  else                              { $objects{$currentObject}[$callable]{$currentMethod} .= $_; }
+  else {
+    if ($currentMethod) { $objects{$currentObject}[$callable]{$currentMethod} .= $_; }
+    else                { $dispatchMethods{$currentObject} .= $_;                    }
+  }
 }
 
 sub slotCount {
@@ -61,32 +65,34 @@ print HEADER "#ifndef OBJECTS_H\n#define OBJECTS_H\n\nobj ",
       ";\n\n#endif\n";
 
 foreach $object (keys %objects) {
+  print SOURCE "\n";
   print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n",
                   $objects{$object}[0]{$_},
                "}\n"
-    foreach (keys %{$objects{$object}[0]});
+   foreach (keys %{$objects{$object}[0]});
   foreach (keys %{$objects{$object}[1]}) {
     my $id = cname($object) . cname($_);
     print SOURCE "void *b$id(vector) __attribute__ ((noinline));\n",
                  "void m$id(vector thread) { gotoNext(b$id(thread)); }\n";
   }
-  print SOURCE "\n";
+  print SOURCE "void m", cname($object), "_(vector thread) {\n$dispatchMethods{$object}}\n"
+   if $dispatchMethods{$object};
 }
-print SOURCE "#undef tailcall\n",
-             "#undef gotoNext\n",
-             "#define tailcall(f, ...) do { f(__VA_ARGS__); terminateThread(thread); } while (0)\n",
-             "#define gotoNext(t) return (t)\n";
+
+print SOURCE "\n#undef tailcall\n",
+               "#undef gotoNext\n",
+               "#define tailcall(f, ...) do { f(__VA_ARGS__); terminateThread(thread); } while (0)\n",
+               "#define gotoNext(t) return (t)\n";
 foreach $object (keys %objects) {
   print SOURCE "void *b", cname($object), cname($_), "(vector thread) {\n",
                   $objects{$object}[1]{$_},
                "}\n"
    foreach (keys %{$objects{$object}[1]});
-  print SOURCE "\n";
 }
 print SOURCE "#undef tailcall\n",
              "#undef gotoNext\n",
              "#define tailcall(f, ...) do { f(__VA_ARGS__); return; } while (0)\n",
-             "#define gotoNext(t) tailcall(doNext, (t))\n";
+             "#define gotoNext(t) tailcall(doNext, (t))\n\n";
 
 
 print SOURCE "void initializeObjects() {\n";
@@ -118,6 +124,8 @@ foreach $object (keys %objects) {
    if ($hidden{$object} !~ /^ *$/);
   print SOURCE "\n  setProto(temp(), o", cname($object), ", o", cname($parent{$object}), ");"
    if ($parent{$object});
+  print SOURCE "\n  setDispatchMethod(o", cname($object), ", primitive(temp(), m", cname($object), "_));"
+   if ($dispatchMethods{$object});
 
   print SOURCE "\n  setSlotNames(temp(), o", cname($object), ", newVector(temp(), ", slotCount $object;
   print SOURCE "\n  , s", cname($_)

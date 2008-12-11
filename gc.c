@@ -514,13 +514,25 @@ obj setProto(vector *live, obj o, obj p) {
   setClass(o, c);
   return o;
 }
+
+obj dispatchMethod(obj o) {
+  return idx(o, 3);
+}
+void setDispatchMethod(obj o, obj dm) {
+  setIdx(o, 3, dm);
+}
+
+// FIXME: The need for this is another sign that gc.c and core.c should be merged.
+void normalDispatchMethod(vector);
+
 obj newObject(vector *live, obj proto, vector slotNames, vector slotValues, void *hidden) {
   vector eden = newVector(live, 4, proto, slotNames, slotValues, hidden);
   return newVector(live,
-                   3,
+                   4,
                    prefix(edenIdx(eden, 0), proto, slotNames),
                    slotValues,
-                   hidden);
+                   hidden,
+                   0);
 }
 obj slotlessObject(vector *live, obj proto, vector hidden) {
   return newObject(live, proto, emptyVector, emptyVector, hidden);

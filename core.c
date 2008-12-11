@@ -90,7 +90,15 @@ continuation newContinuation(vector *live,
                              vector unevaluated,
                              vector staticEnv,
                              vector dynamicEnv) {
-  return newVector(live, 6, origin, selector, evaluated, unevaluated, staticEnv, dynamicEnv);
+  return newVector(live, 7, origin, selector, evaluated, unevaluated, staticEnv, dynamicEnv, 0);
+}
+
+obj receiver(continuation c) {
+  return idx(c, 6);
+}
+vector setThreadReceiver(vector thread, obj o) {
+  setIdx(threadContinuation(thread), 6, o);
+  return thread;
 }
 
 void   *origin(continuation c)      { return idx(c, 0); } // either a promise or another continuation
@@ -247,10 +255,67 @@ void returnToREPL(vector thread) {
   tailcall(returnToREPL, (thread)); \
 } while (0)
 
+void invokeDispatchMethod(vector);
+
+void normalDispatchMethod(vector thread) {
+  vector c = threadContinuation(thread);
+  obj r = receiver(c);
+  void **slot = shallowLookup(r, selector(c));
+  if (!slot) tailcall(invokeDispatchMethod, setThreadReceiver(thread, proto(r))); 
+  obj contents = *slot;
+
+  if (isPrimitive(contents)) tailcall(primitiveCode(contents), thread);
+  if (isClosure(contents)) {
+    vector params = closureParams(contents), args = evaluated(c);
+    if (vectorLength(args) != vectorLength(params)) raise(thread, eBadArity);
+    vector eden = makeVector(edenRoot(thread), 2);
+    tailcall(doNext,
+             setSubexpressionContinuation(thread,
+                                          origin(c),
+                                          stackFrame(edenIdx(eden, 0),
+                                                     closureEnv(contents),
+                                                     params,
+                                                     args,
+                                                     c),
+                                          slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
+                                          oInternals,
+                                          sMethodBody,
+                                          closureBody(contents)));
+  }
+  messageReturn(thread, contents); // The slot just contains a value, not code.
+}
+
+void invokeDispatchMethod(vector thread) {
+  continuation c = threadContinuation(thread);
+  obj dm = dispatchMethod(receiver(c));
+
+  // TODO: Find a nice solution to the bootstrapping problem of initializing all objects with a
+  //       primitive method object containing normalDispatchMethod, and eliminate the first test.
+  
+  if (!dm) tailcall(normalDispatchMethod, thread);
+  if (isPrimitive(dm)) tailcall(primitiveCode(dm), thread);
+  if (isClosure(dm)) {
+    // Closures are checked for correct arity at the time the dispatch method is set.
+    vector eden = makeVector(edenRoot(thread), 2);
+    tailcall(doNext,
+             setSubexpressionContinuation(thread,
+                                          origin(c),
+                                          stackFrame(edenIdx(eden, 0),
+                                                     closureEnv(dm),
+                                                     closureParams(dm),
+                                                     evaluated(c),
+                                                     c),
+                                          slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
+                                          oInternals,
+                                          sMethodBody,
+                                          closureBody(dm)));
+  }
+  messageReturn(thread, dm); // The dispatch method is actually just a constant value.
+}
+
 void dispatch(vector thread) {
   continuation c = threadContinuation(thread);
   obj t = continuationTarget(c);
-
   if (isChannel(t)) {
     vector e = makeVector(edenRoot(thread), 3);
     promise p = newPromise(edenIdx(e, 0));
@@ -273,40 +338,7 @@ void dispatch(vector thread) {
     releaseChannelLock(t);
     messageReturn(thread, r);
   }
-
-  void **slot = deepLookup(t, selector(c));
-  if (!slot) raise(thread, eMessageNotUnderstood);
-
-  // TODO: Consider having messages sent to slots containing promises return promises.
-  //       Unary messages could return the promise as-is, but if there are arguments then
-  //       a new promise would need to be constructed to represent the message send.
-  obj contents = waitFor(*slot);
-
-  if (isPrimitive(contents))
-    tailcall(primitiveCode(contents), thread);
-  if (isClosure(contents)) {
-    vector params = closureParams(contents), args = evaluated(c);
-    if (vectorLength(args) != vectorLength(params)) raise(thread, eBadArity);
-
-    // Discard the expression wherein the arguments were evaluated. Replace it with an expression
-    // wherein the body of the closure is evaluated. The value of this expression is the value we
-    // wanted for the original one.
-
-    vector eden = makeVector(edenRoot(thread), 2);
-    tailcall(doNext,
-             setSubexpressionContinuation(thread,
-                                          origin(c),
-                                          stackFrame(edenIdx(eden, 0),
-                                                     closureEnv(contents),
-                                                     params,
-                                                     args,
-                                                     c),
-                                          slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
-                                          oInternals,
-                                          sMethodBody,
-                                          closureBody(contents)));
-  }
-  messageReturn(thread, contents); // The slot just contains a value, not code.
+  tailcall(invokeDispatchMethod, setThreadReceiver(thread, t));
 }
 
 // The heart of the interpreter, called at the end of each expression to evaluate the next one.
