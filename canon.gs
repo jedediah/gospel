@@ -14,7 +14,6 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
-
 object serialized = "<object>"
 true serialized = "<true>"
 false serialized = "<false>"
@@ -95,6 +94,7 @@ vector injecting: \valueOf:with: {
     recurse
   } do
 }
+
 vector serialized {
   self length == 0 if: { ^ "[]" }
   "[" ++ (self :mapping: { x | x serialized } :injecting: { x y | x ++ ", " ++ y } ++ "]")
@@ -103,3 +103,29 @@ vector serialized {
 object print { self serialized print }
 
 vector print { self each: { x | x print } }
+
+TCPSocket = object new
+TCPSocket POSIXFileDescriptor = -1
+TCPSocket maximumBacklog = 128
+TCPSocket serving: port with: \handle: {
+  descriptor = (server = self new) POSIXFileDescriptor = POSIX TCPSocket
+  POSIX bindInternetSocket: descriptor to: port
+  POSIX listenOn: descriptor withMaximumBacklog: self maximumBacklog
+  { (connection = self new) POSIXFileDescriptor = POSIX acceptOn: descriptor
+    @handle: connection
+    recurse
+  } @except: { e | server close. end } # TODO: Rethrow errors that are not due to socket shutdown.
+  server
+}
+TCPSocket read: byteCount {
+  POSIX read: byteCount from: self POSIXFileDescriptor
+}
+TCPSocket write: string {
+  POSIX write: string to: self POSIXFileDescriptor
+}
+TCPSocket shutdown {
+  POSIX shutdown: self POSIXFileDescriptor
+}
+TCPSocket close {
+  POSIX close: self POSIXFileDescriptor
+}

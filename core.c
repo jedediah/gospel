@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <errno.h>
 
 // Used by socket objects:
 #include <sys/types.h>
@@ -171,18 +172,29 @@ vector setExceptionContinuation(vector thread, obj exception) {
   gotoNext(setExceptionContinuation((thread), (exception)))
 
 obj string(vector *live, const char *s) {
-  // TODO: Write a macro to express the subtract-one-and-divide technique of finding size in cells.
-  int length = (strlen(s) + 1 + sizeof(int) - 1) / sizeof(int);
+  int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
   strcpy((char *)makeAtomVector(live, length)->data, s);
   return slotlessObject(live, oString, *live);
 }
 char *stringData(obj s) {
   return (char *)(hiddenEntity(s)->data);
 }
+int stringLength(obj s) {
+  vector data = hiddenEntity(s);
+  int i = vectorLength(data);
+  if (!i) return 0;
+  int last = (int)idx(data, i - 1),
+      length = i * 4;
+  // Assumes little-endianness:
+  return !(last & 0x000000ff) ? length - 4
+       : !(last & 0x0000ff00) ? length - 3
+       : !(last & 0x00ff0000) ? length - 2
+                              : length - 1;
+}
 obj appendStrings(vector *live, obj s1, obj s2) {
   vector living = newVector(live, 3, s1, s2, 0);
-  int length1 = strlen(stringData(s1));
-  vector s = makeAtomVector(edenIdx(living, 2), (length1 + strlen(stringData(s2)) + 1 + 3) / 4);
+  int length1 = stringLength(s1);
+  vector s = makeAtomVector(edenIdx(living, 2), CELLS_REQUIRED_FOR_BYTES(length1 + stringLength(s2) + 1));
   strcpy((char *)vectorData(s), stringData(s1));
   strcpy((char *)vectorData(s) + length1, stringData(s2));
   return slotlessObject(live, oString, s);
@@ -269,8 +281,7 @@ void normalDispatchMethod(vector thread) {
     vector params = closureParams(contents), args = evaluated(c);
     if (vectorLength(args) != vectorLength(params)) raise(thread, eBadArity);
     vector eden = makeVector(edenRoot(thread), 2);
-    tailcall(doNext,
-             setSubexpressionContinuation(thread,
+    gotoNext(setSubexpressionContinuation(thread,
                                           origin(c),
                                           stackFrame(edenIdx(eden, 0),
                                                      closureEnv(contents),
@@ -282,7 +293,7 @@ void normalDispatchMethod(vector thread) {
                                           sMethodBody,
                                           closureBody(contents)));
   }
-  messageReturn(thread, contents); // The slot just contains a value, not code.
+  messageReturn(thread, contents); // The slot contains a constant value, not code.
 }
 
 void invokeDispatchMethod(vector thread) {
@@ -297,8 +308,7 @@ void invokeDispatchMethod(vector thread) {
   if (isClosure(dm)) {
     // Closures are checked for correct arity at the time the dispatch method is set.
     vector eden = makeVector(edenRoot(thread), 2);
-    tailcall(doNext,
-             setSubexpressionContinuation(thread,
+    gotoNext(setSubexpressionContinuation(thread,
                                           origin(c),
                                           stackFrame(edenIdx(eden, 0),
                                                      closureEnv(dm),
@@ -382,8 +392,6 @@ int isEmpty(vector v) {
   return vectorLength(v) == 0; 
 }
 
-void dispatch();
-
 // TODO: Not threadsafe, currently must not be called outside of parser.
 obj intern(vector *live, obj symbol) {
   obj symbolTable = *symbolTableShelter(garbageCollectorRoot);
@@ -413,8 +421,6 @@ obj promiseCode(vector *live, obj message) {
 obj promiseCodeValue(obj p) {
   return hiddenEntity(p);
 }
-
-void doNext();
 
 obj addSlot(vector *live, obj o, obj s, obj v) {
   vector living = newVector(live, 3, o, s, v);
@@ -447,7 +453,7 @@ void *arg(vector thread, int i) {
 obj *filenameToInclude;
 promise *promiseOfInclusion;
 
-// The prototype primitive's behaviour should be to return itself, so that it won't be neceesary to write
+// The prototype primitive's behaviour should be to return itself, so that it won't be necessary to write
 // e.g. "\primitive foo {}".
 void prototypePrimitiveHiddenValue(vector thread) {
   messageReturn(thread, oPrimitive);
@@ -468,6 +474,7 @@ void prototypePrimitiveHiddenValue(vector thread) {
 #undef arg
 #undef valueReturn
 #undef normalReturn
+#undef safeStringValue
 #undef safeStackFrameContinuation
 #undef safeIntegerValue
 

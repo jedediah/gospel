@@ -49,9 +49,11 @@ test(appendSymbols,
 )
 test(appendStrings,
   obj s1 = string(temp(), "foo"),
-      s2 = string(temp(), "bar");
-  assert_string_equal(stringData(appendStrings(temp(), string(temp(), "foo"), string(temp(), "bar"))),
-                      "foobar");
+      s2 = string(temp(), "bar"),
+      s3 = string(temp(), "");
+  assert_string_equal(stringData(appendStrings(temp(), s1, s3)), "foo");
+  assert_string_equal(stringData(appendStrings(temp(), s3, s1)), "foo");
+  assert_string_equal(stringData(appendStrings(temp(), s1, s2)), "foobar");
 )
 test(freeSpaceCount,
   int oldCount = freeSpaceCount();
@@ -171,6 +173,14 @@ test(scan,
   assert_equal(v->next, i);
   assert_equal(i->prev, v);
   assert_equal(i->next, blackList);
+)
+test(stringLength,
+  obj s = string(temp(), "");
+  assert_equal(stringLength(s), 0);
+  s = string(temp(), "foo");
+  assert_equal(stringLength(s), 3);
+  s = string(temp(), "foobar");
+  assert_equal(stringLength(s), 6);
 )
 
   return run_test_suite(suite, create_text_reporter());

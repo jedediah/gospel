@@ -35,8 +35,6 @@ int liveSegmentCount = 0;
 
 #define ARENA_CELLS (1024 * 1024)
 
-#define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(int) - 1) / sizeof(int))
-
 #define TYPE_BIT_MASK 7
 // "Tag bits" are the type bits plus the GC mark bit.
 #define TAG_BIT_MASK  (TYPE_BIT_MASK * 2 + 1)
@@ -521,9 +519,6 @@ obj dispatchMethod(obj o) {
 void setDispatchMethod(obj o, obj dm) {
   setIdx(o, 3, dm);
 }
-
-// FIXME: The need for this is another sign that gc.c and core.c should be merged.
-void normalDispatchMethod(vector);
 
 obj newObject(vector *live, obj proto, vector slotNames, vector slotValues, void *hidden) {
   vector eden = newVector(live, 4, proto, slotNames, slotValues, hidden);

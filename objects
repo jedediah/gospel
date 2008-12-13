@@ -265,58 +265,53 @@
   int i = safeIntegerValue(target);
   while (i) i = sleep(i);
   valueReturn(target);
-@byteVector object
-!length
-  // TODO: Typechecking?
-  valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target)) / sizeof(int)));
-@file object
-# This could be made more abstract by having methods obtain the target's file descriptor through
-# a message ("$posixFileDescriptor"?) instead of assuming that it is the target's hidden atom.
-!close
-  if (close(safeIntegerValue(target))) raise(thread, eClosingFile);
+@POSIX null
+~POSIX Error during a POSIX system call.
+!errno
+  valueReturn(integer(edenRoot(thread), errno));
+!close:
+  if (close(safeIntegerValue(arg(0)))) raise(thread, ePOSIX);
   normalReturn;
-!readBytes:
-  vector *live = edenRoot(thread), living = makeVector(live, 3);
-  int length = safeIntegerValue(waitFor(arg(0)));
-  vector buffer = makeAtomVector(idxPointer(living, 0), (length + sizeof(int) - 1) / sizeof(int));
-  int count = read(safeIntegerValue(target), buffer->data, length);
-  vector result = makeAtomVector(idxPointer(living, 2), (count + sizeof(int) - 1) / sizeof(int));
-  memcpy(result->data, buffer->data, count);
-  valueReturn(slotlessObject(live, oByteVector, result));
-@socket file
-!posixFileDescriptor
-  valueReturn(integer(edenRoot(thread), (int)hiddenAtom(target)));
-!new
-  int s = socket(PF_INET, SOCK_STREAM, 0);
-  if (s == -1) raise(thread, eOpeningSocket);
-  valueReturn(setProto(edenRoot(thread), integer(edenRoot(thread), s), oSocket));
-?bind:
+!read:from:
+  int count = safeIntegerValue(waitFor(arg(0)));
+  vector s = makeAtomVector(edenRoot(thread), CELLS_REQUIRED_FOR_BYTES(count + 1));
+  char *b = vectorData(s);
+  ssize_t i = read(safeIntegerValue(waitFor(arg(1))), b, count);
+  if (i == -1) raise(thread, ePOSIX);
+  b[i] = 0;
+  valueReturn(slotlessObject(edenRoot(thread), oString, s));
+!write:to:
+  char *s = safeStringValue(waitFor(arg(0)));
+  ssize_t i = write(safeIntegerValue(waitFor(arg(1))), s, strlen(s));
+  if (i == -1) raise(thread, ePOSIX);
+  valueReturn(integer(edenRoot(thread), i));
+?bindInternetSocket:to:
   struct sockaddr_in s;
   memset(&s, 0, sizeof(struct sockaddr_in));
   s.sin_family = AF_INET;
-  s.sin_port = htons(safeIntegerValue(waitFor(arg(0))));
+  s.sin_port = htons(safeIntegerValue(waitFor(arg(1))));
   s.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind(safeIntegerValue(target), (struct sockaddr *)&s, (socklen_t)sizeof(struct sockaddr_in)))
-    raise(thread, eBindingSocket);
+  if (bind(safeIntegerValue(waitFor(arg(0))),
+           (struct sockaddr *)&s, (socklen_t)sizeof(struct sockaddr_in)))
+    raise(thread, ePOSIX);
   normalReturn;
-!listenWithBacklog:
-  if (listen((int)hiddenAtom(target), safeIntegerValue(waitFor(arg(0)))))
-    raise(thread, eListeningOnSocket);
+!TCPSocket
+  int s = socket(PF_INET, SOCK_STREAM, 0);
+  if (s == -1) raise(thread, ePOSIX);
+  valueReturn(integer(edenRoot(thread), s));
+!listenOn:withMaximumBacklog:
+  if (listen(safeIntegerValue(waitFor(arg(0))), safeIntegerValue(waitFor(arg(1)))))
+    raise(thread, ePOSIX);
   normalReturn;
-?accept
+?acceptOn:
   struct sockaddr socketParameters;
   socklen_t socketParametersSize = sizeof(struct sockaddr);
-  int newSocket = accept(safeIntegerValue(target), &socketParameters, &socketParametersSize);
-  if (newSocket == -1) raise(thread, eAcceptingSocketConnection);
-  life e = edenRoot(thread);
-  valueReturn(setProto(e, integer(e, newSocket), oSocket));
-!read:
-  int length = safeIntegerValue(waitFor(arg(0)));
-  vector *live = edenRoot(thread);
-  obj string = slotlessObject(live, oString, makeAtomVector(live, length));
-  if (recv(safeIntegerValue(target), vectorData(hiddenEntity(string)), length, 0) == -1)
-    raise(thread, eReadingFromSocket);
-  valueReturn(string);
+  int newSocket = accept(safeIntegerValue(waitFor(arg(0))), &socketParameters, &socketParametersSize);
+  if (newSocket == -1) raise(thread, ePOSIX);
+  valueReturn(integer(edenRoot(thread), newSocket));
+!shutdown:
+  if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(thread, ePOSIX);
+  normalReturn;
 @true object
 @false object
 @exception object
@@ -329,12 +324,6 @@
 ~integerExpected Non-integer encountered where integer expected.
 ~negativeVectorLength Attempted to create a vector with negative length.
 ~messageNotUnderstood Message not understood.
-~readingFromSocket Error while reading from a socket.
-~openingSocket Error while opening a socket.
-~bindingSocket Error while binding a socket.
-~listeningOnSocket Error while beginning to listen on a socket.
-~acceptingSocketConnection Error while accepting a connection on a socket.
-~closingFile Error while closing a file.
 ~outOfBounds Out-of-bounds array access.
 ~badReturnDepth Too many carets in return statement.
 ~topLevelRecursion Attempted to recurse at the top level.
@@ -342,6 +331,9 @@
 ~gettingNonexistantSlot Attempted to access a nonexistant slot.
 ~missingArgument Too few arguments to primitive function.
 @lobby object oInternals
+# We stash a pointer to oInternals here to lend it oLobby's immunity to garbage collection.
+# It would perhaps make more sense to give oInternals the immunity, and let oLobby borrow it,
+# but future changes to the interpreter may eliminate the need for oInternals.
 !return:atDepth:
   obj frame = target;
   for (int i = safeIntegerValue(waitFor(arg(1)));;) {
@@ -380,9 +372,6 @@ $closure
 $integer
 $null
 $lobby
-$file
-$socket
-$byteVector
 $code
 $promiseCode
 $arrowCode
@@ -392,6 +381,7 @@ $string
 $symbol
 $exception
 $vector
+$POSIX
 !dynamicContext
   valueReturn(dynamicEnv(threadContinuation(thread)));
 !collectGarbage
