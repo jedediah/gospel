@@ -368,6 +368,22 @@ void releaseThreadListLock() {
   if (pthread_mutex_unlock(&threadListMutex)) die("Error while releasing thread list lock.");
 }
 
+pthread_mutex_t symbolTableMutex = PTHREAD_MUTEX_INITIALIZER;
+void acquireSymbolTableLock() {
+  if (pthread_mutex_lock(&symbolTableMutex)) die("Error while acquiring symbol table lock.");
+}
+void releaseSymbolTableLock() {
+  if (pthread_mutex_unlock(&symbolTableMutex)) die("Error while releasing symbol table lock.");
+}
+
+pthread_mutex_t tempMutex = PTHREAD_MUTEX_INITIALIZER;
+void acquireTempLock() {
+  if (pthread_mutex_lock(&tempMutex)) die("Error while acquiring temp() lock.");
+}
+void releaseTempLock() {
+  if (pthread_mutex_unlock(&tempMutex)) die("Error while releasing temp() lock.");
+}
+
 typedef struct {
   obj value;
   pthread_cond_t conditionVariable;
@@ -467,68 +483,65 @@ vector prefix(vector *live, void *e, vector v) {
   return nv;
 }
 
-vector  class(obj o)        { return     idx(o, 0);     }
-vector  instance(obj o)     { return     idx(o, 1);     }
-vector  hiddenEntity(obj o) { return     idx(o, 2);     }
-void   *hiddenAtom(obj o)   { return idx(idx(o, 2), 0); }
 
-// Encapsulate the way slot names are stored within the class vector.
-int slotCount(obj o) {
-  return vectorLength(idx(o, 0)) - 1;
-}
-void *slotName(obj o, int i) {
-  return idx(class(o), i + 1);
-}
-vector slotNameVector(vector *eden, obj o) {
-  vector c = class(o);
-  int l = vectorLength(c) - 1;
-  vector s = makeVector(edenIdx(newVector(eden, 2, c, 0), 1), l);
-  memcpy(vectorData(s), idxPointer(c, 1), l * sizeof(vector));
-  return s;
+obj newObject(life eden, obj proto, vector slotNames, vector slotValues, void *hidden) {
+  vector e = newVector(eden, 5, proto, slotNames, slotValues, hidden, 0);
+  int count = vectorLength(slotNames);
+  vector slots = makeVector(edenIdx(e, 4), count * 3);
+  for (int i = 0; i < count; ++i) {
+    setIdx(slots, i * 3, idx(slotNames, i));
+    setIdx(slots, i * 3 + 1, idx(slotValues, i));
+    setIdx(slots, i * 3 + 2, oNamespaceCanon);
+  }
+  return newVector(eden, 4, proto, slots, hidden, 0);
 }
 
-// Encapsulate the way slot values are stored within the instance vector.
-void *setSlotByIndex(obj o, int i, obj v) {
-  return setIdx(instance(o), i, v);
-}
+vector  proto(obj o)          { return     idx(o, 0);     }
+vector  slots(obj o)          { return     idx(o, 1);     }
+vector  hiddenEntity(obj o)   { return     idx(o, 2);     }
+void   *hiddenAtom(obj o)     { return idx(idx(o, 2), 0); }
+obj     dispatchMethod(obj o) { return     idx(o, 3);     }
 
-void   setClass(obj o, vector c)      {        setIdx(o, 0, c); }
-void   setInstance(obj o, vector i)   {        setIdx(o, 1, i); }
-vector setHiddenData(obj o, vector h) { return setIdx(o, 2, h); }
-
-void setSlotNames(vector *live, obj o, vector slotNames) {
-  setClass(o, prefix(live, proto(o), slotNames));
-}
-void setSlotValues(obj o, vector slotValues) {
-  setInstance(o, slotValues);
-}
-
-obj proto(obj o) {
-  return idx(class(o), 0);
-}
-obj setProto(vector *live, obj o, obj p) {
-  vector c = duplicateVector(live, class(o));
-  setIdx(c, 0, p);
-  setClass(o, c);
+obj setProto(obj o, obj p) {
+  setIdx(o, 0, p);
   return o;
 }
-
-obj dispatchMethod(obj o) {
-  return idx(o, 3);
+void setSlots(obj o, vector s) {
+  setIdx(o, 1, s);
+}
+vector setHiddenData(obj o, vector h) {
+  return setIdx(o, 2, h);
 }
 void setDispatchMethod(obj o, obj dm) {
   setIdx(o, 3, dm);
 }
 
-obj newObject(vector *live, obj proto, vector slotNames, vector slotValues, void *hidden) {
-  vector eden = newVector(live, 4, proto, slotNames, slotValues, hidden);
-  return newVector(live,
-                   4,
-                   prefix(edenIdx(eden, 0), proto, slotNames),
-                   slotValues,
-                   hidden,
-                   0);
+int slotCount(obj o) {
+  return vectorLength(slots(o)) / 3;
 }
+obj slotName(obj o, int i) {
+  return idx(slots(o), i * 3);
+}
+void **slotValuePointer(obj o, int i) {
+  return (void **)idxPointer(slots(o), i * 3 + 1);
+}
+obj slotNamespace(obj o, int i) {
+  return idx(slots(o), i * 3 + 2);
+}
+
+obj newSlot(life e, obj o, obj s, void *v, obj namespace) {
+  vector eden = newVector(e, 4, o, s, v, 0),
+         oldSlots = slots(o);
+  int length = vectorLength(oldSlots);
+  vector newSlots = makeVector(edenIdx(eden, 3), length + 3);
+  memcpy(vectorData(newSlots), vectorData(oldSlots), length * sizeof(obj));
+  setIdx(newSlots, length,     s);
+  setIdx(newSlots, length + 1, v);
+  setIdx(newSlots, length + 2, namespace);
+  setSlots(o, newSlots);
+  return v;
+}
+
 obj slotlessObject(vector *live, obj proto, vector hidden) {
   return newObject(live, proto, emptyVector, emptyVector, hidden);
 }
@@ -574,6 +587,7 @@ vector stackFrameContinuation(obj sf) {
 }
 
 // Certain objects have to be given special type tags.
+// TODO: Make it possible to specify this in the builtins file.
 void initializePrototypeTags() {
   setVectorType(oInteger, FIXNUM);
   setVectorType(oPrimitive, PRIMITIVE);

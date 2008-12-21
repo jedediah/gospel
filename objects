@@ -19,11 +19,12 @@
 &raise:
 &currentMessageTarget
 
-# A primitive must not do anything that will prevent GCC's sibling call optimization, including taking a
-# pointer to anything in its own automatic memory.
+# If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
+# a pointer to its own automatic memory, then declare it ?foo rather than !foo.
 
 @null null
-  void **slot = shallowLookup(oNull, selector(threadContinuation(thread)));
+  continuation c = threadContinuation(thread);
+  void **slot = shallowLookup(oNull, selector(c), c);
   if (!slot) raise(thread, eMessageNotUnderstood);
   tailcall(primitiveCode(*slot), thread);
 !serialized
@@ -60,10 +61,12 @@
 !include:in:
   obj filename = waitFor(arg(0));
   if (!isString(filename)) raise(thread, eStringExpected);
-  valueReturn(loadFile(edenRoot(thread), stringData(filename), target, waitFor(arg(1))));
+  FILE *f = fopen(stringData(filename), "r");
+  if (!f) raise(thread, eInclusion);
+  valueReturn(loadStream(edenRoot(thread), f, target, waitFor(arg(1))));
 !setProto:
-  obj p = arg(0);
-  setProto(edenRoot(thread), target, p);
+  obj p = waitFor(arg(0));
+  setProto(target, p);
   valueReturn(p);
 !== equals
   if (target == waitFor(arg(0))) valueReturn(oTrue);
@@ -82,8 +85,12 @@
   obj a = waitFor(arg(0)), t = target;
   for (int i = 0; i < slotCount(t); i++) if (slotName(t, i) == a) valueReturn(oTrue);
   valueReturn(oFalse);
-!selectors
-  valueReturn(vectorObject(edenRoot(thread), slotNameVector(edenRoot(thread), target)));
+!localSelectors
+  obj o = target;
+  int n = slotCount(o);
+  vector v = makeVector(edenRoot(thread), n);
+  while (n--) setIdx(v, n, slotName(o, n));
+  valueReturn(vectorObject(edenRoot(thread), v));
 !proto
   valueReturn(proto(target));
 !channel
@@ -91,20 +98,28 @@
 !identity
   normalReturn;
 !addSlot:as:
-  valueReturn(addSlot(edenRoot(thread), target, waitFor(arg(0)), arg(1)));
+  valueReturn(addSlot(edenRoot(thread), target, waitFor(arg(0)), arg(1), threadContinuation(thread)));
 !setSlot:to:
-  void **slot = deepLookup(target, waitFor(arg(0)));
+  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(thread));
   if (!slot) raise(thread, eSettingNonexistantSlot);
   valueReturn(*slot = arg(1));
 !contentsOfSlot:
-  void **slot = deepLookup(target, waitFor(arg(0)));
+  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(thread));
   if (!slot) raise(thread, eGettingNonexistantSlot);
   valueReturn(*slot);
 !new
   obj o = slotlessObject(edenRoot(thread), target, hiddenEntity(target));
   setVectorType(o, vectorType(target));
   valueReturn(o);
+@namespace object
+@namespaceCanon namespace
+$serialized string(temp(), "<canon!>")
 @vector object
+!++ appending
+  valueReturn(vectorObject(edenRoot(thread),
+                           vectorAppend(edenRoot(thread),
+                                        safeVector(target),
+                                        safeVector(waitFor(arg(0))))));
 !ofLength:containing:
   int l = safeIntegerValue(waitFor(arg(0)));
   if (l < 0) raise(thread, eNegativeVectorLength);
@@ -315,6 +330,7 @@
 @true object
 @false object
 @exception object
+~inclusion Error while attempting to open a file for inclusion.
 ~badArity Wrong number of arguments to closure.
 ~stringExpected Non-string encountered where string expected.
 ~stackFrameExpected Something other than a stack frame encountered where stack frame expected.
@@ -382,6 +398,8 @@ $symbol
 $exception
 $vector
 $POSIX
+$canon oNamespaceCanon
+$namespace
 !dynamicContext
   valueReturn(dynamicEnv(threadContinuation(thread)));
 !collectGarbage
@@ -391,4 +409,11 @@ $POSIX
   normalReturn;
 !exit
   exit(0);
-@dynamicEnvironment object
+@dynamicEnvironment object newVector(temp(), 1, oNamespaceCanon)
+!setNamespaces:
+  obj v = waitFor(arg(0));
+  if (!isVectorObject(v)) raise(thread, eVectorExpected);
+  setHiddenData(target, vectorObjectVector(v));
+  normalReturn;
+!namespaces
+  valueReturn(vectorObject(edenRoot(thread), hiddenEntity(target)));

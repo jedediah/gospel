@@ -113,6 +113,16 @@ void setEvaluated(continuation c, vector v)   { setIdx(c, 2, v); }
 void setUnevaluated(continuation c, vector v) { setIdx(c, 3, v); }
 void setEnv(continuation c, obj o)            { setIdx(c, 4, o); }
 
+int isVisible(continuation c, obj namespace) {
+  vector namespaces = hiddenEntity(dynamicEnv(c));
+  for (int i = 0; i < vectorLength(namespaces); ++i)
+    if (idx(namespaces, i) == namespace) return -1;
+  return 0;
+}
+obj currentNamespace(continuation c) {
+  return idx(hiddenEntity(dynamicEnv(c)), 0);
+}
+
 obj continuationTarget(continuation c) {
   return waitFor(idx(evaluated(c), 0));
 }
@@ -183,14 +193,14 @@ int stringLength(obj s) {
   vector data = hiddenEntity(s);
   int i = vectorLength(data);
   if (!i) return 0;
-  int last = (int)idx(data, i - 1),
-      length = i * 4;
-  // Assumes little-endianness:
-  return !(last & 0x000000ff) ? length - 4
-       : !(last & 0x0000ff00) ? length - 3
-       : !(last & 0x00ff0000) ? length - 2
-                              : length - 1;
+  int length = i * 4;
+  char *last = (char *)idxPointer(data, i - 1);
+  return !last[0] ? length - 4
+       : !last[1] ? length - 3
+       : !last[2] ? length - 2
+                  : length - 1;
 }
+
 obj appendStrings(vector *live, obj s1, obj s2) {
   vector living = newVector(live, 3, s1, s2, 0);
   int length1 = stringLength(s1);
@@ -208,23 +218,28 @@ vector blockBody(obj b)   { return idx(hiddenEntity(b), 1); }
 
 vector vectorAppend(vector *live, vector v1, vector v2) {
   int length1 = vectorLength(v1), length2 = vectorLength(v2);
-  vector living = newVector(live, 3, v1, v2),
+  vector living = newVector(live, 3, v1, v2, 0),
          v3 = makeVector(edenIdx(living, 2), length1 + length2);
   memcpy(vectorData(v3), vectorData(v1), length1 * sizeof(void *));
-  memcpy((void *)vectorData(v3) + length1, vectorData(v2), length2 * sizeof(void *));
+  memcpy((void *)vectorData(v3) + length1 * sizeof(void *), vectorData(v2), length2 * sizeof(void *));
   return v3;
 }
 
-void **shallowLookup(obj o, obj name) {
-  vector c = class(o);
-  for (int i = 1; i < vectorLength(c); i++)
-    if (idx(c, i) == name) return &instance(o)->data[i - 1];
+void **shallowLookup(obj o, obj name, vector c) {
+  for (int i = 0; i < slotCount(o); ++i)
+    if (slotName(o, i) == name && isVisible(c, slotNamespace(o, i)))
+      return slotValuePointer(o, i);
   return 0;
 }
-void **deepLookup(obj o, obj name) {
+void **deepLookup(obj o, obj name, continuation c) {
   void **slot;
-  if (slot = shallowLookup(o, name)) return slot;
-  return o == oNull ? 0 : deepLookup(proto(o), name);
+  if (slot = shallowLookup(o, name, c)) return slot;
+  return o == oNull ? 0 : deepLookup(proto(o), name, c);
+}
+
+obj addSlot(life e, obj o, obj s, void *v, continuation c) {
+  void **slot = shallowLookup(o, s, c);
+  return slot ? *slot = v : newSlot(e, o, s, v, currentNamespace(c));
 }
 
 obj vectorObject(vector *eden, vector v) {
@@ -232,6 +247,22 @@ obj vectorObject(vector *eden, vector v) {
 }
 obj vectorObjectVector(obj v) {
   return hiddenEntity(v);
+}
+
+vector vectorUnion(life e, vector x, vector y) {
+  int nx = vectorLength(x), n = nx, ny = vectorLength(y);
+  obj *t = malloc((nx + ny) * sizeof(obj));
+  memcpy(t, vectorData(x), nx * sizeof(obj));
+  for (int i = 0; i < ny; ++i) {
+    for (int j = 0; j < n; ++j) if (idx(y, i) == t[j]) goto alreadyPresent;
+    t[n++] = idx(y, i);
+    continue;
+    alreadyPresent:;
+  }
+  obj v = makeVector(e, n);
+  memcpy(vectorData(v), t, n * sizeof(obj));
+  free(t);
+  return v;
 }
 
 void doNext(vector);
@@ -269,10 +300,15 @@ void returnToREPL(vector thread) {
 
 void invokeDispatchMethod(vector);
 
+obj newDynamicScope(life e, continuation c) {
+  obj oldScope = dynamicEnv(c);
+  return slotlessObject(e, oldScope, hiddenEntity(oldScope));
+}
+
 void normalDispatchMethod(vector thread) {
   vector c = threadContinuation(thread);
   obj r = receiver(c);
-  void **slot = shallowLookup(r, selector(c));
+  void **slot = shallowLookup(r, selector(c), c);
   if (!slot) tailcall(invokeDispatchMethod, setThreadReceiver(thread, proto(r))); 
   obj contents = *slot;
 
@@ -288,7 +324,7 @@ void normalDispatchMethod(vector thread) {
                                                      params,
                                                      args,
                                                      c),
-                                          slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
+                                          newDynamicScope(edenIdx(eden, 1), c),
                                           oInternals,
                                           sMethodBody,
                                           closureBody(contents)));
@@ -302,7 +338,7 @@ void invokeDispatchMethod(vector thread) {
 
   // TODO: Find a nice solution to the bootstrapping problem of initializing all objects with a
   //       primitive method object containing normalDispatchMethod, and eliminate the first test.
-  
+
   if (!dm) tailcall(normalDispatchMethod, thread);
   if (isPrimitive(dm)) tailcall(primitiveCode(dm), thread);
   if (isClosure(dm)) {
@@ -392,16 +428,17 @@ int isEmpty(vector v) {
   return vectorLength(v) == 0; 
 }
 
-// TODO: Not threadsafe, currently must not be called outside of parser.
 obj intern(vector *live, obj symbol) {
+  acquireSymbolTableLock();
   obj symbolTable = *symbolTableShelter(garbageCollectorRoot);
   char *string = stringData(symbol);
   for (pair st = symbolTable; !empty(st); st = cdr(st))
-    if (!strcmp(string, stringData(car(st))))
+    if (!strcmp(string, stringData(car(st)))) {
+      releaseSymbolTableLock();
       return car(st);
-
+    }
   *symbolTableShelter(garbageCollectorRoot) = cons(live, symbol, symbolTable);
-
+  releaseSymbolTableLock();
   return symbol;
 }
 
@@ -422,19 +459,11 @@ obj promiseCodeValue(obj p) {
   return hiddenEntity(p);
 }
 
-obj addSlot(vector *live, obj o, obj s, obj v) {
-  vector living = newVector(live, 3, o, s, v);
-  void **slot = shallowLookup(o, s);
-  if (slot) return *slot = v;
-  setClass(o, suffix(edenIdx(living, 1), s, class(o)));
-  setInstance(o, suffix(edenIdx(living, 2), v, instance(o)));
-  return v;
-}
-
-// Intended for use by the parser. Obviously not thread-safe.
 vector *temp() {
+  acquireTempLock();
   vector *s = edenRoot(garbageCollectorRoot);
   vector v = newVector(s, 2, 0, *s);
+  releaseTempLock();
   return idxPointer(v, 0);
 }
 void invalidateTemporaryLife() {
@@ -459,12 +488,26 @@ void prototypePrimitiveHiddenValue(vector thread) {
   messageReturn(thread, oPrimitive);
 }
 
-#define safeIntegerValue(i) (isInteger(i) ? integerValue(i) : ({ raise(thread, eIntegerExpected); 0; }))
-#define safeStackFrameContinuation(f) (isStackFrame(f) ? stackFrameContinuation(f) \
-                                                       : ({ raise(thread, eStackFrameExpected); \
-                                                            (vector)0; \
-                                                          }))
-#define safeStringValue(s) (isString(s) ? stringData(s) : ({ raise(thread, eStringExpected); (char *)0; }))
+void *loadStream(life, FILE *, obj, obj);
+
+#define safeIntegerValue(i) ({ \
+  obj s_i = (i); \
+  isInteger(s_i) ? integerValue(s_i) : ({ raise(thread, eIntegerExpected); 0; }); \
+})
+#define safeStackFrameContinuation(f) ({ \
+  obj s_f = (f); \
+  isStackFrame(s_f) ? stackFrameContinuation(s_f) : ({ raise(thread, eStackFrameExpected); \
+                                                       (vector)0; \
+                                                     }); \
+})
+#define safeStringValue(s) ({ \
+  obj s_s = (s); \
+  isString(s_s) ? stringData(s_s) : ({ raise(thread, eStringExpected); (char *)0; }); \
+})
+#define safeVector(v) ({ \
+  obj s_v = (v); \
+  isVectorObject(s_v) ? vectorObjectVector(s_v) : ({ raise(thread, eVectorExpected); (vector)0; }); \
+}) 
 #define normalReturn messageReturn(thread, continuationTarget(threadContinuation(thread)))
 #define valueReturn(v) messageReturn(thread, (v))
 #define arg(i) (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
@@ -474,26 +517,26 @@ void prototypePrimitiveHiddenValue(vector thread) {
 #undef arg
 #undef valueReturn
 #undef normalReturn
+#undef safeVector
 #undef safeStringValue
 #undef safeStackFrameContinuation
 #undef safeIntegerValue
 
 void (*primitiveCode(obj p))(continuation);
 
-obj appendSymbols(vector *live, pair symbols) {
-  vector e = newVector(live, 2, symbols, 0);
-  obj s = string(edenIdx(e, 0), "");
+obj appendSymbols(life eden, pair symbols) {
+  vector e = newVector(eden, 2, symbols, 0);
+  obj s = string(edenIdx(e, 1), "");
   for (; !empty(symbols); symbols = cdr(symbols))
-    s = appendStrings(edenIdx(e, 0), s, car(symbols));
-  setProto(edenIdx(e, 1), s, oSymbol);
-  return intern(live, s);
+    s = appendStrings(edenIdx(e, 1), s, car(symbols));
+  setProto(s, oSymbol);
+  return intern(eden, s);
 }
 
-obj symbol(vector *live, const char *s) {
-  vector eden = makeVector(live, 2);
-  obj o = string(edenIdx(eden, 0), s);
-  setProto(edenIdx(eden, 1), o, oSymbol);
-  return intern(live, o);
+obj symbol(life eden, const char *s) {
+  obj o = string(eden, s);
+  setProto(o, oSymbol);
+  return intern(eden, o);
 }
 
 void setupInterpreter() {
@@ -506,20 +549,23 @@ void setupInterpreter() {
   intern(temp(), oSymbol);
 }
 
-void *loadFile(vector *eden, const char *filename, obj staticEnv, obj dynamicEnv) {
-  FILE *f = fopen(filename, "r");
-  if (!f) die("Could not open \"%s\" for input.", filename);
+void *loadStream(life eden, FILE *f, obj staticEnv, obj dynamicEnv) {
   void *scanner = beginParsing(f);
   obj parserOutput, lastValue = oNull;
+  vector e = makeVector(eden, 2);
   while (parserOutput = parse(scanner)) {
-    promise p = newPromise(eden ?: temp()); // FIXME: Null eden option is kind of ugly.
-    newThread(temp(), p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
+    promise p = newPromise(edenIdx(e, 0));
+    newThread(edenIdx(e, 1), p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
     lastValue = waitFor(p);
-    invalidateTemporaryLife();
   }
   endParsing(scanner);
   fclose(f);
   return lastValue;
+}
+void *loadFile(vector *eden, const char *filename, obj staticEnv, obj dynamicEnv) {
+  FILE *f = fopen(filename, "r");
+  if (!f) die("Could not open \"%s\" for input.", filename);
+  return loadStream(eden, f, staticEnv, dynamicEnv);
 }
 
 void REPL() {

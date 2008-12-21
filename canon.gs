@@ -35,10 +35,16 @@ closure except: \handle: {
 }
 
 object include: fileName {
-  self include: fileName in: dynamicContext
+  fileScope = dynamicContext new
+  value = self include: fileName in: fileScope
+  dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileScope namespaces) nub
+  value
 }
-object evaluate: string {
-  self evaluate: string in: dynamicContext
+
+lobby namespace: name {
+  (newNamespace = namespace new) serialized = "<" ++ name ++ "!>"
+  dynamicContext proto setNamespaces: ([newNamespace] ++ dynamicContext proto namespaces) nub
+  newNamespace
 }
 
 exception missingElement = "Missing collection element."
@@ -51,7 +57,6 @@ vector at: index put: value {
 vector ofLength: n {
   self ofLength: n containing: null
 }
-
 
 object if: yes          { yes  }
 false  if: yes          { self }
@@ -85,27 +90,50 @@ vector mapping: \valueFor: {
     recurse
   } do
 }
-vector injecting: \valueOf:with: {
-  accumulation = self at: 0
+
+vector first { self at: 0 }
+vector rest {
+  rest = vector ofLength: self length - 1
   index = 1
-  { index < self length else: { ^^ accumulation }
-    accumulation := valueOf: accumulation with: self :at: index
+  { index < self length else: { ^^ rest }
+    rest at: index - 1 put: self :at: index
     index := index + 1
     recurse
   } do
 }
 
+vector injecting: value into: \valueOf:with: {
+  accumulation = value
+  self each: { x | accumulation := valueOf: accumulation with: x }
+  accumulation 
+}
+
+vector selecting: \selects: {
+  self injecting: [] into: { collection element |
+    :selects: element if: { collection ++ [element] } else: collection
+  }
+}
+
+vector occurrencesOf: object {
+  self injecting: 0 into: { count element | element == object if: { count + 1 } else: count }
+}
+
+vector nub {
+  self injecting: [] into: { nub element |
+    nub :occurrencesOf: element == 0 if: { nub ++ [element] } else: nub
+  }
+}
+
 vector serialized {
   self length == 0 if: { ^ "[]" }
-  "[" ++ (self :mapping: { x | x serialized } :injecting: { x y | x ++ ", " ++ y } ++ "]")
+  elements = self mapping: { x | x serialized }
+  "[" ++ (elements rest injecting: elements first into: { x y | x ++ ", " ++ y }) ++ "]"  
 }
 
 object print { self serialized print }
-
 vector print { self each: { x | x print } }
 
 TCPSocket = object new
-TCPSocket POSIXFileDescriptor = -1
 TCPSocket maximumBacklog = 128
 TCPSocket serving: port with: \handle: {
   descriptor = (server = self new) POSIXFileDescriptor = POSIX TCPSocket
@@ -114,7 +142,7 @@ TCPSocket serving: port with: \handle: {
   { (connection = self new) POSIXFileDescriptor = POSIX acceptOn: descriptor
     @handle: connection
     recurse
-  } @except: { e | server close. end } # TODO: Rethrow errors that are not due to socket shutdown.
+  } @except: { e | server close. end } # TODO: Rethrow exceptions that are not due to socket shutdown.
   server
 }
 TCPSocket read: byteCount {

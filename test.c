@@ -94,8 +94,9 @@ test(shallowLookup,
   obj s = symbol(temp(), "slot"),
       v = symbol(temp(), "value"),
       o = newObject(temp(), oNull, newVector(temp(), 1, s), newVector(temp(), 1, v), emptyVector);
-  assert_false(shallowLookup(o, symbol(temp(), "notASlot")));
-  assert_equal(*shallowLookup(o, s), v);
+  continuation c = newContinuation(temp(), 0, 0, 0, 0, 0, oDynamicEnvironment);
+  assert_false(shallowLookup(o, symbol(temp(), "notASlot"), c));
+  assert_equal(*shallowLookup(o, s, c), v);
 )
 test(deepLookup,
   obj s = symbol(temp(), "slot"),
@@ -107,8 +108,9 @@ test(deepLookup,
                                    newVector(temp(), 1, v),
                                    emptyVector),
                          emptyVector);
-  assert_false(deepLookup(o, symbol(temp(), "notASlot")));
-  assert_equal(*deepLookup(o, s), v); 
+  continuation c = newContinuation(temp(), 0, 0, 0, 0, 0, oDynamicEnvironment);
+  assert_false(deepLookup(o, symbol(temp(), "notASlot"), c));
+  assert_equal(*deepLookup(o, s, c), v); 
 )
 test(insertBetween,
   void *prev[3], *next[3], *middle[3], *single[3];
@@ -153,9 +155,10 @@ test(addSlot,
   obj o = newObject(temp(), oNull, emptyVector, emptyVector, 0),
       s = symbol(temp(), "foo"),
       i = integer(temp(), 42);
+  continuation c = newContinuation(temp(), 0, 0, 0, 0, 0, oDynamicEnvironment);
   void **v;
-  assert_equal(addSlot(temp(), o, s, i), i);
-  assert_true((int)(v = shallowLookup(o, s)));
+  assert_equal(addSlot(temp(), o, s, i, c), i);
+  assert_true((int)(v = shallowLookup(o, s, c)));
   assert_equal(*v, i);
 )
 test(mark,
@@ -181,6 +184,36 @@ test(stringLength,
   assert_equal(stringLength(s), 3);
   s = string(temp(), "foobar");
   assert_equal(stringLength(s), 6);
+)
+test(vectorAppend,
+  obj a = integer(temp(), 1),
+      b = integer(temp(), 2),
+      x = newVector(temp(), 0),
+      y = newVector(temp(), 1, a),
+      z = newVector(temp(), 2, a, b),
+      t = vectorAppend(temp(), x, y),
+      u = vectorAppend(temp(), y, x),
+      v = vectorAppend(temp(), y, z);
+  assert_equal(vectorLength(t), 1);
+  assert_equal(idx(t, 0), a);
+  assert_equal(vectorLength(u), 1);
+  assert_equal(idx(u, 0), a);
+  assert_equal(vectorLength(v), 3);
+  assert_equal(idx(v, 0), a);
+  assert_equal(idx(v, 1), a);
+  assert_equal(idx(v, 2), b);
+)
+test(vectorUnion,
+  obj a = integer(temp(), 1),
+      b = integer(temp(), 2),
+      c = integer(temp(), 3),
+      x = newVector(temp(), 2, a, b),
+      y = newVector(temp(), 2, a, c),
+      r = vectorUnion(temp(), x, y);
+  assert_equal(vectorLength(r), 3);
+  assert_equal(idx(r, 0), a);
+  assert_equal(idx(r, 1), b);
+  assert_equal(idx(r, 2), c);
 )
 
   return run_test_suite(suite, create_text_reporter());

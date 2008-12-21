@@ -47,8 +47,12 @@ typedef vector *life;
 
 vector emptyVector;
 
-void acquireThreadListLock();
-void releaseThreadListLock();
+void acquireThreadListLock(void);
+void releaseThreadListLock(void);
+void acquireSymbolTableLock(void);
+void releaseSymbolTableLock(void);
+void acquireTempLock(void);
+void releaseTempLock(void);
 int freeSpaceCount(void);
 
 vector makeVector(life, int);
@@ -119,21 +123,17 @@ vector prefix(life, void *, vector);
 obj dispatchMethod(obj);
 void setDispatchMethod(obj, obj);
 
-vector class(obj);
-vector instance(obj);
+obj newSlot(life, obj, obj, void *, obj);
 vector hiddenEntity(obj);
 void *hiddenAtom(obj);
-void *setSlotByIndex(obj, int, obj);
-void setSlotNames(life, obj, vector);
-void setSlotValues(obj, vector);
+void setSlots(obj, vector);
 int slotCount(obj);
-void *slotName(obj, int);
-vector slotNameVector(life, obj o);
-void setClass(obj, vector);
-void setInstance(obj, vector);
+obj slotName(obj, int);
+obj slotNamespace(obj, int);
+void **slotValuePointer(obj, int);
 vector setHiddenData(obj, vector);
 obj proto(obj);
-obj setProto(life, obj, obj);
+obj setProto(obj, obj);
 obj newObject(life, obj, vector, vector, void *);
 obj slotlessObject(life, obj, vector);
 obj fixnumObject(life, obj, int);
