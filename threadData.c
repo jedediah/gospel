@@ -20,14 +20,13 @@
 
 typedef vector continuation;
 
-vector newThreadData(vector *life,
-                     vector stack,
+vector newThreadData(vector stack,
                      obj dynamicEnv,
                      vector cc,
                      vector prev,
                      vector next,
                      vector scratch) {
-  return newVector(life, 6, stack, dynamicEnv, cc, prev, next, scratch);
+  return newVector(6, stack, dynamicEnv, cc, prev, next, scratch);
 }
 
 continuation threadContinuation(vector td) { return idx(td, 2); }
@@ -39,15 +38,10 @@ vector *edenRoot(vector td) {
 vector       setPreviousThreadData(vector td, vector ptd) { return setIdx(td, 3, ptd); } 
 vector       setNextThreadData(vector td, vector ntd)     { return setIdx(td, 4, ntd); }
 
-void allocateThreadStack(vector td) {
-  setIdx(td, 0, makeAtomVector(edenRoot(td), STACKDEPTH));
-}
-
-vector createGarbageCollectorRoot(vector *eden) {
-  vector garbageCollectorRoot = newThreadData(eden, 0, 0, 0, 0, 0, 0);
+vector createGarbageCollectorRoot() {
+  vector garbageCollectorRoot = newThreadData(0, 0, 0, 0, 0, 0);
   setNextThreadData(garbageCollectorRoot,
                     setPreviousThreadData(garbageCollectorRoot, garbageCollectorRoot));
-  allocateThreadStack(garbageCollectorRoot);
   mark(garbageCollectorRoot);
   return garbageCollectorRoot;
 }
@@ -61,17 +55,13 @@ vector setContinuation(vector threadData, continuation c) {
 vector *symbolTableShelter(vector root) { return idxPointer(root, 1); }
 vector *lobbyShelter(vector root)       { return idxPointer(root, 2); }
 
-vector addThread(vector *life, vector root) {
+vector addThread(vector root) {
   acquireThreadListLock();
   vector next = nextThreadData(root),
-         new = newThreadData(life, 0, 0, 0, root, next, 0);
+         new = newThreadData(0, 0, 0, root, next, 0);
   setNextThreadData(root, setPreviousThreadData(next, new));
   releaseThreadListLock();
-  allocateThreadStack(new);
   return new;
-}
-void *topOfStack(vector threadData) {
-  return &((vector)idx(threadData, 0))->data[STACKDEPTH - 1];
 }
 
 void killThreadData(vector td) {

@@ -98,24 +98,24 @@ print SOURCE "#undef tailcall\n",
 print SOURCE "void initializeObjects() {\n";
 # Objects need to be initialized first, since the symbols and exceptions that come next will refer
 # to the values of object identifiers for their prototypes.
-print SOURCE "  o", cname($_), " = newObject(temp(), NIL, emptyVector, emptyVector, NIL);\n"
+print SOURCE "  o", cname($_), " = newObject(NIL, emptyVector, emptyVector, NIL);\n"
  foreach(keys %objects);
 print SOURCE "\n";
 foreach $objectExceptions (values %exceptions) {
-  print SOURCE "  e", cname($_), " = string(temp(), \"$objectExceptions->{$_}\");\n"
+  print SOURCE "  e", cname($_), " = string(\"$objectExceptions->{$_}\");\n"
    foreach(keys %$objectExceptions);
 }
 foreach (keys %methods) {
-  print SOURCE "  s", cname($_), " = symbol(temp(), \"$methods{$_}\");\n";
+  print SOURCE "  s", cname($_), " = symbol(\"$methods{$_}\");\n";
 }
 foreach (keys %callableMethods) {
-  print SOURCE "  s", cname($_), " = symbol(temp(), \"$callableMethods{$_}\");\n";
+  print SOURCE "  s", cname($_), " = symbol(\"$callableMethods{$_}\");\n";
 }
 foreach (@symbols) {
-  print SOURCE "  s", cname($_), " = symbol(temp(), \"$_\");\n";
+  print SOURCE "  s", cname($_), " = symbol(\"$_\");\n";
 }
 foreach $objectConstants (values %constants) {
-  print SOURCE "  s", cname($_->[0]), " = symbol(temp(), \"$_->[0]\");\n"
+  print SOURCE "  s", cname($_->[0]), " = symbol(\"$_->[0]\");\n"
    foreach (@$objectConstants);
 }
 
@@ -123,11 +123,11 @@ foreach $object (keys %objects) {
   print SOURCE "\n  setHiddenData(o", cname($object), ", ", $hidden{$object}, ");"
    if ($hidden{$object} !~ /^ *$/);
   print SOURCE "\n  setProto(o", cname($object), ", o", cname($parent{$object}), ");";
-  print SOURCE "\n  setDispatchMethod(o", cname($object), ", primitive(temp(), m", cname($object), "_));"
+  print SOURCE "\n  setDispatchMethod(o", cname($object), ", primitive(m", cname($object), "_));"
    if ($dispatchMethods{$object});
   print SOURCE "\n  setSlots(o",
                cname($object),
-               ", newVector(temp(), ",
+               ", newVector(",
                (scalar(keys %{$objects{$object}[0]})
                 + scalar(keys %{$objects{$object}[1]})
                 + scalar(@{$constants{$object}})
@@ -135,7 +135,7 @@ foreach $object (keys %objects) {
                
   print SOURCE "\n  , s",
                cname($_),
-               ", primitive(temp(), m",
+               ", primitive(m",
                cname($object),
                cname($_),
                "), oNamespaceCanon"
@@ -144,7 +144,7 @@ foreach $object (keys %objects) {
                 cname($_->[0]),
                 ", $_->[1], oNamespaceCanon"
    foreach (@{$constants{$object}});
-  print SOURCE "\n  , symbol(temp(), \"$_\"), e",
+  print SOURCE "\n  , symbol(\"$_\"), e",
                cname($_),
                ", oNamespaceCanon"
    foreach (keys %{$exceptions{$object}});

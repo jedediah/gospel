@@ -42,8 +42,8 @@ int empty(pair l) {
   return l == emptyList;
 }
 
-pair list(vector *live, void *o) {
-  return cons(live, o, emptyList);
+pair list(void *o) {
+  return cons(o, emptyList);
 }
 
 pair nreverse(pair l) {
@@ -66,32 +66,25 @@ int length(pair l) {
   return i;
 }
 
-vector listToVector(vector *live, vector list) {
-  vector living = newVector(live, 2, list, 0);
-  vector v = setIdx(living, 1, makeVector(edenIdx(living, 1), length(list)));
+vector listToVector(vector list) {
+  vector v = makeVector(length(list));
   for (int i = 0; !empty(list); i++, list = cdr(list)) setIdx(v, i, car(list));
-  return *live = v;
+  return v;
 }
 
-void *fold(void *op, pair args, void *identity) {
-  return empty(args) ? identity
-                     : ((void *(*)(void *, void *))op)(car(args), fold(op, cdr(args), identity));
-}
-pair map(life live, void *fn, pair list) {
-  return empty(list) ? list
-                     : cons(live, ((void *(*)(void *))fn)(car(list)), map(live, fn, cdr(list)));
+pair map(void *fn, pair list) {
+  return empty(list) ? list : cons(((void *(*)(void *))fn)(car(list)), map(fn, cdr(list)));
 }
 
 typedef vector continuation;
 
-continuation newContinuation(vector *live,
-                             void *origin,
+continuation newContinuation(void *origin,
                              obj selector,
                              vector evaluated,
                              vector unevaluated,
                              vector staticEnv,
                              vector dynamicEnv) {
-  return newVector(live, 7, origin, selector, evaluated, unevaluated, staticEnv, dynamicEnv, 0);
+  return newVector(7, origin, selector, evaluated, unevaluated, staticEnv, dynamicEnv, 0);
 }
 
 obj receiver(continuation c) {
@@ -134,23 +127,20 @@ vector setSubexpressionContinuation(vector thread,
                                     obj target,
                                     obj selector,
                                     vector args) {
-  vector eden = newVector(edenRoot(thread), 2, *edenRoot(thread), 0);
   return setContinuation(thread,
-                         newContinuation(edenRoot(thread),
-                                         parentContinuation,
+                         newContinuation(parentContinuation,
                                          selector,
                                          emptyVector, // initially no subexpressions evaluated
-                                         prefix(edenIdx(eden, 1), target, args),
+                                         prefix(target, args),
                                          staticEnv,
                                          dynamicEnv));
 }
 
 vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
   return setContinuation(thread,
-                         newContinuation(edenRoot(thread),
-                                         origin(c),
+                         newContinuation(origin(c),
                                          selector(c),
-                                         suffix(edenRoot(thread), value, evaluated(c)),
+                                         suffix(value, evaluated(c)),
                                          unevaluated(c),
                                          env(c),
                                          dynamicEnv(c)));
@@ -175,16 +165,17 @@ vector setExceptionContinuation(vector thread, obj exception) {
                                       dynamicEnv(c),
                                       env(c),
                                       sRaise_,
-                                      newVector(edenRoot(thread), 1, exception));
+                                      newVector(1, exception));
 }
 
 #define raise(thread, exception) \
   gotoNext(setExceptionContinuation((thread), (exception)))
 
-obj string(vector *live, const char *s) {
+obj string(const char *s) {
   int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
-  strcpy((char *)makeAtomVector(live, length)->data, s);
-  return slotlessObject(live, oString, *live);
+  vector v = makeAtomVector(length);
+  strcpy((char *)vectorData(v), s);
+  return slotlessObject(oString, v);
 }
 char *stringData(obj s) {
   return (char *)(hiddenEntity(s)->data);
@@ -201,25 +192,23 @@ int stringLength(obj s) {
                   : length - 1;
 }
 
-obj appendStrings(vector *live, obj s1, obj s2) {
-  vector living = newVector(live, 3, s1, s2, 0);
+obj appendStrings(obj s1, obj s2) {
   int length1 = stringLength(s1);
-  vector s = makeAtomVector(edenIdx(living, 2), CELLS_REQUIRED_FOR_BYTES(length1 + stringLength(s2) + 1));
+  vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(length1 + stringLength(s2) + 1));
   strcpy((char *)vectorData(s), stringData(s1));
   strcpy((char *)vectorData(s) + length1, stringData(s2));
-  return slotlessObject(live, oString, s);
+  return slotlessObject(oString, s);
 }
 
-obj block(vector *live, vector params, vector body) {
-  return slotlessObject(live, oBlock, newVector(live, 2, params, body));
+obj block(vector params, vector body) {
+  return slotlessObject(oBlock, newVector(2, params, body));
 }
 vector blockParams(obj b) { return idx(hiddenEntity(b), 0); }
 vector blockBody(obj b)   { return idx(hiddenEntity(b), 1); }
 
-vector vectorAppend(vector *live, vector v1, vector v2) {
+vector vectorAppend(vector v1, vector v2) {
   int length1 = vectorLength(v1), length2 = vectorLength(v2);
-  vector living = newVector(live, 3, v1, v2, 0),
-         v3 = makeVector(edenIdx(living, 2), length1 + length2);
+  vector v3 = makeVector(length1 + length2);
   memcpy(vectorData(v3), vectorData(v1), length1 * sizeof(void *));
   memcpy((void *)vectorData(v3) + length1 * sizeof(void *), vectorData(v2), length2 * sizeof(void *));
   return v3;
@@ -237,54 +226,34 @@ void **deepLookup(obj o, obj name, continuation c) {
   return o == oNull ? 0 : deepLookup(proto(o), name, c);
 }
 
-obj addSlot(life e, obj o, obj s, void *v, continuation c) {
+obj addSlot(obj o, obj s, void *v, continuation c) {
   void **slot = shallowLookup(o, s, c);
-  return slot ? *slot = v : newSlot(e, o, s, v, currentNamespace(c));
+  return slot ? *slot = v : newSlot(o, s, v, currentNamespace(c));
 }
 
-obj vectorObject(vector *eden, vector v) {
-  return slotlessObject(eden, oVector, v);
+obj vectorObject(vector v) {
+  return slotlessObject(oVector, v);
 }
 obj vectorObjectVector(obj v) {
   return hiddenEntity(v);
 }
 
-vector vectorUnion(life e, vector x, vector y) {
-  int nx = vectorLength(x), n = nx, ny = vectorLength(y);
-  obj *t = malloc((nx + ny) * sizeof(obj));
-  memcpy(t, vectorData(x), nx * sizeof(obj));
-  for (int i = 0; i < ny; ++i) {
-    for (int j = 0; j < n; ++j) if (idx(y, i) == t[j]) goto alreadyPresent;
-    t[n++] = idx(y, i);
-    continue;
-    alreadyPresent:;
-  }
-  obj v = makeVector(e, n);
-  memcpy(vectorData(v), t, n * sizeof(obj));
-  free(t);
-  return v;
-}
-
 void doNext(vector);
-vector newThread(vector *life,
-                 void *cc,
+vector newThread(void *cc,
                  obj staticEnv,
                  obj dynamicEnv,
                  obj target,
                  obj selector,
                  vector args) {
-  vector living = newVector(life, 6, cc, staticEnv, dynamicEnv, target, selector, args),
-         threadData = addThread(edenIdx(living, 1), garbageCollectorRoot),
-         *newLife = edenIdx(living, 3);
+  vector threadData = addThread(garbageCollectorRoot);
   setContinuation(threadData,
-                  newContinuation(newLife,
-                                  cc,
+                  newContinuation(cc,
                                   selector,
                                   emptyVector,
-                                  prefix(newLife, target, args),
+                                  prefix(target, args),
                                   staticEnv,
                                   dynamicEnv));
-  spawn(topOfStack(threadData), doNext, threadData);
+  spawn(doNext, threadData);
   return threadData;
 }
 
@@ -300,9 +269,9 @@ void returnToREPL(vector thread) {
 
 void invokeDispatchMethod(vector);
 
-obj newDynamicScope(life e, continuation c) {
+obj newDynamicScope(continuation c) {
   obj oldScope = dynamicEnv(c);
-  return slotlessObject(e, oldScope, hiddenEntity(oldScope));
+  return slotlessObject(oldScope, hiddenEntity(oldScope));
 }
 
 void normalDispatchMethod(vector thread) {
@@ -316,15 +285,14 @@ void normalDispatchMethod(vector thread) {
   if (isClosure(contents)) {
     vector params = closureParams(contents), args = evaluated(c);
     if (vectorLength(args) != vectorLength(params)) raise(thread, eBadArity);
-    vector eden = makeVector(edenRoot(thread), 2);
+    vector eden = makeVector(2);
     gotoNext(setSubexpressionContinuation(thread,
                                           origin(c),
-                                          stackFrame(edenIdx(eden, 0),
-                                                     closureEnv(contents),
+                                          stackFrame(closureEnv(contents),
                                                      params,
                                                      args,
                                                      c),
-                                          newDynamicScope(edenIdx(eden, 1), c),
+                                          newDynamicScope(c),
                                           oInternals,
                                           sMethodBody,
                                           closureBody(contents)));
@@ -343,15 +311,14 @@ void invokeDispatchMethod(vector thread) {
   if (isPrimitive(dm)) tailcall(primitiveCode(dm), thread);
   if (isClosure(dm)) {
     // Closures are checked for correct arity at the time the dispatch method is set.
-    vector eden = makeVector(edenRoot(thread), 2);
+    vector eden = makeVector(2);
     gotoNext(setSubexpressionContinuation(thread,
                                           origin(c),
-                                          stackFrame(edenIdx(eden, 0),
-                                                     closureEnv(dm),
+                                          stackFrame(closureEnv(dm),
                                                      closureParams(dm),
                                                      evaluated(c),
                                                      c),
-                                          slotlessObject(edenIdx(eden, 1), dynamicEnv(c), NIL),
+                                          slotlessObject(dynamicEnv(c), NIL),
                                           oInternals,
                                           sMethodBody,
                                           closureBody(dm)));
@@ -363,22 +330,20 @@ void dispatch(vector thread) {
   continuation c = threadContinuation(thread);
   obj t = continuationTarget(c);
   if (isChannel(t)) {
-    vector e = makeVector(edenRoot(thread), 3);
-    promise p = newPromise(edenIdx(e, 0));
+    promise p = newPromise();
     acquireChannelLock(t);
-    vector behindChannel = duplicateVector(edenIdx(e, 1), evaluated(c));
+    vector behindChannel = duplicateVector(evaluated(c));
     setIdx(behindChannel, 0, channelTarget(t));
 
-    vector channelThread = addThread(edenIdx(e, 2), garbageCollectorRoot);
+    vector channelThread = addThread(garbageCollectorRoot);
     setContinuation(channelThread,
-                    newContinuation(edenIdx(e, 2),
-                                    p,
+                    newContinuation(p,
                                     selector(c),
                                     behindChannel,
                                     behindChannel,
                                     env(c),
                                     dynamicEnv(c)));
-    spawn(topOfStack(channelThread), dispatch, channelThread);
+    spawn(dispatch, channelThread);
 
     obj r = waitFor(p);
     releaseChannelLock(t);
@@ -396,12 +361,10 @@ void doNext(vector thread) {
   // Have we evaluated all the subexpressions?
   if (evaluatedCount == unevaluatedCount) tailcall(dispatch, thread);
   // If not, evaluate the next subexpression.
-  vector *live = edenRoot(thread),
-         subexpr = newVector(live, 1, idx(unevaluated(c), evaluatedCount));
+  vector subexpr = newVector(1, idx(unevaluated(c), evaluatedCount));
   tailcall(dispatch,
            setContinuation(thread,
-                           newContinuation(live,
-                                           c,
+                           newContinuation(c,
                                            sInterpret,
                                            subexpr,
                                            subexpr,
@@ -409,14 +372,14 @@ void doNext(vector thread) {
                                            dynamicEnv(c))));
 }
 
-obj call(vector *live, obj dynamicEnv, obj target, obj selector, vector args) {
-  promise p = newPromise(live);
-  newThread(live, p, oLobby, dynamicEnv, target, selector, args);
+obj call(obj dynamicEnv, obj target, obj selector, vector args) {
+  promise p = newPromise();
+  newThread(p, oLobby, dynamicEnv, target, selector, args);
   return waitFor(p);
 }
 
-vector cons(vector *live, void *car, void *cdr) {
-  return newVector(live, 2, car, cdr);
+vector cons(void *car, void *cdr) {
+  return newVector(2, car, cdr);
 }
 void *car(vector pair) { return idx(pair, 0); }
 void *cdr(vector pair) { return idx(pair, 1); }
@@ -428,7 +391,7 @@ int isEmpty(vector v) {
   return vectorLength(v) == 0; 
 }
 
-obj intern(vector *live, obj symbol) {
+obj intern(obj symbol) {
   acquireSymbolTableLock();
   obj symbolTable = *symbolTableShelter(garbageCollectorRoot);
   char *string = stringData(symbol);
@@ -437,7 +400,7 @@ obj intern(vector *live, obj symbol) {
       releaseSymbolTableLock();
       return car(st);
     }
-  *symbolTableShelter(garbageCollectorRoot) = cons(live, symbol, symbolTable);
+  *symbolTableShelter(garbageCollectorRoot) = cons(symbol, symbolTable);
   releaseSymbolTableLock();
   return symbol;
 }
@@ -446,28 +409,21 @@ obj  codeTarget(obj c)   { return idx(hiddenEntity(c), 0); }
 obj  codeSelector(obj c) { return idx(hiddenEntity(c), 1); }
 pair codeArgs(obj c)     { return idx(hiddenEntity(c), 2); }
 
-obj message(vector *live, obj target, obj selector, vector args) {
-  return slotlessObject(live, oCode, newVector(live, 3, target, selector, args));
+obj message(obj target, obj selector, vector args) {
+  return slotlessObject(oCode, newVector(3, target, selector, args));
 }
-obj expressionSequence(vector *live, vector exprs) {
-  return message(live, oInternals, sMethodBody, exprs);
+obj expressionSequence(vector exprs) {
+  return message(oInternals, sMethodBody, exprs);
 }
-obj promiseCode(vector *live, obj message) {
-  return slotlessObject(live, oPromiseCode, message);
+obj promiseCode(obj message) {
+  return slotlessObject(oPromiseCode, message);
 }
 obj promiseCodeValue(obj p) {
   return hiddenEntity(p);
 }
 
-vector *temp() {
-  acquireTempLock();
-  vector *s = edenRoot(garbageCollectorRoot);
-  vector v = newVector(s, 2, 0, *s);
-  releaseTempLock();
-  return idxPointer(v, 0);
-}
 void invalidateTemporaryLife() {
-  setShelter(garbageCollectorRoot, 0);
+  *edenRoot(garbageCollectorRoot) = 0;
 }
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
@@ -488,7 +444,7 @@ void prototypePrimitiveHiddenValue(vector thread) {
   messageReturn(thread, oPrimitive);
 }
 
-void *loadStream(life, FILE *, obj, obj);
+void *loadStream(FILE *, obj, obj);
 
 #define safeIntegerValue(i) ({ \
   obj s_i = (i); \
@@ -524,48 +480,45 @@ void *loadStream(life, FILE *, obj, obj);
 
 void (*primitiveCode(obj p))(continuation);
 
-obj appendSymbols(life eden, pair symbols) {
-  vector e = newVector(eden, 2, symbols, 0);
-  obj s = string(edenIdx(e, 1), "");
+obj appendSymbols(pair symbols) {
+  obj s = string("");
   for (; !empty(symbols); symbols = cdr(symbols))
-    s = appendStrings(edenIdx(e, 1), s, car(symbols));
+    s = appendStrings(s, car(symbols));
   setProto(s, oSymbol);
-  return intern(eden, s);
+  return intern(s);
 }
 
-obj symbol(life eden, const char *s) {
-  obj o = string(eden, s);
+obj symbol(const char *s) {
+  obj o = string(s);
   setProto(o, oSymbol);
-  return intern(eden, o);
+  return intern(o);
 }
 
 void setupInterpreter() {
   initializeHeap();
-  vector dummyEden;
-  garbageCollectorRoot = createGarbageCollectorRoot(&dummyEden);
+  currentThread = garbageCollectorRoot = createGarbageCollectorRoot();
   initializeObjects();
   initializePrototypeTags();
   *lobbyShelter(garbageCollectorRoot) = oLobby;
-  intern(temp(), oSymbol);
+  intern(oSymbol);
 }
 
-void *loadStream(life eden, FILE *f, obj staticEnv, obj dynamicEnv) {
+void *loadStream(FILE *f, obj staticEnv, obj dynamicEnv) {
   void *scanner = beginParsing(f);
   obj parserOutput, lastValue = oNull;
-  vector e = makeVector(eden, 2);
   while (parserOutput = parse(scanner)) {
-    promise p = newPromise(edenIdx(e, 0));
-    newThread(edenIdx(e, 1), p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
+    promise p = newPromise();
+    newThread(p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
     lastValue = waitFor(p);
   }
   endParsing(scanner);
   fclose(f);
   return lastValue;
 }
-void *loadFile(vector *eden, const char *filename, obj staticEnv, obj dynamicEnv) {
+void *loadFile(const char *filename, obj staticEnv, obj dynamicEnv) {
   FILE *f = fopen(filename, "r");
   if (!f) die("Could not open \"%s\" for input.", filename);
-  return loadStream(eden, f, staticEnv, dynamicEnv);
+  return loadStream(f, staticEnv, dynamicEnv);
 }
 
 void REPL() {
@@ -576,15 +529,15 @@ void REPL() {
     fflush(stdout);
     // We just serialize first, to give the expression a chance to do its own terminal output, before
     // displaying the "=>" and printing.
-    REPLPromise = newPromise(temp());
+    REPLPromise = newPromise();
     obj parserOutput = parse(scanner);
     if (!parserOutput) exit(0); // EOF character was input.
-    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
+    newThread(REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
     obj serialization = waitFor(REPLPromise);
     fputs("\n=> ", stdout);
     fflush(stdout);
-    REPLPromise = newPromise(temp());
-    newThread(temp(), REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);
+    REPLPromise = newPromise();
+    newThread(REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);
     waitFor(REPLPromise);
   }
 }

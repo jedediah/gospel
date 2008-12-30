@@ -36,40 +36,39 @@ int yylex(YYSTYPE *, YYLTYPE *, int *, void *);
 
 #include "gc.h"
 
-life temp(void);
 void invalidateTemporaryLife(void);
 
-obj symbol(life, const char *c);
-obj appendSymbols(life, vector);
+obj symbol(const char *c);
+obj appendSymbols(vector);
 
-obj message(life, obj, obj, vector);
+obj message(obj, obj, vector);
 
-obj block(life, vector, vector);
+obj block(vector, vector);
 
 vector emptyVector;
 
-vector vectorAppend(life, vector, vector);
+vector vectorAppend(vector, vector);
 
-obj appendStrings(life, obj, obj);
+obj appendStrings(obj, obj);
 
-obj promiseCode(life, obj);
+obj promiseCode(obj);
 
-obj expressionSequence(life, vector);
+obj expressionSequence(vector);
 
-obj string(life, const char *);
-obj vectorObject(life, vector);
+obj string(const char *);
+obj vectorObject(vector);
 
 typedef vector pair;
 #define emptyList 0
-pair cons(life, void *, void *);
+pair cons(void *, void *);
 void *car(pair);
 void *cdr(pair);
 vector setcar(pair, void *);
 vector setcdr(pair, void *);
-pair list(life, void *);
+pair list(void *);
 int length(pair);
-pair listToVector(life, pair);
-pair map(life, void *, pair);
+pair listToVector(pair);
+pair map(void *, pair);
 pair nreverse(pair);
 
 int isEmpty(vector);
@@ -77,7 +76,7 @@ int isEmpty(vector);
 void dispatch(vector);
 
 void setupInterpreter(void);
-void *loadFile(life, const char *, obj, obj);
+void *loadFile(const char *, obj, obj);
 void REPL(void);
 
 #endif

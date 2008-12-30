@@ -34,82 +34,79 @@ int main(int argc, char **argv) {
   setup(suite, setupInterpreter);
 
 test(symbol,
-  assert_false(strcmp(stringData(symbol(temp(), "foo")), "foo"));
+  assert_false(strcmp(stringData(symbol("foo")), "foo"));
 )
 test(integer,
-  assert_equal(integerValue(integer(temp(), 42)), 42);
+  assert_equal(integerValue(integer(42)), 42);
 )
 test(intern,
-  assert_equal(symbol(temp(), "foo"), symbol(temp(), "foo"));
+  assert_equal(symbol("foo"), symbol("foo"));
 )
 test(appendSymbols,
-  assert_equal(appendSymbols(temp(),
-                             cons(temp(), symbol(temp(), "foo"), list(temp(), symbol(temp(), "bar")))),
-               symbol(temp(), "foobar"));
+  assert_equal(appendSymbols(cons(symbol("foo"), list(symbol("bar")))),
+               symbol("foobar"));
 )
 test(appendStrings,
-  obj s1 = string(temp(), "foo"),
-      s2 = string(temp(), "bar"),
-      s3 = string(temp(), "");
-  assert_string_equal(stringData(appendStrings(temp(), s1, s3)), "foo");
-  assert_string_equal(stringData(appendStrings(temp(), s3, s1)), "foo");
-  assert_string_equal(stringData(appendStrings(temp(), s1, s2)), "foobar");
+  obj s1 = string("foo"),
+      s2 = string("bar"),
+      s3 = string("");
+  assert_string_equal(stringData(appendStrings(s1, s3)), "foo");
+  assert_string_equal(stringData(appendStrings(s3, s1)), "foo");
+  assert_string_equal(stringData(appendStrings(s1, s2)), "foobar");
 )
 test(freeSpaceCount,
   int oldCount = freeSpaceCount();
-  newVector(edenRoot(garbageCollectorRoot), 0);
-  // Free space should now be reduced by the size of a zero-length vector.
-  assert_equal(freeSpaceCount(), oldCount - 3);
+  newVector(0);
+  // Free space should now be reduced by the size of a zero-length vector and its edenspace.
+  assert_equal(freeSpaceCount(), oldCount - 3 - EDEN_OVERHEAD);
 )
 test(listToVector,
-  vector n = integer(temp(), 42),
-         m = symbol(temp(), "foo"),
-         v = listToVector(temp(), cons(temp(), n, list(temp(), m)));
+  vector n = integer(42),
+         m = symbol("foo"),
+         v = listToVector(cons(n, list(m)));
   assert_equal(vectorLength(v), 2);
   assert_equal(idx(v, 0), n);
   assert_equal(idx(v, 1), m);
 )
 test(spawn,
-  void *p = newPromise(temp());
-  vector i = integer(temp(), 42);
+  void *p = newPromise();
+  vector i = integer(42);
   void f(void *x) { keep(garbageCollectorRoot, p, x); }
-  spawn(&makeVector(temp(), STACKDEPTH)->data[STACKDEPTH - 1], f, i);
+  spawn(f, i);
   assert_equal(waitFor(p), i);
 )
 test(duplicateVector,
-  obj s = integer(temp(), 42);
-  vector v = duplicateVector(temp(), newVector(temp(), 1, s));
+  obj s = integer(42);
+  vector v = duplicateVector(newVector(1, s));
   assert_equal(vectorLength(v), 1);
   assert_equal(idx(v, 0), s);
 )
 test(prefix,
   char *s1 = "42", *s2 = "fourty-two";
 
-  vector v = prefix(temp(), s1, newVector(temp(), 1, s2));
+  vector v = prefix(s1, newVector(1, s2));
   assert_equal(vectorLength(v), 2);
   assert_equal(s1, idx(v, 0));
   assert_equal(s2, idx(v, 1));
 )
 test(shallowLookup,
-  obj s = symbol(temp(), "slot"),
-      v = symbol(temp(), "value"),
-      o = newObject(temp(), oNull, newVector(temp(), 1, s), newVector(temp(), 1, v), emptyVector);
-  continuation c = newContinuation(temp(), 0, 0, 0, 0, 0, oDynamicEnvironment);
-  assert_false(shallowLookup(o, symbol(temp(), "notASlot"), c));
+  obj s = symbol("slot"),
+      v = symbol("value"),
+      o = newObject(oNull, newVector(1, s), newVector(1, v), emptyVector);
+  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment);
+  assert_false(shallowLookup(o, symbol("notASlot"), c));
   assert_equal(*shallowLookup(o, s, c), v);
 )
 test(deepLookup,
-  obj s = symbol(temp(), "slot"),
-      v = symbol(temp(), "value"),
-      o = slotlessObject(temp(),
-                         newObject(temp(),
-                                   oNull,
-                                   newVector(temp(), 1, s),
-                                   newVector(temp(), 1, v),
+  obj s = symbol("slot"),
+      v = symbol("value"),
+      o = slotlessObject(newObject(oNull,
+                                   newVector(1, s),
+                                   newVector(1, v),
                                    emptyVector),
                          emptyVector);
-  continuation c = newContinuation(temp(), 0, 0, 0, 0, 0, oDynamicEnvironment);
-  assert_false(deepLookup(o, symbol(temp(), "notASlot"), c));
+  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment);
+  assert_false(deepLookup(o, symbol("notASlot"), c));
   assert_equal(*deepLookup(o, s, c), v); 
 )
 test(insertBetween,
@@ -130,7 +127,7 @@ test(insertBetween,
   assert_equal(s->prev, m);
 )
 test(collectGarbage,
-  invalidateTemporaryLife();
+  invalidateEden();
   collectGarbage();
   // One of the placeholder vectors (either black or gray, whichever role is not being played by
   // "emptyVector") will have survived the first collection due to being created with its mark bit
@@ -139,37 +136,38 @@ test(collectGarbage,
   int n = freeSpaceCount();
   collectGarbage();
   assert_equal(freeSpaceCount(), n);
-  vector *s = edenRoot(garbageCollectorRoot);
   // Testing only one vector size has failed to reveal intermittent memory leaks in the past.
   for (int i = 0; i < 1000; i++) {
-    makeVector(s, 0);
-    makeVector(s, i); // Orphaning the first vector.
+    makeVector(0);
+    invalidateEden();
+    makeVector(i);
     collectGarbage();
-    assert_equal(n - freeSpaceCount(), 3 + i);
+    assert_equal(n - freeSpaceCount(), 3 + i + EDEN_OVERHEAD);
   }
-  *s = 0;
+  invalidateEden();
   collectGarbage();
   assert_equal(freeSpaceCount(), n);
 )
+
 test(addSlot,
-  obj o = newObject(temp(), oNull, emptyVector, emptyVector, 0),
-      s = symbol(temp(), "foo"),
-      i = integer(temp(), 42);
-  continuation c = newContinuation(temp(), 0, 0, 0, 0, 0, oDynamicEnvironment);
+  obj o = newObject(oNull, emptyVector, emptyVector, 0),
+      s = symbol("foo"),
+      i = integer(42);
+  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment);
   void **v;
-  assert_equal(addSlot(temp(), o, s, i, c), i);
+  assert_equal(addSlot(o, s, i, c), i);
   assert_true((int)(v = shallowLookup(o, s, c)));
   assert_equal(*v, i);
 )
 test(mark,
-  obj i = integer(temp(), 42);
+  obj i = integer(42);
   mark(i);
   assert_true(isMarked(i));
   assert_equal(i->next, blackList);
 )
 test(scan,
-  obj i = integer(temp(), 42);
-  vector v = newVector(temp(), 1, i);
+  obj i = integer(42);
+  vector v = newVector(1, i);
   mark(v);
   grayList = v;
   scan();
@@ -178,22 +176,22 @@ test(scan,
   assert_equal(i->next, blackList);
 )
 test(stringLength,
-  obj s = string(temp(), "");
+  obj s = string("");
   assert_equal(stringLength(s), 0);
-  s = string(temp(), "foo");
+  s = string("foo");
   assert_equal(stringLength(s), 3);
-  s = string(temp(), "foobar");
+  s = string("foobar");
   assert_equal(stringLength(s), 6);
 )
 test(vectorAppend,
-  obj a = integer(temp(), 1),
-      b = integer(temp(), 2),
-      x = newVector(temp(), 0),
-      y = newVector(temp(), 1, a),
-      z = newVector(temp(), 2, a, b),
-      t = vectorAppend(temp(), x, y),
-      u = vectorAppend(temp(), y, x),
-      v = vectorAppend(temp(), y, z);
+  obj a = integer(1),
+      b = integer(2),
+      x = newVector(0),
+      y = newVector(1, a),
+      z = newVector(2, a, b),
+      t = vectorAppend(x, y),
+      u = vectorAppend(y, x),
+      v = vectorAppend(y, z);
   assert_equal(vectorLength(t), 1);
   assert_equal(idx(t, 0), a);
   assert_equal(vectorLength(u), 1);
@@ -202,18 +200,6 @@ test(vectorAppend,
   assert_equal(idx(v, 0), a);
   assert_equal(idx(v, 1), a);
   assert_equal(idx(v, 2), b);
-)
-test(vectorUnion,
-  obj a = integer(temp(), 1),
-      b = integer(temp(), 2),
-      c = integer(temp(), 3),
-      x = newVector(temp(), 2, a, b),
-      y = newVector(temp(), 2, a, c),
-      r = vectorUnion(temp(), x, y);
-  assert_equal(vectorLength(r), 3);
-  assert_equal(idx(r, 0), a);
-  assert_equal(idx(r, 1), b);
-  assert_equal(idx(r, 2), c);
 )
 
   return run_test_suite(suite, create_text_reporter());

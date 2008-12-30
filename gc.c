@@ -51,6 +51,14 @@ int liveSegmentCount = 0;
 #define STACK_FRAME   7
 #define MARK_BIT      8
 
+// This provides eden space during startup, before the first real thread data object has been created.
+struct vectorStruct dummyThreadData = {0,
+                                       0,
+                                       6 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
+                                       {0, 0, 0, 0, 0, 0}};
+__thread vector currentThread = &dummyThreadData;
+vector blackList, grayList, ecruList, whiteList, emptyVector, garbageCollectorRoot;
+
 int vectorLength(vector v) {
   return v->type >> TAG_BIT_COUNT;
 }
@@ -253,6 +261,7 @@ vector doAllotment(int size) {
       }
       vector used = extract(whiteList);
       whiteList = next;
+      clearMarkBit(used);
       return used;
     }
     if (remainder >= VECTOR_HEADER_SIZE) {
@@ -269,7 +278,6 @@ vector doAllotment(int size) {
 }
 
 vector allot(int size) {
-  forbidGC();
   vector n = doAllotment(size);
   if (!n) {
     collectGarbage();
@@ -299,43 +307,62 @@ void *vectorData(vector v) {
   return v->data;
 }
 
-vector duplicateVector(vector *live, vector v) {
+vector *edenRoot(vector);
+void invalidateEden() {
+  *edenRoot(currentThread) = 0;
+}
+vector edenAllot(int n) {
+  vector *e = edenRoot(currentThread);
+  forbidGC();
+  vector v = allot(2);
+  setVectorType(v, ENTITY_VECTOR);
+  setIdx(v, 0, 0);
+  setIdx(v, 1, *e);
+  *e = v;
+  // Now that the eden vector is in a consistent state, we can request the second allotment and not mind
+  // that it could trigger a garbage collection.
+  return setIdx(v, 0, allot(n));
+}
+vector duplicateVector(vector v) {
   int n = vectorLength(v);
-  memcpy(*live = allot(n), v, (n + VECTOR_HEADER_SIZE) * sizeof(void *));
+  vector nv = edenAllot(n);
+  memcpy(nv, v, (n + VECTOR_HEADER_SIZE) * sizeof(void *));
   permitGC();
-  return *live;
+  return nv;
 }
-void allotVector(vector *live, int length, int type) {
-  setVectorType(*live = allot(length), type);
+vector allotVector(int length, int type) {
+  vector v = edenAllot(length);
+  setVectorType(v, type);
+  return v;
 }
-vector makeVector(vector *live, int length) {
-  allotVector(live, length, ENTITY_VECTOR);
-  zero(*live); // TODO: inline zero()
+vector makeVector(int length) {
+  vector v = allotVector(length, ENTITY_VECTOR);
+  zero(v); // TODO: inline zero()
   permitGC();
-  return *live;
+  return v;
 }
-vector makeAtomVector(vector *live, int length) {
-  allotVector(live, length, ATOM_VECTOR);
+vector makeAtomVector(int length) {
+  vector v = allotVector(length, ATOM_VECTOR);
   permitGC();
-  return *live;
+  return v;
 }
-vector newVector(vector *live, int length, ...) {
-  allotVector(live, length, ENTITY_VECTOR);
+vector newVector(int length, ...) {
+  vector v = allotVector(length, ENTITY_VECTOR);
   va_list members;
   va_start(members, length);
-  for (int i = 0; i < length; i++) setIdx(*live, i, va_arg(members, void *));
+  for (int i = 0; i < length; i++) setIdx(v, i, va_arg(members, void *));
   va_end(members);
   permitGC();
-  return *live;
+  return v;
 }
-vector newAtomVector(vector *live, int length, ...) {
-  allotVector(live, length, ATOM_VECTOR);
+vector newAtomVector(int length, ...) {
+  vector v = allotVector(length, ATOM_VECTOR);
   va_list members;
   va_start(members, length);
-  for (int i = 0; i < length; i++) setIdx(*live, i, va_arg(members, void *));
+  for (int i = 0; i < length; i++) setIdx(v, i, va_arg(members, void *));
   va_end(members);
   permitGC();
-  return *live;
+  return v;
 }
 
 void initializeHeap() {
@@ -376,22 +403,14 @@ void releaseSymbolTableLock() {
   if (pthread_mutex_unlock(&symbolTableMutex)) die("Error while releasing symbol table lock.");
 }
 
-pthread_mutex_t tempMutex = PTHREAD_MUTEX_INITIALIZER;
-void acquireTempLock() {
-  if (pthread_mutex_lock(&tempMutex)) die("Error while acquiring temp() lock.");
-}
-void releaseTempLock() {
-  if (pthread_mutex_unlock(&tempMutex)) die("Error while releasing temp() lock.");
-}
-
 typedef struct {
   obj value;
   pthread_cond_t conditionVariable;
   pthread_mutex_t mutex;
 } promiseData;
 
-promise newPromise(vector *live) {
-  promise p = makeVector(live, CELLS_REQUIRED_FOR_BYTES(sizeof(promiseData)));
+promise newPromise() {
+  promise p = makeVector(CELLS_REQUIRED_FOR_BYTES(sizeof(promiseData)));
   setVectorType(p, PROMISE);
   promiseData *pd = (promiseData *)vectorData(p);
   if (pthread_mutex_init(&pd->mutex, NULL))
@@ -437,8 +456,8 @@ typedef struct {
   pthread_mutex_t mutex;
 } channelData;
 
-channel newChannel(vector *live, obj target) {
-  channel c = makeVector(live, CELLS_REQUIRED_FOR_BYTES(sizeof(channelData)));
+channel newChannel(obj target) {
+  channel c = makeVector(CELLS_REQUIRED_FOR_BYTES(sizeof(channelData)));
   setVectorType(c, CHANNEL);
   channelData *cd = (channelData *)vectorData(c);
   cd->target = target;
@@ -458,42 +477,42 @@ void releaseChannelLock(channel c) {
     die("Error while releasing a channel lock.");
 }
 
-void spawn(void *ignored, void *f, void *a) {
+typedef struct { void (*f)(void *), *t; } spawnArgument; // Avoids forcing GCC to generate a trampoline.
+void spawn(void *f, void *a) {
   pthread_t thread;
-  if (pthread_create(&thread, NULL, f, a)) die("Failed spawning.");
+  void init(spawnArgument *x) { tailcall(x->f, currentThread = x->t); }
+  spawnArgument x = {f, a};
+  if (pthread_create(&thread, NULL, (void *(*)(void *))init, &x)) die("Failed spawning.");
 }
 void explicitlyEndThread() {
   pthread_exit(0);
 }
 
-vector suffix(vector *live, void *e, vector v) {
+vector suffix(void *e, vector v) {
   int l = vectorLength(v);
-  vector living = newVector(live, 3, e, v, 0),
-         nv = makeVector(edenIdx(living, 2), l + 1);
+  vector nv = makeVector(l + 1);
   nv->data[l] = e;
   memcpy(nv->data, v->data, l * sizeof(void *));
   return nv;
 }
-vector prefix(vector *live, void *e, vector v) {
+vector prefix(void *e, vector v) {
   int l = vectorLength(v);
-  vector living = newVector(live, 3, e, v, 0),
-         nv = makeVector(edenIdx(living, 2), l + 1);
+  vector nv = makeVector(l + 1);
   setIdx(nv, 0, e);
-  memcpy(edenIdx(nv, 1), vectorData(v), l * sizeof(void *));
+  memcpy((void *)vectorData(nv) + sizeof(void *), vectorData(v), l * sizeof(void *));
   return nv;
 }
 
 
-obj newObject(life eden, obj proto, vector slotNames, vector slotValues, void *hidden) {
-  vector e = newVector(eden, 5, proto, slotNames, slotValues, hidden, 0);
+obj newObject(obj proto, vector slotNames, vector slotValues, void *hidden) {
   int count = vectorLength(slotNames);
-  vector slots = makeVector(edenIdx(e, 4), count * 3);
+  vector slots = makeVector(count * 3);
   for (int i = 0; i < count; ++i) {
     setIdx(slots, i * 3, idx(slotNames, i));
     setIdx(slots, i * 3 + 1, idx(slotValues, i));
     setIdx(slots, i * 3 + 2, oNamespaceCanon);
   }
-  return newVector(eden, 4, proto, slots, hidden, 0);
+  return newVector(4, proto, slots, hidden, 0);
 }
 
 vector  proto(obj o)          { return     idx(o, 0);     }
@@ -529,11 +548,10 @@ obj slotNamespace(obj o, int i) {
   return idx(slots(o), i * 3 + 2);
 }
 
-obj newSlot(life e, obj o, obj s, void *v, obj namespace) {
-  vector eden = newVector(e, 4, o, s, v, 0),
-         oldSlots = slots(o);
+obj newSlot(obj o, obj s, void *v, obj namespace) {
+  vector oldSlots = slots(o);
   int length = vectorLength(oldSlots);
-  vector newSlots = makeVector(edenIdx(eden, 3), length + 3);
+  vector newSlots = makeVector(length + 3);
   memcpy(vectorData(newSlots), vectorData(oldSlots), length * sizeof(obj));
   setIdx(newSlots, length,     s);
   setIdx(newSlots, length + 1, v);
@@ -542,18 +560,18 @@ obj newSlot(life e, obj o, obj s, void *v, obj namespace) {
   return v;
 }
 
-obj slotlessObject(vector *live, obj proto, vector hidden) {
-  return newObject(live, proto, emptyVector, emptyVector, hidden);
+obj slotlessObject(obj proto, vector hidden) {
+  return newObject(proto, emptyVector, emptyVector, hidden);
 }
 
-obj fixnumObject(vector *live, obj proto, int hidden) {
-  obj o = slotlessObject(live, proto, newAtomVector(live, 1, hidden));
+obj fixnumObject(obj proto, int hidden) {
+  obj o = slotlessObject(proto, newAtomVector(1, hidden));
   setVectorType(o, FIXNUM);
   return o;
 }
 
-obj primitive(vector *live, void *code) {
-  obj o = slotlessObject(live, oPrimitive, newAtomVector(live, 1, code));
+obj primitive(void *code) {
+  obj o = slotlessObject(oPrimitive, newAtomVector(1, code));
   setVectorType(o, PRIMITIVE);
   return o;
 }
@@ -561,8 +579,8 @@ void (*primitiveCode(obj p))(vector) {
   return hiddenAtom(p);
 }
 
-obj newClosure(vector *live, obj env, vector params, vector body) {
-  obj o = slotlessObject(live, oClosure, newVector(live, 3, env, params, body));
+obj newClosure(obj env, vector params, vector body) {
+  obj o = slotlessObject(oClosure, newVector(3, env, params, body));
   setVectorType(o, CLOSURE);
   return o;
 }
@@ -570,15 +588,15 @@ vector closureEnv(obj c)    { return idx(hiddenEntity(c), 0); }
 vector closureParams(obj c) { return idx(hiddenEntity(c), 1); }
 vector closureBody(obj c)   { return idx(hiddenEntity(c), 2); }
 
-obj integer(vector *live, int value) {
-  return fixnumObject(live, oInteger, value);
+obj integer(int value) {
+  return fixnumObject(oInteger, value);
 }
 int integerValue(obj i) {
   return (int)hiddenAtom(i);
 }
 
-obj stackFrame(vector *life, obj parent, vector names, vector values, vector continuation) {
-  obj o = newObject(life, parent, names, values, continuation);
+obj stackFrame(obj parent, vector names, vector values, vector continuation) {
+  obj o = newObject(parent, names, values, continuation);
   setVectorType(o, STACK_FRAME);
   return o;
 }

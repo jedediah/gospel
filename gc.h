@@ -27,6 +27,8 @@
 
 #define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(int) - 1) / sizeof(int))
 
+#define EDEN_OVERHEAD 5 // For the sake of testing.
+
 typedef struct vectorStruct {
   struct vectorStruct *prev, *next;
   int type;
@@ -41,11 +43,11 @@ void scan(void);
 void acquireFutex(volatile int *, volatile int *);
 void releaseFutex(volatile int *, volatile int *);
 vector insertBetween(vector, vector, vector);
-vector blackList, grayList, whiteList, ecruList;
+extern vector blackList, grayList, whiteList, ecruList;
 
-typedef vector *life;
-
-vector emptyVector;
+extern vector emptyVector;
+extern __thread vector currentThread;
+extern vector garbageCollectorRoot;
 
 void acquireThreadListLock(void);
 void releaseThreadListLock(void);
@@ -55,13 +57,15 @@ void acquireTempLock(void);
 void releaseTempLock(void);
 int freeSpaceCount(void);
 
-vector makeVector(life, int);
-vector makeAtomVector(life, int);
+void invalidateEden(void);
 
-vector newVector(life, int, ...);
-vector newAtomVector(life, int, ...);
+vector makeVector(int);
+vector makeAtomVector(int);
 
-vector duplicateVector(life, vector);
+vector newVector(int, ...);
+vector newAtomVector(int, ...);
+
+vector duplicateVector(vector);
 
 void *idx(vector, int);
 vector *idxPointer(vector, int);
@@ -76,20 +80,20 @@ vector zero(vector);
 void forbidGC(void);
 void permitGC(void);
 
-void spawn(void *, void *, void *);
+void spawn(void *, void *);
 void explicitlyEndThread(void);
 
 typedef vector obj;
 
 typedef vector promise;
-promise newPromise(life);
+promise newPromise(void);
 obj promiseValue(promise);
 vector *promiseValueField(promise);
 obj waitFor(void *);
 void fulfillPromise(promise, obj);
 
 typedef vector channel;
-channel newChannel(life, vector);
+channel newChannel(vector);
 vector channelTarget(channel);
 int *channelCount(channel);
 int *channelFlag(channel);
@@ -101,8 +105,6 @@ void initializeHeap(void);
 
 void collectGarbage(void);
 void requireGC(void);
-
-vector garbageCollectorRoot;
 
 int isPromise(vector);
 int isChannel(vector);
@@ -117,13 +119,13 @@ int isVectorObject(obj);
 int vectorType(vector);
 void setVectorType(vector, int);
 
-vector suffix(life, void *, vector);
-vector prefix(life, void *, vector);
+vector suffix(void *, vector);
+vector prefix(void *, vector);
 
 obj dispatchMethod(obj);
 void setDispatchMethod(obj, obj);
 
-obj newSlot(life, obj, obj, void *, obj);
+obj newSlot(obj, obj, void *, obj);
 vector hiddenEntity(obj);
 void *hiddenAtom(obj);
 void setSlots(obj, vector);
@@ -134,23 +136,23 @@ void **slotValuePointer(obj, int);
 vector setHiddenData(obj, vector);
 obj proto(obj);
 obj setProto(obj, obj);
-obj newObject(life, obj, vector, vector, void *);
-obj slotlessObject(life, obj, vector);
-obj fixnumObject(life, obj, int);
+obj newObject(obj, vector, vector, void *);
+obj slotlessObject(obj, vector);
+obj fixnumObject(obj, int);
 
-obj newClosure(life, obj, vector, vector);
+obj newClosure(obj, vector, vector);
 vector closureEnv(obj);
 vector closureParams(obj);
 vector closureBody(obj);
 
-obj primitive(life, void *);
+obj primitive(void *);
 void (*primitiveCode(obj))(vector);
-obj integer(life, int);
+obj integer(int);
 int integerValue(obj);
 
-obj stackFrame(life, obj, vector, vector, vector);
+obj stackFrame(obj, vector, vector, vector);
 vector stackFrameContinuation(obj);
 
-void initializePrototypeTags();
+void initializePrototypeTags(void);
 
 #endif

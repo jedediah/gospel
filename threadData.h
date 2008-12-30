@@ -19,15 +19,14 @@
 #include "gc.h"
 
 vector *edenRoot(vector);
-vector addThread(vector *, vector);
-void *topOfStack(vector);
+vector addThread(vector);
 void killThreadData(vector);
 vector setShelter(vector, vector);
 
 vector threadContinuation(vector);
 vector setContinuation(vector, vector);
 
-vector createGarbageCollectorRoot(vector *);
+vector createGarbageCollectorRoot(void);
 vector *symbolTableShelter(vector);
 vector *lobbyShelter(vector);
 

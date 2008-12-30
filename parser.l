@@ -58,13 +58,13 @@ OP  [!%&*\-+=<>?/]+
                               memmove(s, s + 1, --remainder);
                             }
                             *s = 0;
-                            *value = string(temp(), yyget_text(yyscanner) + 1);
+                            *value = string(yyget_text(yyscanner) + 1);
                             return STRING;
                           }
-\$[^ \[\]\(\)\{\}\n.,;]*  { *value = symbol(temp(), yyget_text(yyscanner) + 1);
+\$[^ \[\]\(\)\{\}\n.,;]*  { *value = symbol(yyget_text(yyscanner) + 1);
                             return SYMBOL;
                           }
--?[0-9]+                  { *value = integer(temp(), atoi(yyget_text(yyscanner)));
+-?[0-9]+                  { *value = integer(atoi(yyget_text(yyscanner)));
                             return INTEGER;
                           }
 =                         { BEGIN(NEWLINES);
@@ -73,22 +73,22 @@ OP  [!%&*\-+=<>?/]+
 :=                        { BEGIN(NEWLINES);
                             return SETSLOT;
                           }
-{ID}                      { *value = symbol(temp(), yyget_text(yyscanner));
+{ID}                      { *value = symbol(yyget_text(yyscanner));
                             return NAME;
                           }
-{ID}:                     { *value = symbol(temp(), yyget_text(yyscanner));
+{ID}:                     { *value = symbol(yyget_text(yyscanner));
                             BEGIN(NEWLINES);
                             return KEYWORD;
                           }
-:{ID}:                    { *value = symbol(temp(), yyget_text(yyscanner) + 1);
+:{ID}:                    { *value = symbol(yyget_text(yyscanner) + 1);
                             BEGIN(NEWLINES);
                             return OPERATOR;
                           }
-({ID}:){2,}               { *value = symbol(temp(), yyget_text(yyscanner));
+({ID}:){2,}               { *value = symbol(yyget_text(yyscanner));
                             BEGIN(NEWLINES);
                             return KEYWORDS;
                           }
-\\({ID}|({ID}:)+|{OP})    { *value = symbol(temp(), yyget_text(yyscanner) + 1);
+\\({ID}|({ID}:)+|{OP})    { *value = symbol(yyget_text(yyscanner) + 1);
                             return ESCAPE;
                           }
 ->                        { BEGIN(NEWLINES);
@@ -100,7 +100,7 @@ OP  [!%&*\-+=<>?/]+
 [\)\]\}]                  { --*nesting;
                             return *yyget_text(yyscanner);
                           }
-{OP}                      { *value = symbol(temp(), yyget_text(yyscanner));
+{OP}                      { *value = symbol(yyget_text(yyscanner));
                             BEGIN(NEWLINES);
                             return OPERATOR;
                           }

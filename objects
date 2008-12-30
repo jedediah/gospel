@@ -28,7 +28,7 @@
   if (!slot) raise(thread, eMessageNotUnderstood);
   tailcall(primitiveCode(*slot), thread);
 !serialized
-  valueReturn(string(edenRoot(thread), "<null>"));
+  valueReturn(string("<null>"));
 !raise:
   die("Exception raised in an environment with no understanding of the $raise: message.");
 !identity
@@ -43,9 +43,9 @@
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
-  vector v = makeVector(edenRoot(thread), c);
+  vector v = makeVector(c);
   while (c--) setIdx(v, c, arg(c));
-  valueReturn(vectorObject(edenRoot(thread), v));
+  valueReturn(vectorObject(v));
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
@@ -63,7 +63,7 @@
   if (!isString(filename)) raise(thread, eStringExpected);
   FILE *f = fopen(stringData(filename), "r");
   if (!f) raise(thread, eInclusion);
-  valueReturn(loadStream(edenRoot(thread), f, target, waitFor(arg(1))));
+  valueReturn(loadStream(f, target, waitFor(arg(1))));
 !setProto:
   obj p = waitFor(arg(0));
   setProto(target, p);
@@ -73,8 +73,7 @@
   valueReturn(oFalse);
 !send:
   continuation c = origin(threadContinuation(thread));
-  tailcall(doNext,
-           setSubexpressionContinuation(thread,
+  gotoNext(setSubexpressionContinuation(thread,
                                         c,
                                         env(c),
                                         dynamicEnv(c),
@@ -88,17 +87,17 @@
 !localSelectors
   obj o = target;
   int n = slotCount(o);
-  vector v = makeVector(edenRoot(thread), n);
+  vector v = makeVector(n);
   while (n--) setIdx(v, n, slotName(o, n));
-  valueReturn(vectorObject(edenRoot(thread), v));
+  valueReturn(vectorObject(v));
 !proto
   valueReturn(proto(target));
 !channel
-  valueReturn(newChannel(edenRoot(thread), target));
+  valueReturn(newChannel(target));
 !identity
   normalReturn;
 !addSlot:as:
-  valueReturn(addSlot(edenRoot(thread), target, waitFor(arg(0)), arg(1), threadContinuation(thread)));
+  valueReturn(addSlot(target, waitFor(arg(0)), arg(1), threadContinuation(thread)));
 !setSlot:to:
   void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(thread));
   if (!slot) raise(thread, eSettingNonexistantSlot);
@@ -108,35 +107,31 @@
   if (!slot) raise(thread, eGettingNonexistantSlot);
   valueReturn(*slot);
 !new
-  obj o = slotlessObject(edenRoot(thread), target, hiddenEntity(target));
+  obj o = slotlessObject(target, hiddenEntity(target));
   setVectorType(o, vectorType(target));
   valueReturn(o);
 @namespace object
 @namespaceCanon namespace
-$serialized string(temp(), "<canon!>")
+$serialized string("<canon!>")
 @vector object
 !++ appending
-  valueReturn(vectorObject(edenRoot(thread),
-                           vectorAppend(edenRoot(thread),
-                                        safeVector(target),
-                                        safeVector(waitFor(arg(0))))));
+  valueReturn(vectorObject(vectorAppend(safeVector(target), safeVector(waitFor(arg(0))))));
 !ofLength:containing:
   int l = safeIntegerValue(waitFor(arg(0)));
   if (l < 0) raise(thread, eNegativeVectorLength);
   obj o = arg(1);
-  vector v = makeVector(edenRoot(thread), l);
+  vector v = makeVector(l);
   while (l--) setIdx(v, l, o);
-  valueReturn(vectorObject(edenRoot(thread), v));
+  valueReturn(vectorObject(v));
 !length
-  valueReturn(integer(edenRoot(thread), vectorLength(hiddenEntity(target))));
+  valueReturn(integer(vectorLength(hiddenEntity(target))));
 !at:put:ifAbsent:
   int i = safeIntegerValue(waitFor(arg(0)));
   obj v = hiddenEntity(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
     continuation c = origin(threadContinuation(thread));
-    tailcall(doNext,
-             setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(2), sDo, emptyVector));
+    gotoNext(setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(2), sDo, emptyVector));
   }
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
@@ -145,64 +140,57 @@ $serialized string(temp(), "<canon!>")
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
     continuation c = origin(threadContinuation(thread));
-    tailcall(doNext,
-             setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(1), sDo, emptyVector));
+    gotoNext(setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(1), sDo, emptyVector));
   }
   valueReturn(idx(v, i));
-@primitive object newAtomVector(temp(), 1, prototypePrimitiveHiddenValue)
+@primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
 !target:withArgumentVector:
   obj code = target, argsObject = waitFor(arg(1));
   if (!isPrimitive(code)) raise(thread, ePrimitiveExpected);
   if (!isVectorObject(argsObject)) raise(thread, eVectorExpected);
   continuation c = threadContinuation(thread);
-  life e = edenRoot(thread);
   tailcall(primitiveCode(code),
            setContinuation(thread,
-                           newContinuation(e,
-                                           origin(c),
+                           newContinuation(origin(c),
                                            oNull,
-                                           prefix(e, waitFor(arg(0)), vectorObjectVector(argsObject)),
+                                           prefix(waitFor(arg(0)), vectorObjectVector(argsObject)),
                                            NIL, // There should be no reason for anyone to examine this.
                                            env(c),
                                            dynamicEnv(c))));
-@string object newAtomVector(temp(), 1, 0)
+@string object newAtomVector(1, 0)
 !serialized
   // FIXME: This should probably convert e.g. newlines to "\n".
-  vector eden = makeVector(edenRoot(thread), 2);
-  obj quote = string(edenIdx(eden, 0), "\""); // TODO: Create this string once, at startup.
-  valueReturn(appendStrings(edenIdx(eden, 1), quote, appendStrings(edenIdx(eden, 1), target, quote)));
+  obj quote = string("\""); // TODO: Create this string once, at startup.
+  valueReturn(appendStrings(quote, appendStrings(target, quote)));
 !++ appending:
   obj a = waitFor(arg(0));
   if (!isString(target) || !isString(a)) raise(thread, eStringExpected);
-  valueReturn(appendStrings(edenRoot(thread), target, waitFor(arg(0))));
+  valueReturn(appendStrings(target, waitFor(arg(0))));
 !print
   if (!isString(target)) raise(thread, eStringExpected);
   fputs(stringData(target), stdout);
   fflush(stdout);
   normalReturn;
-@symbol object newAtomVector(temp(), 1, 0)
+@symbol object newAtomVector(1, 0)
 !serialized
   // TODO: Create the dollarsign string once, at startup.
-  valueReturn(appendStrings(edenRoot(thread), string(edenRoot(thread), "$"), target));
-@closure object newVector(temp(), 3, oNull, newVector(temp(), 1, oNull), newVector(temp(), 1, oClosure))
+  valueReturn(appendStrings(string("$"), target));
+@closure object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
 !target:withArgumentVector:
   obj code = target, argsObject = waitFor(arg(1));
   if (!isClosure(code)) raise(thread, eClosureExpected);
   if (!isVectorObject(argsObject)) raise(thread, eVectorExpected);
   vector args = vectorObjectVector(argsObject),
-         params = closureParams(code),
-         e = makeVector(edenRoot(thread), 2);
+         params = closureParams(code);
   if (vectorLength(args) + 1 != vectorLength(params)) raise(thread, eBadArity);
   continuation c = threadContinuation(thread);
-  tailcall(doNext,
-           setSubexpressionContinuation(thread,
+  gotoNext(setSubexpressionContinuation(thread,
                                         origin(c),
-                                        stackFrame(edenIdx(e, 0),
-                                                   closureEnv(code),
+                                        stackFrame(closureEnv(code),
                                                    params,
-                                                   prefix(edenIdx(e, 0), waitFor(arg(0)), args),
+                                                   prefix(waitFor(arg(0)), args),
                                                    c),
-                                        slotlessObject(edenIdx(e, 1), dynamicEnv(c), NIL),
+                                        slotlessObject(dynamicEnv(c), NIL),
                                         oInternals,
                                         sMethodBody,
                                         closureBody(code)));
@@ -212,55 +200,40 @@ $serialized string(temp(), "<canon!>")
 !interpret
   continuation c = threadContinuation(thread);
   obj o = continuationTarget(c);
-  vector *live = edenRoot(thread);
-  tailcall(doNext,
-           setContinuation(thread,
-                           newContinuation(live,
-                                           origin(c),
+  gotoNext(setContinuation(thread,
+                           newContinuation(origin(c),
                                            codeSelector(o),
                                            emptyVector,
-                                           prefix(live, codeTarget(o) ?: env(c), codeArgs(o)),
+                                           prefix(codeTarget(o) ?: env(c), codeArgs(o)),
                                            env(c),
                                            dynamicEnv(c))));
 @promiseCode object
 !interpret
-  vector *life = edenRoot(thread);
-  promise p = newPromise(life);
+  promise p = newPromise();
   continuation c = threadContinuation(thread);
-  newThread(life,
-            p,
-            env(c),
-            dynamicEnv(c),
-            hiddenEntity(continuationTarget(c)),
-            sIdentity,
-            emptyVector);
+  newThread(p, env(c), dynamicEnv(c), hiddenEntity(continuationTarget(c)), sIdentity, emptyVector);
   valueReturn(p);
 @arrowCode object
 !from:
-  vector eden = makeVector(edenRoot(thread), 2);
-  promise p = newPromise(edenIdx(eden, 0));
+  promise p = newPromise();
   continuation c = threadContinuation(thread);
-  newThread(edenIdx(eden, 1),
-            p,
+  newThread(p,
             env(c),
             dynamicEnv(c),
             oInternals,
             sMethodBody,
-            newVector(edenIdx(eden, 1),
-                      2,
-                      message(edenIdx(eden, 1), arg(0), sIdentity, emptyVector),
-                      hiddenEntity(target)));
+            newVector(2, message(arg(0), sIdentity, emptyVector), hiddenEntity(target)));
   valueReturn(p);
 @block object
 !interpret
   continuation c = threadContinuation(thread);
   obj o = continuationTarget(c);
-  valueReturn(newClosure(edenRoot(thread), env(c), blockParams(o), blockBody(o)));
-@integer object newAtomVector(temp(), 1, 0)
+  valueReturn(newClosure(env(c), blockParams(o), blockBody(o)));
+@integer object newAtomVector(1, 0)
 ?serialized
   char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
   sprintf(buffer, "%d", safeIntegerValue(target));
-  valueReturn(string(edenRoot(thread), buffer));
+  valueReturn(string(buffer));
 !== equals
   if (safeIntegerValue(target) == safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
@@ -271,11 +244,9 @@ $serialized string(temp(), "<canon!>")
   if (safeIntegerValue(target) > safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
 !- minus:
-  valueReturn(integer(edenRoot(thread),
-              safeIntegerValue(target) - safeIntegerValue(waitFor(arg(0)))));
+  valueReturn(integer(safeIntegerValue(target) - safeIntegerValue(waitFor(arg(0)))));
 !+ plus:
-  valueReturn(integer(edenRoot(thread),
-                      safeIntegerValue(target) + safeIntegerValue(waitFor(arg(0)))));
+  valueReturn(integer(safeIntegerValue(target) + safeIntegerValue(waitFor(arg(0)))));
 !secondsDelay
   int i = safeIntegerValue(target);
   while (i) i = sleep(i);
@@ -283,23 +254,23 @@ $serialized string(temp(), "<canon!>")
 @POSIX null
 ~POSIX Error during a POSIX system call.
 !errno
-  valueReturn(integer(edenRoot(thread), errno));
+  valueReturn(integer(errno));
 !close:
   if (close(safeIntegerValue(arg(0)))) raise(thread, ePOSIX);
   normalReturn;
 !read:from:
   int count = safeIntegerValue(waitFor(arg(0)));
-  vector s = makeAtomVector(edenRoot(thread), CELLS_REQUIRED_FOR_BYTES(count + 1));
+  vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(count + 1));
   char *b = vectorData(s);
   ssize_t i = read(safeIntegerValue(waitFor(arg(1))), b, count);
   if (i == -1) raise(thread, ePOSIX);
   b[i] = 0;
-  valueReturn(slotlessObject(edenRoot(thread), oString, s));
+  valueReturn(slotlessObject(oString, s));
 !write:to:
   char *s = safeStringValue(waitFor(arg(0)));
   ssize_t i = write(safeIntegerValue(waitFor(arg(1))), s, strlen(s));
   if (i == -1) raise(thread, ePOSIX);
-  valueReturn(integer(edenRoot(thread), i));
+  valueReturn(integer(i));
 ?bindInternetSocket:to:
   struct sockaddr_in s;
   memset(&s, 0, sizeof(struct sockaddr_in));
@@ -313,7 +284,7 @@ $serialized string(temp(), "<canon!>")
 !TCPSocket
   int s = socket(PF_INET, SOCK_STREAM, 0);
   if (s == -1) raise(thread, ePOSIX);
-  valueReturn(integer(edenRoot(thread), s));
+  valueReturn(integer(s));
 !listenOn:withMaximumBacklog:
   if (listen(safeIntegerValue(waitFor(arg(0))), safeIntegerValue(waitFor(arg(1)))))
     raise(thread, ePOSIX);
@@ -323,7 +294,7 @@ $serialized string(temp(), "<canon!>")
   socklen_t socketParametersSize = sizeof(struct sockaddr);
   int newSocket = accept(safeIntegerValue(waitFor(arg(0))), &socketParameters, &socketParametersSize);
   if (newSocket == -1) raise(thread, ePOSIX);
-  valueReturn(integer(edenRoot(thread), newSocket));
+  valueReturn(integer(newSocket));
 !shutdown:
   if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(thread, ePOSIX);
   normalReturn;
@@ -409,11 +380,11 @@ $namespace
   normalReturn;
 !exit
   exit(0);
-@dynamicEnvironment object newVector(temp(), 1, oNamespaceCanon)
+@dynamicEnvironment object newVector(1, oNamespaceCanon)
 !setNamespaces:
   obj v = waitFor(arg(0));
   if (!isVectorObject(v)) raise(thread, eVectorExpected);
   setHiddenData(target, vectorObjectVector(v));
   normalReturn;
 !namespaces
-  valueReturn(vectorObject(edenRoot(thread), hiddenEntity(target)));
+  valueReturn(vectorObject(hiddenEntity(target)));
