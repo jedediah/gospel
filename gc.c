@@ -139,10 +139,10 @@ vector extract(vector v) {
 
 #define VECTOR_HEADER_SIZE 3
 
-// Uses emptyVector as buffer space, mangling its pointers.
 vector constructWhiteList() {
   const vector topOfHeap = (vector)(heap + ARENA_CELLS * sizeof(void *));
-  vector prev = emptyVector,
+  struct vectorStruct stub = {0, 0, 0};
+  vector prev = &stub,
          current = endOfEmptyVector(emptyVector); // The real beginning of the heap.
   void advance() {
     current = endOfVector(current);
@@ -152,7 +152,7 @@ vector constructWhiteList() {
       // TODO: This is very unlikely, can we make it impossible and eliminate this logic?
       die("<nothing free after garbage collection>");
     }
-    vector first = emptyVector->next;
+    vector first = stub.next;
     first->prev = prev;
     prev->next = first;
     return first;
