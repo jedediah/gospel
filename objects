@@ -41,6 +41,8 @@
   normalReturn;
 @internals null
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
+# The hidden data field contains the symbol table. The default initialization, to NULL, is alright:
+#  If we explicitly initialized it to NULL here, we would be overwriting the symbols of the builtins.
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
   vector v = makeVector(c);
@@ -328,7 +330,7 @@ $serialized string("<canon!>")
     if (!i--) break;
     frame = proto(frame);
   }
-  obj v = *edenRoot(thread) = arg(0); // Because it might be orphaned when we change continuations.
+  obj v = shelter(thread, arg(0)); // Because it might be orphaned when we change continuations.
   setContinuation(thread, safeStackFrameContinuation(frame));
   valueReturn(v);
 !return
@@ -337,7 +339,7 @@ $serialized string("<canon!>")
   valueReturn(oNull);
 !return:
   if (target == oLobby) raise(thread, eBadReturnDepth);
-  obj v = *edenRoot(thread) = arg(0); // Because it might be orphaned when we change continuations.
+  obj v = shelter(thread, arg(0)); // Because it might be orphaned when we change continuations.
   setContinuation(thread, safeStackFrameContinuation(target));
   valueReturn(v);
 !thisContext

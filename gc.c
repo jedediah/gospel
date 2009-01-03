@@ -52,10 +52,11 @@ int liveSegmentCount = 0;
 #define MARK_BIT      8
 
 // This provides eden space during startup, before the first real thread data object has been created.
+// TODO: Merge "threadData.c" back in here, since we have to expose its implementation anyway.
 struct vectorStruct dummyThreadData = {0,
                                        0,
-                                       6 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
-                                       {0, 0, 0, 0, 0, 0}};
+                                       4 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
+                                       {0, 0, 0, 0}};
 __thread vector currentThread = &dummyThreadData;
 vector blackList, grayList, ecruList, whiteList, emptyVector, garbageCollectorRoot;
 
@@ -307,18 +308,18 @@ void *vectorData(vector v) {
   return v->data;
 }
 
-vector *edenRoot(vector);
+vector shelter(vector, vector);
+vector shelteredValue(vector);
 void invalidateEden() {
-  *edenRoot(currentThread) = 0;
+  shelter(currentThread, 0);
 }
 vector edenAllot(int n) {
-  vector *e = edenRoot(currentThread);
   forbidGC();
   vector v = allot(2);
   setVectorType(v, ENTITY_VECTOR);
   setIdx(v, 0, 0);
-  setIdx(v, 1, *e);
-  *e = v;
+  setIdx(v, 1, shelteredValue(currentThread));
+  shelter(currentThread, v);
   // Now that the eden vector is in a consistent state, we can request the second allotment and not mind
   // that it could trigger a garbage collection.
   return setIdx(v, 0, allot(n));

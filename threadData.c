@@ -20,45 +20,38 @@
 
 typedef vector continuation;
 
-vector newThreadData(vector stack,
-                     obj dynamicEnv,
-                     vector cc,
+vector newThreadData(vector cc,
                      vector prev,
                      vector next,
                      vector scratch) {
-  return newVector(6, stack, dynamicEnv, cc, prev, next, scratch);
+  return newVector(4, cc, prev, next, scratch);
 }
 
-continuation threadContinuation(vector td) { return idx(td, 2); }
-vector       previousThreadData(vector td) { return idx(td, 3); }
-vector       nextThreadData(vector td)     { return idx(td, 4); }
-vector *edenRoot(vector td) {
-  return idxPointer(td, 5);
-}
-vector       setPreviousThreadData(vector td, vector ptd) { return setIdx(td, 3, ptd); } 
-vector       setNextThreadData(vector td, vector ntd)     { return setIdx(td, 4, ntd); }
+continuation threadContinuation(vector td) { return idx(td, 0); }
+vector       previousThreadData(vector td) { return idx(td, 1); }
+vector       nextThreadData(vector td)     { return idx(td, 2); }
+vector       shelteredValue(vector td)     { return idx(td, 3); }
 
-vector createGarbageCollectorRoot() {
-  vector garbageCollectorRoot = newThreadData(0, 0, 0, 0, 0, 0);
+vector setContinuation(vector threadData, continuation c) {
+  setIdx(threadData, 0, c);
+  return threadData;
+}
+vector setPreviousThreadData(vector td, vector ptd) { return setIdx(td, 1, ptd); } 
+vector setNextThreadData(vector td, vector ntd)     { return setIdx(td, 2, ntd); }
+vector shelter(vector td, vector v)                 { return setIdx(td, 3, v);   }
+
+vector createGarbageCollectorRoot(obj rootLiveObject) {
+  vector garbageCollectorRoot = newThreadData(rootLiveObject, 0, 0, 0);
   setNextThreadData(garbageCollectorRoot,
                     setPreviousThreadData(garbageCollectorRoot, garbageCollectorRoot));
   mark(garbageCollectorRoot);
   return garbageCollectorRoot;
 }
 
-vector setContinuation(vector threadData, continuation c) {
-  setIdx(threadData, 2, c);
-  return threadData;
-}
-
-// Used for stashing important objects in the garbageCollectorRoot vector to keep them alive.
-vector *symbolTableShelter(vector root) { return idxPointer(root, 1); }
-vector *lobbyShelter(vector root)       { return idxPointer(root, 2); }
-
 vector addThread(vector root) {
   acquireThreadListLock();
   vector next = nextThreadData(root),
-         new = newThreadData(0, 0, 0, root, next, 0);
+         new = newThreadData(0, root, next, 0);
   setNextThreadData(root, setPreviousThreadData(next, new));
   releaseThreadListLock();
   return new;
@@ -70,9 +63,6 @@ void killThreadData(vector td) {
   setNextThreadData(previousThreadData(td), nextThreadData(td));
   setPreviousThreadData(nextThreadData(td), previousThreadData(td));
   releaseThreadListLock();
-}
-vector setShelter(vector t, vector v) {
-  return setIdx(t, 5, v);
 }
 
 void keep(vector thread, promise p, vector o) {

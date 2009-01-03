@@ -18,17 +18,15 @@
 
 #include "gc.h"
 
-vector *edenRoot(vector);
+vector shelteredValue(vector);
 vector addThread(vector);
 void killThreadData(vector);
-vector setShelter(vector, vector);
+vector shelter(vector, vector);
 
 vector threadContinuation(vector);
 vector setContinuation(vector, vector);
 
-vector createGarbageCollectorRoot(void);
-vector *symbolTableShelter(vector);
-vector *lobbyShelter(vector);
+vector createGarbageCollectorRoot(obj);
 
 void keep(vector, promise, vector);
 void terminateThread(vector);

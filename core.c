@@ -354,7 +354,7 @@ void dispatch(vector thread) {
 
 // The heart of the interpreter, called at the end of each expression to evaluate the next one.
 void doNext(vector thread) {
-  setShelter(thread, 0); // Release temporary allocations from the last subexpression.
+  shelter(thread, 0); // Release temporary allocations from the last subexpression.
   continuation c = threadContinuation(thread);
   int evaluatedCount = vectorLength(evaluated(c)),
       unevaluatedCount = vectorLength(unevaluated(c));
@@ -393,14 +393,14 @@ int isEmpty(vector v) {
 
 obj intern(obj symbol) {
   acquireSymbolTableLock();
-  obj symbolTable = *symbolTableShelter(garbageCollectorRoot);
+  obj symbolTable = hiddenEntity(oInternals);
   char *string = stringData(symbol);
   for (pair st = symbolTable; !empty(st); st = cdr(st))
     if (!strcmp(string, stringData(car(st)))) {
       releaseSymbolTableLock();
       return car(st);
     }
-  *symbolTableShelter(garbageCollectorRoot) = cons(symbol, symbolTable);
+  setHiddenData(oInternals, cons(symbol, symbolTable));
   releaseSymbolTableLock();
   return symbol;
 }
@@ -420,10 +420,6 @@ obj promiseCode(obj message) {
 }
 obj promiseCodeValue(obj p) {
   return hiddenEntity(p);
-}
-
-void invalidateTemporaryLife() {
-  *edenRoot(garbageCollectorRoot) = 0;
 }
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
@@ -496,10 +492,9 @@ obj symbol(const char *s) {
 
 void setupInterpreter() {
   initializeHeap();
-  currentThread = garbageCollectorRoot = createGarbageCollectorRoot();
+  currentThread = garbageCollectorRoot = createGarbageCollectorRoot(oLobby);
   initializeObjects();
   initializePrototypeTags();
-  *lobbyShelter(garbageCollectorRoot) = oLobby;
   intern(oSymbol);
 }
 
@@ -524,7 +519,7 @@ void *loadFile(const char *filename, obj staticEnv, obj dynamicEnv) {
 void REPL() {
   void *scanner = beginParsing(stdin);
   for (;;) {
-    invalidateTemporaryLife();
+    invalidateEden();
     fputs("\n> ", stdout);
     fflush(stdout);
     // We just serialize first, to give the expression a chance to do its own terminal output, before
