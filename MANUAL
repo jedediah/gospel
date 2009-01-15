@@ -73,4 +73,6 @@ When execution reaches the end of a block, it returns with the value of the last
 
 A single caret actually returns not from the current block, but from the block lexically enclosing it. This is because early returns from methods almost always occur inside the block arguments to messages such as "$if:else:". Writing two carets causes a return from the next-outermost block, and so forth: They are syntactic sugar for "return: (value) atDepth: (n)" where (n) is the number of carets in the return statement.
 
+A semicolon indicates a "cascade": The message to the right of the semicolon is sent to the same target as the message immediately to the left was. "(socket new) write: first; write: second" sends both $write: messages to the same socket object.
+
 Future versions of this manual will include documentation of "the canon", Gospel's (currently very limited) core library.

@@ -359,7 +359,7 @@ void doNext(vector thread) {
   int evaluatedCount = vectorLength(evaluated(c)),
       unevaluatedCount = vectorLength(unevaluated(c));
   // Have we evaluated all the subexpressions?
-  if (evaluatedCount == unevaluatedCount) tailcall(dispatch, thread);
+  if (evaluatedCount >= unevaluatedCount) tailcall(dispatch, thread);
   // If not, evaluate the next subexpression.
   vector subexpr = newVector(1, idx(unevaluated(c), evaluatedCount));
   tailcall(dispatch,
@@ -411,6 +411,10 @@ pair codeArgs(obj c)     { return idx(hiddenEntity(c), 2); }
 
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));
+}
+obj cascade(obj m) {
+  // Cascade objects should have the same internal structure as code objects.
+  return slotlessObject(oCascade, newVector(3, codeTarget(m), codeSelector(m), codeArgs(m)));
 }
 obj expressionSequence(vector exprs) {
   return message(oInternals, sMethodBody, exprs);

@@ -42,6 +42,7 @@ obj appendSymbols(vector);
 obj message(obj, obj, vector);
 
 obj block(vector, vector);
+obj cascade(obj);
 
 vector emptyVector;
 

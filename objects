@@ -41,8 +41,20 @@
   normalReturn;
 @internals null
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
-# The hidden data field contains the symbol table. The default initialization, to NULL, is alright:
-#  If we explicitly initialized it to NULL here, we would be overwriting the symbols of the builtins.
+# The hidden data field contains the symbol table. The default initialization, to NULL, is correct:
+#  If we also explicitly initialized it to NULL here, we would be overwriting the symbols of the builtins.
+!cascade
+  continuation c = threadContinuation(thread);
+  obj m = arg(0), t = arg(1);
+  // Assumes that the primitive behind "identity" will ignore extra arguments.
+  gotoNext(setContinuation(thread,
+                           newContinuation(origin(c),
+                                           sIdentity,
+                                           newVector(1, t),
+                                           newVector(2, t, message(t, codeSelector(m), codeArgs(m))),
+                                           env(c),
+                                           dynamicEnv(c))));
+
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
   vector v = makeVector(c);
@@ -210,11 +222,29 @@ $serialized string("<canon!>")
                                            env(c),
                                            dynamicEnv(c))));
 @promiseCode object
+@cascade object
 !interpret
-  promise p = newPromise();
+  /*
+  // FIXME: Spawning two new threads for each cascade is ridiculously inefficient.
   continuation c = threadContinuation(thread);
-  newThread(p, env(c), dynamicEnv(c), hiddenEntity(continuationTarget(c)), sIdentity, emptyVector);
-  valueReturn(p);
+  obj m = target, t = codeTarget(m);
+  promise p = newPromise();
+  newThread(p, env(c), dynamicEnv(c), t, sIdentity, emptyVector);
+  t = waitFor(p);
+  p = newPromise();
+  newThread(p, env(c), dynamicEnv(c), t, codeSelector(m), codeArgs(m));
+  waitFor(p);
+  valueReturn(t);
+  */
+  continuation c = threadContinuation(thread);
+  obj m = target;
+  gotoNext(setContinuation(thread,
+                           newContinuation(origin(c),
+                                           sCascade,
+                                           newVector(2, oInternals, m),
+                                           newVector(3, oInternals, m, codeTarget(m) ?: env(c)),
+                                           env(c),
+                                           dynamicEnv(c))));
 @arrowCode object
 !from:
   promise p = newPromise();

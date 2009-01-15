@@ -164,6 +164,8 @@ assignment:
 target:
   optarget
 | msg
+| msg ';'
+  { $$ = cascade($1); }
 ;
 
 gap:
@@ -183,7 +185,11 @@ nametarget:
 | parens
 | literal
 | name
+| name ';'
+  { $$ = cascade($1); }
 | declaration
+| declaration ';'
+  { $$ = cascade($1); }
 ;
 
 impliedoperation:
@@ -202,6 +208,8 @@ operation:
 optarget:
   nametarget
 | operation
+| operation ';'
+  { $$ = cascade($1); }
 ;
 operand:
   parens
