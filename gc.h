@@ -1,5 +1,5 @@
 /*
-    Copyright 2008 Sam Chapin
+    Copyright © 2008, 2009 Sam Chapin
 
     This file is part of Gospel.
 
@@ -46,8 +46,17 @@ vector insertBetween(vector, vector, vector);
 extern vector blackList, grayList, whiteList, ecruList;
 
 extern vector emptyVector;
-extern __thread vector currentThread;
 extern vector garbageCollectorRoot;
+
+extern struct vectorStruct dummyThreadData;
+#ifdef PORTABLE
+  vector getCurrentThread(void);
+  #define currentThread (getCurrentThread())
+#else
+  extern __thread vector currentThread;
+#endif
+vector setCurrentThread(vector);
+void initializeMainThread(void);
 
 void acquireThreadListLock(void);
 void releaseThreadListLock(void);

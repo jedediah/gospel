@@ -1,5 +1,5 @@
 /*
-    Copyright 2008 Sam Chapin
+    Copyright © 2008, 2009 Sam Chapin
 
     This file is part of Gospel.
 
@@ -57,7 +57,32 @@ struct vectorStruct dummyThreadData = {0,
                                        0,
                                        4 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
                                        {0, 0, 0, 0}};
-__thread vector currentThread = &dummyThreadData;
+
+#ifdef PORTABLE
+  pthread_key_t threadLocalStorageKey;
+  vector getCurrentThread() {
+    return pthread_getspecific(threadLocalStorageKey);
+  }
+  vector setCurrentThread(vector thread) {
+    if (pthread_setspecific(threadLocalStorageKey, thread))
+      die("Error while initializing thread-local storage.");
+    return thread;
+  }
+  void initializeMainThread() {
+    if (pthread_key_create(&threadLocalStorageKey, NULL))
+      die("Error while creating thread-local storage key.");
+    setCurrentThread(&dummyThreadData);
+  }
+#else
+  __thread vector currentThread;
+  vector setCurrentThread(vector thread) {
+    return currentThread = thread;
+  }
+  void initializeMainThread() {
+    currentThread = &dummyThreadData;
+  }
+#endif
+
 vector blackList, grayList, ecruList, whiteList, emptyVector, garbageCollectorRoot;
 
 int vectorLength(vector v) {
@@ -481,7 +506,7 @@ void releaseChannelLock(channel c) {
 typedef struct { void (*f)(void *), *t; } spawnArgument; // Avoids forcing GCC to generate a trampoline.
 void spawn(void *f, void *a) {
   pthread_t thread;
-  void init(spawnArgument *x) { tailcall(x->f, currentThread = x->t); }
+  void init(spawnArgument *x) { tailcall(x->f, setCurrentThread(x->t)); }
   spawnArgument x = {f, a};
   if (pthread_create(&thread, NULL, (void *(*)(void *))init, &x)) die("Failed spawning.");
 }

@@ -1,4 +1,4 @@
-#    Copyright 2008 Sam Chapin
+#    Copyright © 2008, 2009 Sam Chapin
 #
 #    This file is part of Gospel.
 #
@@ -19,6 +19,9 @@ CFLAGS=-std=gnu99 -O3 -ggdb
 
 gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o
 	gcc -pthread $^ -o $@
+
+portable : threadData.o death.o gc.o y.tab.o lex.yy.o core.o portability.o
+	gcc -pthread $^ -o gospel
 
 objgen : ;
 objects : ;
@@ -44,7 +47,7 @@ gc.o : gc.c objects.h death.h
 death.o : death.c
 core.o : core.c objects.c objects.h death.h gc.h threadData.h parser.h
 main.o : main.c core.h objects.h
-
+portability.o : main.c core.h objects.h portability.c
 
 test : threadData.o death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
 	gcc -pthread $^ -o $@
@@ -58,4 +61,4 @@ test.o : test.c cgreen/cgreen.h core.o
 
 .PHONY : clean
 clean :
-	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o threadData.o test.o main.o gospel test
+	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o threadData.o test.o main.o portability.o gospel test

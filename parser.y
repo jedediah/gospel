@@ -1,7 +1,7 @@
 %{
 
 /*
-    Copyright 2008 Sam Chapin
+    Copyright 2008, 2009 Sam Chapin
 
     This file is part of Gospel.
 
@@ -164,8 +164,6 @@ assignment:
 target:
   optarget
 | msg
-| msg ';'
-  { $$ = cascade($1); }
 ;
 
 gap:
@@ -185,11 +183,8 @@ nametarget:
 | parens
 | literal
 | name
-| name ';'
-  { $$ = cascade($1); }
 | declaration
-| declaration ';'
-  { $$ = cascade($1); }
+| cascade
 ;
 
 impliedoperation:
@@ -198,7 +193,27 @@ impliedoperation:
 | '@' gap OPERATOR gap operand
   { $$ = promiseCode(message(0, $3, newVector(1, $5))); }
 ;
- 
+
+cascade:
+  cascader ';'
+  { $$ = cascade($1); }
+;
+cascader:
+  name
+| operation
+| msg
+| assignment
+| declaration
+| '(' cascadeBody ')'
+  { $$ = $2; }
+;
+cascadeBody:
+  cascader
+  /* TODO: Allow as a cascader any parenthesized statement list whose last statement is itself a valid
+           cascader. Doing this cleanly seems to indicate changing "bodies" from an internal message
+           to a new type of AST object, which is probably overdue anyway. */
+;
+
 operation:
   optarget OPERATOR gap operand
   { $$ = message($1, $2, newVector(1, $4)); }
@@ -208,8 +223,6 @@ operation:
 optarget:
   nametarget
 | operation
-| operation ';'
-  { $$ = cascade($1); }
 ;
 operand:
   parens

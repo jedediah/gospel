@@ -1,4 +1,4 @@
-#   Copyright 2008 Sam Chapin
+#   Copyright © 2008, 2009 Sam Chapin
 #
 #   This file is part of Gospel.
 #
@@ -43,18 +43,6 @@
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
 # The hidden data field contains the symbol table. The default initialization, to NULL, is correct:
 #  If we also explicitly initialized it to NULL here, we would be overwriting the symbols of the builtins.
-!cascade
-  continuation c = threadContinuation(thread);
-  obj m = arg(0), t = arg(1);
-  // Assumes that the primitive behind "identity" will ignore extra arguments.
-  gotoNext(setContinuation(thread,
-                           newContinuation(origin(c),
-                                           sIdentity,
-                                           newVector(1, t),
-                                           newVector(2, t, message(t, codeSelector(m), codeArgs(m))),
-                                           env(c),
-                                           dynamicEnv(c))));
-
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
   vector v = makeVector(c);
@@ -64,6 +52,22 @@
   int l = vectorLength(evaluated(threadContinuation(thread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null
+!cascade:
+  continuation c = threadContinuation(thread);
+  obj cascader = arg(0);
+  gotoNext(setContinuation(thread,
+                           newContinuation(origin(c),
+                                           sIdentity,
+                                           newVector(1, target),
+                                           newVector(2,
+                                                     target,
+                                                     message(message(quotation(cascader),
+                                                                     sWithTarget_,
+                                                                     newVector(1, target)),
+                                                             sInterpret,
+                                                             emptyVector)),
+                                           env(c),
+                                           dynamicEnv(c))));
 !evaluate:in:
   gotoNext(setSubexpressionContinuation(thread,
                                         origin(threadContinuation(thread)),
@@ -211,38 +215,54 @@ $serialized string("<canon!>")
 !environment
   valueReturn(closureEnv(target));
 @code object
+!message
+  normalReturn;
+!target
+  valueReturn(codeTarget(target) ?: env(threadContinuation(thread)));
+!withTarget:
+  valueReturn(codeWithTarget(target, waitFor(arg(0))));
 !interpret
   continuation c = threadContinuation(thread);
-  obj o = continuationTarget(c);
   gotoNext(setContinuation(thread,
                            newContinuation(origin(c),
-                                           codeSelector(o),
+                                           codeSelector(target),
                                            emptyVector,
-                                           prefix(codeTarget(o) ?: env(c), codeArgs(o)),
+                                           prefix(codeTarget(target) ?: env(c), codeArgs(target)),
                                            env(c),
                                            dynamicEnv(c))));
-@promiseCode object
-@cascade object
+@specialCode object
+!message
+  resend(newVector(1, hiddenEntity(target)));
+!withTarget:
+  resend(newVector(2, hiddenEntity(target), waitFor(arg(0))));
+!target
+  resend(newVector(1, hiddenEntity(target)));
+@quotation object
 !interpret
-  /*
-  // FIXME: Spawning two new threads for each cascade is ridiculously inefficient.
-  continuation c = threadContinuation(thread);
-  obj m = target, t = codeTarget(m);
+  valueReturn(hiddenEntity(target));
+@promiseCode specialCode
+!interpret
   promise p = newPromise();
-  newThread(p, env(c), dynamicEnv(c), t, sIdentity, emptyVector);
-  t = waitFor(p);
-  p = newPromise();
-  newThread(p, env(c), dynamicEnv(c), t, codeSelector(m), codeArgs(m));
-  waitFor(p);
-  valueReturn(t);
-  */
   continuation c = threadContinuation(thread);
-  obj m = target;
+  newThread(p, env(c), dynamicEnv(c), hiddenEntity(target), sIdentity, emptyVector);
+  valueReturn(p);
+!withTarget:
+  valueReturn(slotlessObject(oPromiseCode, codeWithTarget(hiddenEntity(target), arg(0))));
+@cascade specialCode
+!interpret
+  continuation c = threadContinuation(thread);
+  obj cascader = quotation(target);
   gotoNext(setContinuation(thread,
                            newContinuation(origin(c),
-                                           sCascade,
-                                           newVector(2, oInternals, m),
-                                           newVector(3, oInternals, m, codeTarget(m) ?: env(c)),
+                                           sCascade_,
+                                           emptyVector,
+                                           newVector(2,
+                                                     message(message(quotation(target),
+                                                                     sTarget,
+                                                                     emptyVector),
+                                                             sInterpret,
+                                                             emptyVector),
+                                                     cascader),
                                            env(c),
                                            dynamicEnv(c))));
 @arrowCode object

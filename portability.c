@@ -1,5 +1,5 @@
 /*
-    Copyright © 2008 Sam Chapin
+    Copyright © 2009 Sam Chapin
 
     This file is part of Gospel.
 
@@ -16,12 +16,5 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "core.h"
-#include "objects.h"
-
-int main(int argc, char **argv) {
-  setupInterpreter();
-  loadFile("canon.gs", oLobby, oDynamicEnvironment);
-  for (int i = argc; --i;) loadFile(argv[i], oLobby, oDynamicEnvironment);
-  REPL();
-}
+#define PORTABLE
+#include "main.c"

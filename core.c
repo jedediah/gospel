@@ -1,5 +1,5 @@
 /*
-    Copyright 2008 Sam Chapin
+    Copyright © 2008, 2009 Sam Chapin
 
     This file is part of Gospel.
 
@@ -55,6 +55,13 @@ pair nreverse(pair l) {
     l = next;
   }
   return last;
+}
+
+pair nappend(pair x, pair y) {
+  pair first = x, next;
+  while (!empty(next = cdr(x))) x = next;
+  setcdr(x, y);
+  return first;
 }
 
 int length(pair l) {
@@ -405,16 +412,20 @@ obj intern(obj symbol) {
   return symbol;
 }
 
+obj quotation(obj o) { return slotlessObject(oQuotation, o); }
+
 obj  codeTarget(obj c)   { return idx(hiddenEntity(c), 0); }
 obj  codeSelector(obj c) { return idx(hiddenEntity(c), 1); }
 pair codeArgs(obj c)     { return idx(hiddenEntity(c), 2); }
+obj codeWithTarget(obj c, obj t) {
+  return slotlessObject(oCode, newVector(3, t, codeSelector(c), codeArgs(c)));
+}
 
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));
 }
-obj cascade(obj m) {
-  // Cascade objects should have the same internal structure as code objects.
-  return slotlessObject(oCascade, newVector(3, codeTarget(m), codeSelector(m), codeArgs(m)));
+obj cascade(obj code) {
+  return slotlessObject(oCascade, code);
 }
 obj expressionSequence(vector exprs) {
   return message(oInternals, sMethodBody, exprs);
@@ -468,7 +479,22 @@ void *loadStream(FILE *, obj, obj);
 #define valueReturn(v) messageReturn(thread, (v))
 #define arg(i) (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
 #define target continuationTarget(threadContinuation(thread))
+#define resend(args) do { \
+  continuation r_c = threadContinuation(thread); \
+  obj r_a = (args); \
+  tailcall(dispatch, \
+           setContinuation(thread, \
+                           newContinuation(origin(r_c), \
+                                           selector(r_c), \
+                                           r_a, \
+                                           r_a, \
+                                           env(r_c), \
+                                           dynamicEnv(r_c)))); \
+} while (0)
+
 #include "objects.c"
+
+#undef resend
 #undef target
 #undef arg
 #undef valueReturn
@@ -496,7 +522,8 @@ obj symbol(const char *s) {
 
 void setupInterpreter() {
   initializeHeap();
-  currentThread = garbageCollectorRoot = createGarbageCollectorRoot(oLobby);
+  initializeMainThread();
+  setCurrentThread(garbageCollectorRoot = createGarbageCollectorRoot(oLobby));
   initializeObjects();
   initializePrototypeTags();
   intern(oSymbol);

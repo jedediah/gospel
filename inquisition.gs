@@ -1,4 +1,4 @@
-#   Copyright 2008 Sam Chapin
+#   Copyright © 2008 Sam Chapin
 #
 #   This file is part of Gospel.
 #
