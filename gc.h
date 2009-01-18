@@ -89,7 +89,14 @@ vector zero(vector);
 void forbidGC(void);
 void permitGC(void);
 
-void spawn(void *, void *);
+void createPrimitiveThread(void (*)(void *), void *);
+// NOTE: If the first argument to spawn() is an expression involving automatic storage,
+//       GCC might have to generate a trampoline for init().
+#define spawn(f, a) do { \
+  void init(void *arg) { tailcall((f), setCurrentThread(arg)); } \
+  createPrimitiveThread(init, (void *)(a)); \
+} while (0)
+
 void explicitlyEndThread(void);
 
 typedef vector obj;

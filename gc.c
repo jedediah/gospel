@@ -503,13 +503,11 @@ void releaseChannelLock(channel c) {
     die("Error while releasing a channel lock.");
 }
 
-typedef struct { void (*f)(void *), *t; } spawnArgument; // Avoids forcing GCC to generate a trampoline.
-void spawn(void *f, void *a) {
+void createPrimitiveThread(void (*f)(void *), void *a) {
   pthread_t thread;
-  void init(spawnArgument *x) { tailcall(x->f, setCurrentThread(x->t)); }
-  spawnArgument x = {f, a};
-  if (pthread_create(&thread, NULL, (void *(*)(void *))init, &x)) die("Failed spawning.");
+  if (pthread_create(&thread, NULL, (void *(*)(void *))f, a)) die("Failed spawning.");
 }
+
 void explicitlyEndThread() {
   pthread_exit(0);
 }

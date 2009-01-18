@@ -14,15 +14,15 @@
 #    You should have received a copy of the GNU General Public License
 #    along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
-CC=gcc
-CFLAGS=-std=gnu99 -O3 -ggdb
+CC?=gcc
+CFLAGS+=-std=gnu99 -O3 -ggdb
 
 ifdef PORTABLE
   CFLAGS+=-D PORTABLE
 endif
 
 gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o
-	gcc -pthread $^ -o $@
+	$(CC) -pthread $^ -o $@
 
 objgen : ;
 objects : ;
@@ -50,7 +50,7 @@ core.o : core.c objects.c objects.h death.h gc.h threadData.h parser.h
 main.o : main.c core.h objects.h
 
 test : threadData.o death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
-	gcc -pthread $^ -o $@
+	$(CC) -pthread $^ -o $@
 
 cgreen/cgreen.a : ;
 cgreen/cgreen.h : cgreen/cgreen.a ;
