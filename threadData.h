@@ -16,6 +16,9 @@
     along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef THREADDATA_H
+#define THREADDATA_H
+
 #include "gc.h"
 
 vector shelteredValue(vector);
@@ -30,3 +33,5 @@ vector createGarbageCollectorRoot(obj);
 
 void keep(vector, promise, vector);
 void terminateThread(vector);
+
+#endif
