@@ -71,7 +71,7 @@ test(listToVector,
 test(spawn,
   void *p = newPromise();
   vector i = integer(42);
-  void f(void *x) { keep(garbageCollectorRoot, p, x); }
+  void f() { keep(garbageCollectorRoot, p, i); }
   spawn(f, i);
   assert_equal(waitFor(p), i);
 )

@@ -92,9 +92,9 @@ void permitGC(void);
 void createPrimitiveThread(void (*)(void *), void *);
 // NOTE: If the first argument to spawn() is an expression involving automatic storage,
 //       GCC might have to generate a trampoline for init().
-#define spawn(f, a) do { \
-  void init(void *arg) { tailcall((f), setCurrentThread(arg)); } \
-  createPrimitiveThread(init, (void *)(a)); \
+#define spawn(spawn_f, spawn_a) do { \
+  void spawn_init(void *spawn_arg) { setCurrentThread(spawn_arg); tailcall(spawn_f); } \
+  createPrimitiveThread(spawn_init, (void *)(spawn_a)); \
 } while (0)
 
 void explicitlyEndThread(void);
@@ -162,7 +162,7 @@ vector closureParams(obj);
 vector closureBody(obj);
 
 obj primitive(void *);
-void (*primitiveCode(obj))(vector);
+void (*primitiveCode(obj))(void);
 obj integer(int);
 int integerValue(obj);
 

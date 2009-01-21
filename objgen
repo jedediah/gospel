@@ -66,32 +66,32 @@ print HEADER "#ifndef OBJECTS_H\n#define OBJECTS_H\n\nobj ",
 
 foreach $object (keys %objects) {
   print SOURCE "\n";
-  print SOURCE "void m", cname($object), cname($_), "(vector thread) {\n",
+  print SOURCE "void m", cname($object), cname($_), "() {\n",
                   $objects{$object}[0]{$_},
                "}\n"
    foreach (keys %{$objects{$object}[0]});
   foreach (keys %{$objects{$object}[1]}) {
     my $id = cname($object) . cname($_);
-    print SOURCE "void *b$id(vector) __attribute__ ((noinline));\n",
-                 "void m$id(vector thread) { gotoNext(b$id(thread)); }\n";
+    print SOURCE "void *b$id(void) __attribute__ ((noinline));\n",
+                 "void m$id() { gotoNext(b$id()); }\n";
   }
-  print SOURCE "void m", cname($object), "_(vector thread) {\n$dispatchMethods{$object}}\n"
+  print SOURCE "void m", cname($object), "_() {\n$dispatchMethods{$object}}\n"
    if $dispatchMethods{$object};
 }
 
 print SOURCE "\n#undef tailcall\n",
                "#undef gotoNext\n",
-               "#define tailcall(f, ...) do { f(__VA_ARGS__); terminateThread(thread); } while (0)\n",
+               "#define tailcall(f, ...) do { __VA_ARGS__; f(); terminateThread(currentThread); } while (0)\n",
                "#define gotoNext(t) return (t)\n";
 foreach $object (keys %objects) {
-  print SOURCE "void *b", cname($object), cname($_), "(vector thread) {\n",
+  print SOURCE "void *b", cname($object), cname($_), "() {\n",
                   $objects{$object}[1]{$_},
                "}\n"
    foreach (keys %{$objects{$object}[1]});
 }
 print SOURCE "#undef tailcall\n",
              "#undef gotoNext\n",
-             "#define tailcall(f, ...) do { f(__VA_ARGS__); return; } while (0)\n",
+             "#define tailcall(f, ...) do { __VA_ARGS__; f(); return; } while (0)\n",
              "#define gotoNext(t) tailcall(doNext, (t))\n\n";
 
 

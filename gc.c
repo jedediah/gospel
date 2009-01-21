@@ -599,7 +599,7 @@ obj primitive(void *code) {
   setVectorType(o, PRIMITIVE);
   return o;
 }
-void (*primitiveCode(obj p))(vector) {
+void (*primitiveCode(obj p))(void) {
   return hiddenAtom(p);
 }
 

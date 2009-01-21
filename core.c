@@ -153,15 +153,18 @@ vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
                                          dynamicEnv(c)));
 }
 
-#define gotoNext(thread) tailcall(doNext, (thread))
+#define gotoNext(gotoNext_t) do { (gotoNext_t); tailcall(doNext); } while (0)
 
-#define messageReturn(thread, value) do { \
-  vector mr_t = (thread), mr_v = (value); \
-  continuation mr_c = origin(threadContinuation(mr_t)); \
+#define messageReturn(mr_value) do { \
+  vector mr_v = (mr_value); \
+  continuation mr_c = origin(threadContinuation(currentThread)); \
   /* This logic can't easily be moved from the macro into the function call,
      because the return from keep() is what kills the thread. */ \
-  if (isPromise(mr_c)) tailcall(keep, mr_t, mr_c, mr_v); \
-  gotoNext(setMessageReturnContinuation(mr_t, mr_c, mr_v)); \
+  if (isPromise(mr_c)) { \
+    keep(currentThread, mr_c, mr_v); \
+    explicitlyEndThread(); \
+  } \
+  gotoNext(setMessageReturnContinuation(currentThread, mr_c, mr_v)); \
 } while (0)
 
 vector setExceptionContinuation(vector thread, obj exception) {
@@ -175,8 +178,8 @@ vector setExceptionContinuation(vector thread, obj exception) {
                                       newVector(1, exception));
 }
 
-#define raise(thread, exception) \
-  gotoNext(setExceptionContinuation((thread), (exception)))
+#define raise(raise_thread, raise_exception) \
+  gotoNext(setExceptionContinuation((raise_thread), (raise_exception)))
 
 obj string(const char *s) {
   int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
@@ -245,7 +248,7 @@ obj vectorObjectVector(obj v) {
   return hiddenEntity(v);
 }
 
-void doNext(vector);
+void doNext(void);
 vector newThread(void *cc,
                  obj staticEnv,
                  obj dynamicEnv,
@@ -253,6 +256,7 @@ vector newThread(void *cc,
                  obj selector,
                  vector args) {
   vector threadData = addThread(garbageCollectorRoot);
+  
   setContinuation(threadData,
                   newContinuation(cc,
                                   selector,
@@ -265,35 +269,32 @@ vector newThread(void *cc,
 }
 
 promise REPLPromise;
-void returnToREPL(vector thread) {
-  keep(thread, REPLPromise, oNull);
+void returnToREPL() {
+  keep(currentThread, REPLPromise, oNull);
 }
-#define abort(thread, ...) do { \
-  printf(__VA_ARGS__); \
-  fflush(stdout); \
-  tailcall(returnToREPL, (thread)); \
-} while (0)
 
-void invokeDispatchMethod(vector);
+void invokeDispatchMethod(void);
 
 obj newDynamicScope(continuation c) {
   obj oldScope = dynamicEnv(c);
   return slotlessObject(oldScope, hiddenEntity(oldScope));
 }
 
-void normalDispatchMethod(vector thread) {
-  vector c = threadContinuation(thread);
+void normalDispatchMethod() {
+  vector c = threadContinuation(currentThread);
   obj r = receiver(c);
   void **slot = shallowLookup(r, selector(c), c);
-  if (!slot) tailcall(invokeDispatchMethod, setThreadReceiver(thread, proto(r))); 
+  if (!slot) {
+    setThreadReceiver(currentThread, proto(r));
+    tailcall(invokeDispatchMethod);
+  }
   obj contents = *slot;
 
-  if (isPrimitive(contents)) tailcall(primitiveCode(contents), thread);
+  if (isPrimitive(contents)) tailcall(primitiveCode(contents));
   if (isClosure(contents)) {
     vector params = closureParams(contents), args = evaluated(c);
-    if (vectorLength(args) != vectorLength(params)) raise(thread, eBadArity);
-    vector eden = makeVector(2);
-    gotoNext(setSubexpressionContinuation(thread,
+    if (vectorLength(args) != vectorLength(params)) raise(currentThread, eBadArity);
+    gotoNext(setSubexpressionContinuation(currentThread,
                                           origin(c),
                                           stackFrame(closureEnv(contents),
                                                      params,
@@ -304,22 +305,21 @@ void normalDispatchMethod(vector thread) {
                                           sMethodBody,
                                           closureBody(contents)));
   }
-  messageReturn(thread, contents); // The slot contains a constant value, not code.
+  messageReturn(contents); // The slot contains a constant value, not code.
 }
 
-void invokeDispatchMethod(vector thread) {
-  continuation c = threadContinuation(thread);
+void invokeDispatchMethod() {
+  continuation c = threadContinuation(currentThread);
   obj dm = dispatchMethod(receiver(c));
 
   // TODO: Find a nice solution to the bootstrapping problem of initializing all objects with a
   //       primitive method object containing normalDispatchMethod, and eliminate the first test.
 
-  if (!dm) tailcall(normalDispatchMethod, thread);
-  if (isPrimitive(dm)) tailcall(primitiveCode(dm), thread);
+  if (!dm) tailcall(normalDispatchMethod);
+  if (isPrimitive(dm)) tailcall(primitiveCode(dm));
   if (isClosure(dm)) {
     // Closures are checked for correct arity at the time the dispatch method is set.
-    vector eden = makeVector(2);
-    gotoNext(setSubexpressionContinuation(thread,
+    gotoNext(setSubexpressionContinuation(currentThread,
                                           origin(c),
                                           stackFrame(closureEnv(dm),
                                                      closureParams(dm),
@@ -330,11 +330,11 @@ void invokeDispatchMethod(vector thread) {
                                           sMethodBody,
                                           closureBody(dm)));
   }
-  messageReturn(thread, dm); // The dispatch method is actually just a constant value.
+  messageReturn(dm); // The dispatch method is actually just a constant value.
 }
 
-void dispatch(vector thread) {
-  continuation c = threadContinuation(thread);
+void dispatch() {
+  continuation c = threadContinuation(currentThread);
   obj t = continuationTarget(c);
   if (isChannel(t)) {
     promise p = newPromise();
@@ -354,29 +354,30 @@ void dispatch(vector thread) {
 
     obj r = waitFor(p);
     releaseChannelLock(t);
-    messageReturn(thread, r);
+    messageReturn(r);
   }
-  tailcall(invokeDispatchMethod, setThreadReceiver(thread, t));
+  setThreadReceiver(currentThread, t);
+  tailcall(invokeDispatchMethod);
 }
 
 // The heart of the interpreter, called at the end of each expression to evaluate the next one.
-void doNext(vector thread) {
-  shelter(thread, 0); // Release temporary allocations from the last subexpression.
-  continuation c = threadContinuation(thread);
+void doNext() {
+  shelter(currentThread, 0); // Release temporary allocations from the last subexpression.
+  continuation c = threadContinuation(currentThread);
   int evaluatedCount = vectorLength(evaluated(c)),
       unevaluatedCount = vectorLength(unevaluated(c));
   // Have we evaluated all the subexpressions?
-  if (evaluatedCount >= unevaluatedCount) tailcall(dispatch, thread);
+  if (evaluatedCount >= unevaluatedCount) tailcall(dispatch);
   // If not, evaluate the next subexpression.
   vector subexpr = newVector(1, idx(unevaluated(c), evaluatedCount));
-  tailcall(dispatch,
-           setContinuation(thread,
-                           newContinuation(c,
-                                           sInterpret,
-                                           subexpr,
-                                           subexpr,
-                                           env(c),
-                                           dynamicEnv(c))));
+  setContinuation(currentThread,
+                  newContinuation(c,
+                                  sInterpret,
+                                  subexpr,
+                                  subexpr,
+                                  env(c),
+                                  dynamicEnv(c)));
+  tailcall(dispatch);
 }
 
 obj call(obj dynamicEnv, obj target, obj selector, vector args) {
@@ -451,45 +452,47 @@ promise *promiseOfInclusion;
 
 // The prototype primitive's behaviour should be to return itself, so that it won't be necessary to write
 // e.g. "\primitive foo {}".
-void prototypePrimitiveHiddenValue(vector thread) {
-  messageReturn(thread, oPrimitive);
+void prototypePrimitiveHiddenValue() {
+  messageReturn(oPrimitive);
 }
 
 void *loadStream(FILE *, obj, obj);
 
-#define safeIntegerValue(i) ({ \
-  obj s_i = (i); \
-  isInteger(s_i) ? integerValue(s_i) : ({ raise(thread, eIntegerExpected); 0; }); \
+#define safeIntegerValue(siv_i) ({ \
+  obj s_i = (siv_i); \
+  isInteger(s_i) ? integerValue(s_i) : ({ raise(currentThread, eIntegerExpected); 0; }); \
 })
-#define safeStackFrameContinuation(f) ({ \
-  obj s_f = (f); \
-  isStackFrame(s_f) ? stackFrameContinuation(s_f) : ({ raise(thread, eStackFrameExpected); \
+#define safeStackFrameContinuation(ssfc_f) ({ \
+  obj s_f = (ssfc_f); \
+  isStackFrame(s_f) ? stackFrameContinuation(s_f) : ({ raise(currentThread, eStackFrameExpected); \
                                                        (vector)0; \
                                                      }); \
 })
-#define safeStringValue(s) ({ \
-  obj s_s = (s); \
-  isString(s_s) ? stringData(s_s) : ({ raise(thread, eStringExpected); (char *)0; }); \
+#define safeStringValue(ssv_s) ({ \
+  obj s_s = (ssv_s); \
+  isString(s_s) ? stringData(s_s) : ({ raise(currentThread, eStringExpected); (char *)0; }); \
 })
-#define safeVector(v) ({ \
-  obj s_v = (v); \
-  isVectorObject(s_v) ? vectorObjectVector(s_v) : ({ raise(thread, eVectorExpected); (vector)0; }); \
-}) 
-#define normalReturn messageReturn(thread, continuationTarget(threadContinuation(thread)))
-#define valueReturn(v) messageReturn(thread, (v))
-#define arg(i) (arg(thread, (i)) ?: ({ raise(thread, eMissingArgument); (void *)0; }))
-#define target continuationTarget(threadContinuation(thread))
-#define resend(args) do { \
-  continuation r_c = threadContinuation(thread); \
-  obj r_a = (args); \
-  tailcall(dispatch, \
-           setContinuation(thread, \
-                           newContinuation(origin(r_c), \
-                                           selector(r_c), \
-                                           r_a, \
-                                           r_a, \
-                                           env(r_c), \
-                                           dynamicEnv(r_c)))); \
+#define safeVector(sv_v) ({ \
+  obj s_v = (sv_v); \
+  isVectorObject(s_v) ? vectorObjectVector(s_v) : ({ raise(currentThread, eVectorExpected); \
+                                                     (vector)0; \
+                                                   }); \
+})
+#define normalReturn messageReturn(continuationTarget(threadContinuation(currentThread)))
+#define valueReturn(vr_v) messageReturn(vr_v)
+#define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(currentThread, eMissingArgument); (void *)0; }))
+#define target continuationTarget(threadContinuation(currentThread))
+#define resend(r_args) do { \
+  continuation r_c = threadContinuation(currentThread); \
+  obj r_a = (r_args); \
+  setContinuation(currentThread, \
+                  newContinuation(origin(r_c), \
+                                  selector(r_c), \
+                                  r_a, \
+                                  r_a, \
+                                  env(r_c), \
+                                  dynamicEnv(r_c))); \
+  tailcall(dispatch); \
 } while (0)
 
 #include "objects.c"
@@ -503,8 +506,6 @@ void *loadStream(FILE *, obj, obj);
 #undef safeStringValue
 #undef safeStackFrameContinuation
 #undef safeIntegerValue
-
-void (*primitiveCode(obj p))(continuation);
 
 obj appendSymbols(pair symbols) {
   obj s = string("");

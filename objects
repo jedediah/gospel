@@ -22,11 +22,10 @@
 # If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
 # a pointer to its own automatic memory, then declare it ?foo rather than !foo.
 
-@null null
-  continuation c = threadContinuation(thread);
-  void **slot = shallowLookup(oNull, selector(c), c);
-  if (!slot) raise(thread, eMessageNotUnderstood);
-  tailcall(primitiveCode(*slot), thread);
+@deadEnd deadEnd
+  raise(currentThread, eMessageNotUnderstood);
+  normalReturn;
+@null deadEnd
 !serialized
   valueReturn(string("<null>"));
 !raise:
@@ -44,18 +43,18 @@
 # The hidden data field contains the symbol table. The default initialization, to NULL, is correct:
 #  If we also explicitly initialized it to NULL here, we would be overwriting the symbols of the builtins.
 !vectorLiteral
-  int c = vectorLength(evaluated(threadContinuation(thread))) - 1;
+  int c = vectorLength(evaluated(threadContinuation(currentThread))) - 1;
   vector v = makeVector(c);
   while (c--) setIdx(v, c, arg(c));
   valueReturn(vectorObject(v));
 !methodBody
-  int l = vectorLength(evaluated(threadContinuation(thread)));
+  int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null
 !cascade:
-  continuation c = threadContinuation(thread);
+  continuation c = threadContinuation(currentThread);
   obj cascader = arg(0);
-  gotoNext(setContinuation(thread,
+  gotoNext(setContinuation(currentThread,
                            newContinuation(origin(c),
                                            sIdentity,
                                            newVector(1, target),
@@ -69,8 +68,8 @@
                                            env(c),
                                            dynamicEnv(c))));
 !evaluate:in:
-  gotoNext(setSubexpressionContinuation(thread,
-                                        origin(threadContinuation(thread)),
+  gotoNext(setSubexpressionContinuation(currentThread,
+                                        origin(threadContinuation(currentThread)),
                                         target,
                                         waitFor(arg(1)),
                                         parseString(safeStringValue(waitFor(arg(0)))),
@@ -78,9 +77,9 @@
                                         emptyVector));
 !include:in:
   obj filename = waitFor(arg(0));
-  if (!isString(filename)) raise(thread, eStringExpected);
+  if (!isString(filename)) raise(currentThread, eStringExpected);
   FILE *f = fopen(stringData(filename), "r");
-  if (!f) raise(thread, eInclusion);
+  if (!f) raise(currentThread, eInclusion);
   valueReturn(loadStream(f, target, waitFor(arg(1))));
 !setProto:
   obj p = waitFor(arg(0));
@@ -90,8 +89,8 @@
   if (target == waitFor(arg(0))) valueReturn(oTrue);
   valueReturn(oFalse);
 !send:
-  continuation c = origin(threadContinuation(thread));
-  gotoNext(setSubexpressionContinuation(thread,
+  continuation c = origin(threadContinuation(currentThread));
+  gotoNext(setSubexpressionContinuation(currentThread,
                                         c,
                                         env(c),
                                         dynamicEnv(c),
@@ -115,14 +114,14 @@
 !identity
   normalReturn;
 !addSlot:as:
-  valueReturn(addSlot(target, waitFor(arg(0)), arg(1), threadContinuation(thread)));
+  valueReturn(addSlot(target, waitFor(arg(0)), arg(1), threadContinuation(currentThread)));
 !setSlot:to:
-  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(thread));
-  if (!slot) raise(thread, eSettingNonexistantSlot);
+  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(currentThread));
+  if (!slot) raise(currentThread, eSettingNonexistantSlot);
   valueReturn(*slot = arg(1));
 !contentsOfSlot:
-  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(thread));
-  if (!slot) raise(thread, eGettingNonexistantSlot);
+  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(currentThread));
+  if (!slot) raise(currentThread, eGettingNonexistantSlot);
   valueReturn(*slot);
 !new
   obj o = slotlessObject(target, hiddenEntity(target));
@@ -136,7 +135,7 @@ $serialized string("<canon!>")
   valueReturn(vectorObject(vectorAppend(safeVector(target), safeVector(waitFor(arg(0))))));
 !ofLength:containing:
   int l = safeIntegerValue(waitFor(arg(0)));
-  if (l < 0) raise(thread, eNegativeVectorLength);
+  if (l < 0) raise(currentThread, eNegativeVectorLength);
   obj o = arg(1);
   vector v = makeVector(l);
   while (l--) setIdx(v, l, o);
@@ -148,8 +147,14 @@ $serialized string("<canon!>")
   obj v = hiddenEntity(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
-    continuation c = origin(threadContinuation(thread));
-    gotoNext(setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(2), sDo, emptyVector));
+    continuation c = origin(threadContinuation(currentThread));
+    gotoNext(setSubexpressionContinuation(currentThread,
+                                          c,
+                                          env(c),
+                                          dynamicEnv(c),
+                                          arg(2),
+                                          sDo,
+                                          emptyVector));
   }
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
@@ -157,24 +162,30 @@ $serialized string("<canon!>")
   obj v = hiddenEntity(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
-    continuation c = origin(threadContinuation(thread));
-    gotoNext(setSubexpressionContinuation(thread, c, env(c), dynamicEnv(c), arg(1), sDo, emptyVector));
+    continuation c = origin(threadContinuation(currentThread));
+    gotoNext(setSubexpressionContinuation(currentThread,
+                                          c,
+                                          env(c),
+                                          dynamicEnv(c),
+                                          arg(1),
+                                          sDo,
+                                          emptyVector));
   }
   valueReturn(idx(v, i));
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
 !target:withArgumentVector:
   obj code = target, argsObject = waitFor(arg(1));
-  if (!isPrimitive(code)) raise(thread, ePrimitiveExpected);
-  if (!isVectorObject(argsObject)) raise(thread, eVectorExpected);
-  continuation c = threadContinuation(thread);
-  tailcall(primitiveCode(code),
-           setContinuation(thread,
-                           newContinuation(origin(c),
-                                           oNull,
-                                           prefix(waitFor(arg(0)), vectorObjectVector(argsObject)),
-                                           NIL, // There should be no reason for anyone to examine this.
-                                           env(c),
-                                           dynamicEnv(c))));
+  if (!isPrimitive(code)) raise(currentThread, ePrimitiveExpected);
+  if (!isVectorObject(argsObject)) raise(currentThread, eVectorExpected);
+  continuation c = threadContinuation(currentThread);
+  setContinuation(currentThread,
+                  newContinuation(origin(c),
+                                  oNull,
+                                  prefix(waitFor(arg(0)), vectorObjectVector(argsObject)),
+                                  NIL, // There should be no reason for anyone to examine this.
+                                  env(c),
+                                  dynamicEnv(c)));
+  tailcall(primitiveCode(code));
 @string object newAtomVector(1, 0)
 !serialized
   // FIXME: This should probably convert e.g. newlines to "\n".
@@ -182,10 +193,10 @@ $serialized string("<canon!>")
   valueReturn(appendStrings(quote, appendStrings(target, quote)));
 !++ appending:
   obj a = waitFor(arg(0));
-  if (!isString(target) || !isString(a)) raise(thread, eStringExpected);
+  if (!isString(target) || !isString(a)) raise(currentThread, eStringExpected);
   valueReturn(appendStrings(target, waitFor(arg(0))));
 !print
-  if (!isString(target)) raise(thread, eStringExpected);
+  if (!isString(target)) raise(currentThread, eStringExpected);
   fputs(stringData(target), stdout);
   fflush(stdout);
   normalReturn;
@@ -196,13 +207,13 @@ $serialized string("<canon!>")
 @closure object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
 !target:withArgumentVector:
   obj code = target, argsObject = waitFor(arg(1));
-  if (!isClosure(code)) raise(thread, eClosureExpected);
-  if (!isVectorObject(argsObject)) raise(thread, eVectorExpected);
+  if (!isClosure(code)) raise(currentThread, eClosureExpected);
+  if (!isVectorObject(argsObject)) raise(currentThread, eVectorExpected);
   vector args = vectorObjectVector(argsObject),
          params = closureParams(code);
-  if (vectorLength(args) + 1 != vectorLength(params)) raise(thread, eBadArity);
-  continuation c = threadContinuation(thread);
-  gotoNext(setSubexpressionContinuation(thread,
+  if (vectorLength(args) + 1 != vectorLength(params)) raise(currentThread, eBadArity);
+  continuation c = threadContinuation(currentThread);
+  gotoNext(setSubexpressionContinuation(currentThread,
                                         origin(c),
                                         stackFrame(closureEnv(code),
                                                    params,
@@ -218,12 +229,12 @@ $serialized string("<canon!>")
 !message
   normalReturn;
 !target
-  valueReturn(codeTarget(target) ?: env(threadContinuation(thread)));
+  valueReturn(codeTarget(target) ?: env(threadContinuation(currentThread)));
 !withTarget:
   valueReturn(codeWithTarget(target, waitFor(arg(0))));
 !interpret
-  continuation c = threadContinuation(thread);
-  gotoNext(setContinuation(thread,
+  continuation c = threadContinuation(currentThread);
+  gotoNext(setContinuation(currentThread,
                            newContinuation(origin(c),
                                            codeSelector(target),
                                            emptyVector,
@@ -243,16 +254,16 @@ $serialized string("<canon!>")
 @promiseCode specialCode
 !interpret
   promise p = newPromise();
-  continuation c = threadContinuation(thread);
+  continuation c = threadContinuation(currentThread);
   newThread(p, env(c), dynamicEnv(c), hiddenEntity(target), sIdentity, emptyVector);
   valueReturn(p);
 !withTarget:
   valueReturn(slotlessObject(oPromiseCode, codeWithTarget(hiddenEntity(target), arg(0))));
 @cascade specialCode
 !interpret
-  continuation c = threadContinuation(thread);
+  continuation c = threadContinuation(currentThread);
   obj cascader = quotation(target);
-  gotoNext(setContinuation(thread,
+  gotoNext(setContinuation(currentThread,
                            newContinuation(origin(c),
                                            sCascade_,
                                            emptyVector,
@@ -268,7 +279,7 @@ $serialized string("<canon!>")
 @arrowCode object
 !from:
   promise p = newPromise();
-  continuation c = threadContinuation(thread);
+  continuation c = threadContinuation(currentThread);
   newThread(p,
             env(c),
             dynamicEnv(c),
@@ -278,7 +289,7 @@ $serialized string("<canon!>")
   valueReturn(p);
 @block object
 !interpret
-  continuation c = threadContinuation(thread);
+  continuation c = threadContinuation(currentThread);
   obj o = continuationTarget(c);
   valueReturn(newClosure(env(c), blockParams(o), blockBody(o)));
 @integer object newAtomVector(1, 0)
@@ -308,20 +319,20 @@ $serialized string("<canon!>")
 !errno
   valueReturn(integer(errno));
 !close:
-  if (close(safeIntegerValue(arg(0)))) raise(thread, ePOSIX);
+  if (close(safeIntegerValue(arg(0)))) raise(currentThread, ePOSIX);
   normalReturn;
 !read:from:
   int count = safeIntegerValue(waitFor(arg(0)));
   vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(count + 1));
   char *b = vectorData(s);
   ssize_t i = read(safeIntegerValue(waitFor(arg(1))), b, count);
-  if (i == -1) raise(thread, ePOSIX);
+  if (i == -1) raise(currentThread, ePOSIX);
   b[i] = 0;
   valueReturn(slotlessObject(oString, s));
 !write:to:
   char *s = safeStringValue(waitFor(arg(0)));
   ssize_t i = write(safeIntegerValue(waitFor(arg(1))), s, strlen(s));
-  if (i == -1) raise(thread, ePOSIX);
+  if (i == -1) raise(currentThread, ePOSIX);
   valueReturn(integer(i));
 ?bindInternetSocket:to:
   struct sockaddr_in s;
@@ -331,24 +342,24 @@ $serialized string("<canon!>")
   s.sin_addr.s_addr = htonl(INADDR_ANY);
   if (bind(safeIntegerValue(waitFor(arg(0))),
            (struct sockaddr *)&s, (socklen_t)sizeof(struct sockaddr_in)))
-    raise(thread, ePOSIX);
+    raise(currentThread, ePOSIX);
   normalReturn;
 !TCPSocket
   int s = socket(PF_INET, SOCK_STREAM, 0);
-  if (s == -1) raise(thread, ePOSIX);
+  if (s == -1) raise(currentThread, ePOSIX);
   valueReturn(integer(s));
 !listenOn:withMaximumBacklog:
   if (listen(safeIntegerValue(waitFor(arg(0))), safeIntegerValue(waitFor(arg(1)))))
-    raise(thread, ePOSIX);
+    raise(currentThread, ePOSIX);
   normalReturn;
 ?acceptOn:
   struct sockaddr socketParameters;
   socklen_t socketParametersSize = sizeof(struct sockaddr);
   int newSocket = accept(safeIntegerValue(waitFor(arg(0))), &socketParameters, &socketParametersSize);
-  if (newSocket == -1) raise(thread, ePOSIX);
+  if (newSocket == -1) raise(currentThread, ePOSIX);
   valueReturn(integer(newSocket));
 !shutdown:
-  if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(thread, ePOSIX);
+  if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(currentThread, ePOSIX);
   normalReturn;
 @true object
 @false object
@@ -376,33 +387,33 @@ $serialized string("<canon!>")
 !return:atDepth:
   obj frame = target;
   for (int i = safeIntegerValue(waitFor(arg(1)));;) {
-    if (frame == oLobby) raise(thread, eBadReturnDepth);
+    if (frame == oLobby) raise(currentThread, eBadReturnDepth);
     if (!i--) break;
     frame = proto(frame);
   }
-  obj v = shelter(thread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(thread, safeStackFrameContinuation(frame));
+  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
+  setContinuation(currentThread, safeStackFrameContinuation(frame));
   valueReturn(v);
 !return
-  if (target == oLobby) raise(thread, eBadReturnDepth);
-  setContinuation(thread, safeStackFrameContinuation(target));
+  if (target == oLobby) raise(currentThread, eBadReturnDepth);
+  setContinuation(currentThread, safeStackFrameContinuation(target));
   valueReturn(oNull);
 !return:
-  if (target == oLobby) raise(thread, eBadReturnDepth);
-  obj v = shelter(thread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(thread, safeStackFrameContinuation(target));
+  if (target == oLobby) raise(currentThread, eBadReturnDepth);
+  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
+  setContinuation(currentThread, safeStackFrameContinuation(target));
   valueReturn(v);
 !thisContext
   normalReturn;
 !recurse
-  if (target == oLobby) raise(thread, eTopLevelRecursion);
-  tailcall(doNext, setContinuation(thread, safeStackFrameContinuation(target)));
+  if (target == oLobby) raise(currentThread, eTopLevelRecursion);
+  gotoNext(setContinuation(currentThread, safeStackFrameContinuation(target)));
 !abortToREPL
-  tailcall(returnToREPL, thread);
+  tailcall(returnToREPL);
 !abort
-  tailcall(returnToREPL, thread);
+  tailcall(returnToREPL);
 !end
-  killThreadData(thread);
+  killThreadData(currentThread);
   // Permit a C subroutine return, thus killing the current thread.
 $true
 $false
@@ -424,7 +435,7 @@ $POSIX
 $canon oNamespaceCanon
 $namespace
 !dynamicContext
-  valueReturn(dynamicEnv(threadContinuation(thread)));
+  valueReturn(dynamicEnv(threadContinuation(currentThread)));
 !collectGarbage
   forbidGC();
   collectGarbage();
@@ -435,7 +446,7 @@ $namespace
 @dynamicEnvironment object newVector(1, oNamespaceCanon)
 !setNamespaces:
   obj v = waitFor(arg(0));
-  if (!isVectorObject(v)) raise(thread, eVectorExpected);
+  if (!isVectorObject(v)) raise(currentThread, eVectorExpected);
   setHiddenData(target, vectorObjectVector(v));
   normalReturn;
 !namespaces

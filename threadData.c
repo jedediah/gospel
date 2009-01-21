@@ -41,11 +41,9 @@ vector setNextThreadData(vector td, vector ntd)     { return setIdx(td, 2, ntd);
 vector shelter(vector td, vector v)                 { return setIdx(td, 3, v);   }
 
 vector createGarbageCollectorRoot(obj rootLiveObject) {
-  vector garbageCollectorRoot = newThreadData(rootLiveObject, 0, 0, 0);
-  setNextThreadData(garbageCollectorRoot,
-                    setPreviousThreadData(garbageCollectorRoot, garbageCollectorRoot));
-  mark(garbageCollectorRoot);
-  return garbageCollectorRoot;
+  vector root = newThreadData(rootLiveObject, 0, 0, 0);
+  mark(setNextThreadData(root, setPreviousThreadData(root, root)));
+  return root;
 }
 
 vector addThread(vector root) {

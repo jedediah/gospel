@@ -72,7 +72,7 @@ pair nreverse(pair);
 
 int isEmpty(vector);
 
-void dispatch(vector);
+void dispatch(void);
 
 void setupInterpreter(void);
 void *loadFile(const char *, obj, obj);
