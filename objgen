@@ -72,28 +72,23 @@ foreach $object (keys %objects) {
    foreach (keys %{$objects{$object}[0]});
   foreach (keys %{$objects{$object}[1]}) {
     my $id = cname($object) . cname($_);
-    print SOURCE "void *b$id(void) __attribute__ ((noinline));\n",
-                 "void m$id() { gotoNext(b$id()); }\n";
+    print SOURCE "void b$id(void) __attribute__ ((noinline));\n",
+                 "void m$id() { b$id(); gotoNext; }\n";
   }
   print SOURCE "void m", cname($object), "_() {\n$dispatchMethods{$object}}\n"
    if $dispatchMethods{$object};
 }
 
-print SOURCE "\n#undef tailcall\n",
-               "#undef gotoNext\n",
-               "#define tailcall(f, ...) do { __VA_ARGS__; f(); terminateThread(currentThread); } while (0)\n",
-               "#define gotoNext(t) return (t)\n";
+
+print SOURCE "\n#undef gotoNext\n",
+               "#define gotoNext return\n";
 foreach $object (keys %objects) {
-  print SOURCE "void *b", cname($object), cname($_), "() {\n",
+  print SOURCE "void b", cname($object), cname($_), "() {\n",
                   $objects{$object}[1]{$_},
                "}\n"
    foreach (keys %{$objects{$object}[1]});
 }
-print SOURCE "#undef tailcall\n",
-             "#undef gotoNext\n",
-             "#define tailcall(f, ...) do { __VA_ARGS__; f(); return; } while (0)\n",
-             "#define gotoNext(t) tailcall(doNext, (t))\n\n";
-
+print SOURCE "#undef gotoNext\n";
 
 print SOURCE "void initializeObjects() {\n";
 # Objects need to be initialized first, since the symbols and exceptions that come next will refer

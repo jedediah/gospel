@@ -157,3 +157,4 @@ TCPSocket shutdown {
 TCPSocket close {
   POSIX close: self POSIXFileDescriptor
 }
+

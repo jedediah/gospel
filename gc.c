@@ -58,7 +58,7 @@ struct vectorStruct dummyThreadData = {0,
                                        4 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
                                        {0, 0, 0, 0}};
 
-#ifdef PORTABLE
+#ifdef NO_THREAD_VARIABLES
   pthread_key_t threadLocalStorageKey;
   vector getCurrentThread() {
     return pthread_getspecific(threadLocalStorageKey);

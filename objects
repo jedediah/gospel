@@ -54,27 +54,29 @@
 !cascade:
   continuation c = threadContinuation(currentThread);
   obj cascader = arg(0);
-  gotoNext(setContinuation(currentThread,
-                           newContinuation(origin(c),
-                                           sIdentity,
-                                           newVector(1, target),
-                                           newVector(2,
-                                                     target,
-                                                     message(message(quotation(cascader),
-                                                                     sWithTarget_,
-                                                                     newVector(1, target)),
-                                                             sInterpret,
-                                                             emptyVector)),
-                                           env(c),
-                                           dynamicEnv(c))));
+  setContinuation(currentThread,
+                  newContinuation(origin(c),
+                                  sIdentity,
+                                  newVector(1, target),
+                                  newVector(2,
+                                            target,
+                                            message(message(quotation(cascader),
+                                                            sWithTarget_,
+                                                            newVector(1, target)),
+                                                    sInterpret,
+                                                    emptyVector)),
+                                  env(c),
+                                  dynamicEnv(c)));
+  gotoNext;
 !evaluate:in:
-  gotoNext(setSubexpressionContinuation(currentThread,
-                                        origin(threadContinuation(currentThread)),
-                                        target,
-                                        waitFor(arg(1)),
-                                        parseString(safeStringValue(waitFor(arg(0)))),
-                                        sIdentity,
-                                        emptyVector));
+  setSubexpressionContinuation(currentThread,
+                               origin(threadContinuation(currentThread)),
+                               target,
+                               waitFor(arg(1)),
+                               parseString(safeStringValue(waitFor(arg(0)))),
+                               sIdentity,
+                               emptyVector);
+  gotoNext;
 !include:in:
   obj filename = waitFor(arg(0));
   if (!isString(filename)) raise(currentThread, eStringExpected);
@@ -90,13 +92,14 @@
   valueReturn(oFalse);
 !send:
   continuation c = origin(threadContinuation(currentThread));
-  gotoNext(setSubexpressionContinuation(currentThread,
-                                        c,
-                                        env(c),
-                                        dynamicEnv(c),
-                                        target,
-                                        waitFor(arg(0)),
-                                        emptyVector));
+  setSubexpressionContinuation(currentThread,
+                               c,
+                               env(c),
+                               dynamicEnv(c),
+                               target,
+                               waitFor(arg(0)),
+                               emptyVector);
+  gotoNext;
 !respondsTo:
   obj a = waitFor(arg(0)), t = target;
   for (int i = 0; i < slotCount(t); i++) if (slotName(t, i) == a) valueReturn(oTrue);
@@ -148,13 +151,14 @@ $serialized string("<canon!>")
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
     continuation c = origin(threadContinuation(currentThread));
-    gotoNext(setSubexpressionContinuation(currentThread,
-                                          c,
-                                          env(c),
-                                          dynamicEnv(c),
-                                          arg(2),
-                                          sDo,
-                                          emptyVector));
+    setSubexpressionContinuation(currentThread,
+                                 c,
+                                 env(c),
+                                 dynamicEnv(c),
+                                 arg(2),
+                                 sDo,
+                                 emptyVector);
+    gotoNext;
   }
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
@@ -163,13 +167,14 @@ $serialized string("<canon!>")
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
     continuation c = origin(threadContinuation(currentThread));
-    gotoNext(setSubexpressionContinuation(currentThread,
-                                          c,
-                                          env(c),
-                                          dynamicEnv(c),
-                                          arg(1),
-                                          sDo,
-                                          emptyVector));
+    setSubexpressionContinuation(currentThread,
+                                 c,
+                                 env(c),
+                                 dynamicEnv(c),
+                                 arg(1),
+                                 sDo,
+                                 emptyVector);
+    gotoNext;
   }
   valueReturn(idx(v, i));
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
@@ -185,7 +190,7 @@ $serialized string("<canon!>")
                                   NIL, // There should be no reason for anyone to examine this.
                                   env(c),
                                   dynamicEnv(c)));
-  tailcall(primitiveCode(code));
+  computeTailcall(primitiveCode(code));
 @string object newAtomVector(1, 0)
 !serialized
   // FIXME: This should probably convert e.g. newlines to "\n".
@@ -213,16 +218,17 @@ $serialized string("<canon!>")
          params = closureParams(code);
   if (vectorLength(args) + 1 != vectorLength(params)) raise(currentThread, eBadArity);
   continuation c = threadContinuation(currentThread);
-  gotoNext(setSubexpressionContinuation(currentThread,
-                                        origin(c),
-                                        stackFrame(closureEnv(code),
-                                                   params,
-                                                   prefix(waitFor(arg(0)), args),
-                                                   c),
-                                        slotlessObject(dynamicEnv(c), NIL),
-                                        oInternals,
-                                        sMethodBody,
-                                        closureBody(code)));
+  setSubexpressionContinuation(currentThread,
+                               origin(c),
+                               stackFrame(closureEnv(code),
+                                          params,
+                                          prefix(waitFor(arg(0)), args),
+                                          c),
+                               slotlessObject(dynamicEnv(c), NIL),
+                               oInternals,
+                               sMethodBody,
+                               closureBody(code));
+  gotoNext;
 !environment
   valueReturn(closureEnv(target));
 @code object
@@ -234,13 +240,14 @@ $serialized string("<canon!>")
   valueReturn(codeWithTarget(target, waitFor(arg(0))));
 !interpret
   continuation c = threadContinuation(currentThread);
-  gotoNext(setContinuation(currentThread,
-                           newContinuation(origin(c),
-                                           codeSelector(target),
-                                           emptyVector,
-                                           prefix(codeTarget(target) ?: env(c), codeArgs(target)),
-                                           env(c),
-                                           dynamicEnv(c))));
+  setContinuation(currentThread,
+                  newContinuation(origin(c),
+                                  codeSelector(target),
+                                  emptyVector,
+                                  prefix(codeTarget(target) ?: env(c), codeArgs(target)),
+                                  env(c),
+                                  dynamicEnv(c)));
+  gotoNext;
 @specialCode object
 !message
   resend(newVector(1, hiddenEntity(target)));
@@ -263,19 +270,20 @@ $serialized string("<canon!>")
 !interpret
   continuation c = threadContinuation(currentThread);
   obj cascader = quotation(target);
-  gotoNext(setContinuation(currentThread,
-                           newContinuation(origin(c),
-                                           sCascade_,
-                                           emptyVector,
-                                           newVector(2,
-                                                     message(message(quotation(target),
-                                                                     sTarget,
-                                                                     emptyVector),
-                                                             sInterpret,
-                                                             emptyVector),
-                                                     cascader),
-                                           env(c),
-                                           dynamicEnv(c))));
+  setContinuation(currentThread,
+                  newContinuation(origin(c),
+                                  sCascade_,
+                                  emptyVector,
+                                  newVector(2,
+                                            message(message(quotation(target),
+                                                            sTarget,
+                                                            emptyVector),
+                                                    sInterpret,
+                                                    emptyVector),
+                                            cascader),
+                                  env(c),
+                                  dynamicEnv(c)));
+  gotoNext;
 @arrowCode object
 !from:
   promise p = newPromise();
@@ -407,7 +415,8 @@ $serialized string("<canon!>")
   normalReturn;
 !recurse
   if (target == oLobby) raise(currentThread, eTopLevelRecursion);
-  gotoNext(setContinuation(currentThread, safeStackFrameContinuation(target)));
+  setContinuation(currentThread, safeStackFrameContinuation(target));
+  gotoNext;
 !abortToREPL
   tailcall(returnToREPL);
 !abort

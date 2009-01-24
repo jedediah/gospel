@@ -153,19 +153,32 @@ vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
                                          dynamicEnv(c)));
 }
 
-#define gotoNext(gotoNext_t) do { (gotoNext_t); tailcall(doNext); } while (0)
-
-#define messageReturn(mr_value) do { \
-  vector mr_v = (mr_value); \
-  continuation mr_c = origin(threadContinuation(currentThread)); \
+#define prepareMessageReturn(pmr_value) do { \
+  vector pmr_v = (pmr_value); \
+  continuation pmr_c = origin(threadContinuation(currentThread)); \
   /* This logic can't easily be moved from the macro into the function call,
      because the return from keep() is what kills the thread. */ \
-  if (isPromise(mr_c)) { \
-    keep(currentThread, mr_c, mr_v); \
+  if (isPromise(pmr_c)) { \
+    keep(currentThread, pmr_c, pmr_v); \
     explicitlyEndThread(); \
   } \
-  gotoNext(setMessageReturnContinuation(currentThread, mr_c, mr_v)); \
+  setMessageReturnContinuation(currentThread, pmr_c, pmr_v); \
 } while (0)
+
+#ifdef NO_COMPUTED_TAILCALLS
+  #define gotoNext return
+  #define computeTailcall(ct_e) do { ct_e(); tailcall(doNext); } while (0)
+#else
+  #define gotoNext tailcall(doNext)
+  #define computeTailcall(ct_e) tailcall(ct_e)
+#endif
+
+// messageReturn() is equivalent to staticMessageReturn() if compiling with support for tailcalls to
+// function pointers, but otherwise performs the C function return that primitive-calling code will in
+// that event be expecting.
+#define messageReturn(mr_v) do { prepareMessageReturn(mr_v); gotoNext; } while (0)
+#define staticMessageReturn(smr_v) do { prepareMessageReturn(smr_v); tailcall(doNext); } while (0)
+
 
 vector setExceptionContinuation(vector thread, obj exception) {
   continuation c = threadContinuation(thread);
@@ -178,8 +191,10 @@ vector setExceptionContinuation(vector thread, obj exception) {
                                       newVector(1, exception));
 }
 
-#define raise(raise_thread, raise_exception) \
-  gotoNext(setExceptionContinuation((raise_thread), (raise_exception)))
+#define raise(raise_thread, raise_exception) do { \
+  setExceptionContinuation((raise_thread), (raise_exception)); \
+  gotoNext; \
+} while (0)
 
 obj string(const char *s) {
   int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
@@ -290,22 +305,23 @@ void normalDispatchMethod() {
   }
   obj contents = *slot;
 
-  if (isPrimitive(contents)) tailcall(primitiveCode(contents));
+  if (isPrimitive(contents)) computeTailcall(primitiveCode(contents));
   if (isClosure(contents)) {
     vector params = closureParams(contents), args = evaluated(c);
     if (vectorLength(args) != vectorLength(params)) raise(currentThread, eBadArity);
-    gotoNext(setSubexpressionContinuation(currentThread,
-                                          origin(c),
-                                          stackFrame(closureEnv(contents),
-                                                     params,
-                                                     args,
-                                                     c),
-                                          newDynamicScope(c),
-                                          oInternals,
-                                          sMethodBody,
-                                          closureBody(contents)));
+    setSubexpressionContinuation(currentThread,
+                                 origin(c),
+                                 stackFrame(closureEnv(contents),
+                                            params,
+                                            args,
+                                            c),
+                                 newDynamicScope(c),
+                                 oInternals,
+                                 sMethodBody,
+                                 closureBody(contents));
+    tailcall(doNext);
   }
-  messageReturn(contents); // The slot contains a constant value, not code.
+  staticMessageReturn(contents); // The slot contains a constant value, not code.
 }
 
 void invokeDispatchMethod() {
@@ -316,21 +332,22 @@ void invokeDispatchMethod() {
   //       primitive method object containing normalDispatchMethod, and eliminate the first test.
 
   if (!dm) tailcall(normalDispatchMethod);
-  if (isPrimitive(dm)) tailcall(primitiveCode(dm));
+  if (isPrimitive(dm)) computeTailcall(primitiveCode(dm));
   if (isClosure(dm)) {
     // Closures are checked for correct arity at the time the dispatch method is set.
-    gotoNext(setSubexpressionContinuation(currentThread,
-                                          origin(c),
-                                          stackFrame(closureEnv(dm),
-                                                     closureParams(dm),
-                                                     evaluated(c),
-                                                     c),
-                                          slotlessObject(dynamicEnv(c), NIL),
-                                          oInternals,
-                                          sMethodBody,
-                                          closureBody(dm)));
+    setSubexpressionContinuation(currentThread,
+                                 origin(c),
+                                 stackFrame(closureEnv(dm),
+                                            closureParams(dm),
+                                            evaluated(c),
+                                            c),
+                                 slotlessObject(dynamicEnv(c), NIL),
+                                 oInternals,
+                                 sMethodBody,
+                                 closureBody(dm));
+    tailcall(doNext);
   }
-  messageReturn(dm); // The dispatch method is actually just a constant value.
+  staticMessageReturn(dm); // The dispatch method is actually just a constant value.
 }
 
 void dispatch() {
@@ -354,7 +371,7 @@ void dispatch() {
 
     obj r = waitFor(p);
     releaseChannelLock(t);
-    messageReturn(r);
+    staticMessageReturn(r);
   }
   setThreadReceiver(currentThread, t);
   tailcall(invokeDispatchMethod);
@@ -458,6 +475,7 @@ void prototypePrimitiveHiddenValue() {
 
 void *loadStream(FILE *, obj, obj);
 
+
 #define safeIntegerValue(siv_i) ({ \
   obj s_i = (siv_i); \
   isInteger(s_i) ? integerValue(s_i) : ({ raise(currentThread, eIntegerExpected); 0; }); \
@@ -477,9 +495,9 @@ void *loadStream(FILE *, obj, obj);
   isVectorObject(s_v) ? vectorObjectVector(s_v) : ({ raise(currentThread, eVectorExpected); \
                                                      (vector)0; \
                                                    }); \
-})
-#define normalReturn messageReturn(continuationTarget(threadContinuation(currentThread)))
+})  
 #define valueReturn(vr_v) messageReturn(vr_v)
+#define normalReturn valueReturn(continuationTarget(threadContinuation(currentThread)))
 #define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(currentThread, eMissingArgument); (void *)0; }))
 #define target continuationTarget(threadContinuation(currentThread))
 #define resend(r_args) do { \
@@ -495,13 +513,14 @@ void *loadStream(FILE *, obj, obj);
   tailcall(dispatch); \
 } while (0)
 
+// Will undef the "gotoNext" macro.
 #include "objects.c"
 
 #undef resend
 #undef target
 #undef arg
-#undef valueReturn
 #undef normalReturn
+#undef valueReturn
 #undef safeVector
 #undef safeStringValue
 #undef safeStackFrameContinuation

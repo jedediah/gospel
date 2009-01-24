@@ -16,10 +16,10 @@
 
 CC?=gcc
 CFLAGS?=-O3
-CFLAGS+=-std=gnu99 -ggdb
+CFLAGS+=-std=gnu99
 
 ifdef PORTABLE
-  CFLAGS+=-D PORTABLE
+  CFLAGS+=-D NO_THREAD_VARIABLES -D NO_COMPUTED_TAILCALLS
 endif
 
 gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o

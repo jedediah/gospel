@@ -20,7 +20,7 @@
 #define GC_H
 
 // A compiler hint.
-#define tailcall(f, ...) do { (f)(__VA_ARGS__); return; } while (0)
+#define tailcall(t_f) do { t_f(); return; } while (0)
 
 // The maximum depth, in cells, of the C stack required by each interpreter instance.
 #define STACKDEPTH 2048
@@ -49,7 +49,7 @@ extern vector emptyVector;
 extern vector garbageCollectorRoot;
 
 extern struct vectorStruct dummyThreadData;
-#ifdef PORTABLE
+#ifdef NO_THREAD_VARIABLES
   vector getCurrentThread(void);
   #define currentThread (getCurrentThread())
 #else
