@@ -264,7 +264,7 @@ literal:
   INTEGER
 | SYMBOL
 | STRING
-| '[' ']'
+| '[' gap ']'
   { $$ = vectorObject(emptyVector); }
 | '[' gap list gap ']'
   { $$ = message(oInternals, sVectorLiteral, listToVector(nreverse($3))); }
