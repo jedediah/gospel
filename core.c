@@ -167,7 +167,7 @@ vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
 
 #ifdef NO_COMPUTED_TAILCALLS
   #define gotoNext return
-  #define computeTailcall(ct_e) do { ct_e(); tailcall(doNext); } while (0)
+  #define computeTailcall(ct_e) do { (ct_e)(); tailcall(doNext); } while (0)
 #else
   #define gotoNext tailcall(doNext)
   #define computeTailcall(ct_e) tailcall(ct_e)
@@ -286,6 +286,11 @@ vector newThread(void *cc,
 promise REPLPromise;
 void returnToREPL() {
   keep(currentThread, REPLPromise, oNull);
+  #ifdef NO_COMPUTED_TAILCALLS
+    // This function won't have been tailcalled, and therefore the return won't kill the thread,
+    // so we need to do that ourselves.
+    explicitlyEndThread();
+  #endif
 }
 
 void invokeDispatchMethod(void);
@@ -308,7 +313,10 @@ void normalDispatchMethod() {
   if (isPrimitive(contents)) computeTailcall(primitiveCode(contents));
   if (isClosure(contents)) {
     vector params = closureParams(contents), args = evaluated(c);
-    if (vectorLength(args) != vectorLength(params)) raise(currentThread, eBadArity);
+    if (vectorLength(args) != vectorLength(params)) {
+      setExceptionContinuation(currentThread, eBadArity);
+      tailcall(doNext);
+    }
     setSubexpressionContinuation(currentThread,
                                  origin(c),
                                  stackFrame(closureEnv(contents),

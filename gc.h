@@ -20,7 +20,7 @@
 #define GC_H
 
 // A compiler hint.
-#define tailcall(t_f) do { t_f(); return; } while (0)
+#define tailcall(t_f) do { (t_f)(); return; } while (0)
 
 // The maximum depth, in cells, of the C stack required by each interpreter instance.
 #define STACKDEPTH 2048
@@ -90,8 +90,8 @@ void forbidGC(void);
 void permitGC(void);
 
 void createPrimitiveThread(void (*)(void *), void *);
-// NOTE: If the first argument to spawn() is an expression involving automatic storage,
-//       GCC might have to generate a trampoline for init().
+// NOTE: The first argument to spawn() must be a function name. A function pointer expression would
+//       break on systems that don't support computed tailcalls.
 #define spawn(spawn_f, spawn_a) do { \
   void spawn_init(void *spawn_arg) { setCurrentThread(spawn_arg); tailcall(spawn_f); } \
   createPrimitiveThread(spawn_init, (void *)(spawn_a)); \

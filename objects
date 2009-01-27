@@ -24,7 +24,6 @@
 
 @deadEnd deadEnd
   raise(currentThread, eMessageNotUnderstood);
-  normalReturn;
 @null deadEnd
 !serialized
   valueReturn(string("<null>"));
