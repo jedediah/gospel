@@ -31,14 +31,16 @@
 %option reentrant
 
 %x NEWLINES
+%x ENDING
 
 ID  [a-zA-Z_0-9]+
 OP  [!%&*\-+=<>?/]+
 
 %%
 
-<<EOF>>                   return ENDOFFILE;
+<ENDING><<EOF>>           return ENDOFFILE;
 <INITIAL>{
+<<EOF>>                   BEGIN(ENDING); return '\n';
 \"([^"]|\\\")*\"          { char *s = yytext + 1;
                             int remainder = strlen(s);
                             location->last_line = location->first_line;
@@ -113,6 +115,7 @@ OP  [!%&*\-+=<>?/]+
 .                         return *yyget_text(yyscanner);
 }
 <NEWLINES>{
+<<EOF>>                   BEGIN(ENDING); return '\n';
 \ *(#[^\n]*)?\n           location->last_line = ++location->first_line;
 .                         yyless(0); BEGIN(INITIAL);
 }
