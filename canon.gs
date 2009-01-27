@@ -21,17 +21,21 @@ false serialized = "<false>"
 object do { self }
 
 # The exception-handling system that the core expects.
-dynamicContext applyHandlerTo: exception {
-  "\nUnhandled exception: " print. exception print
-  abortToREPL
-}
 lobby raise: exception { dynamicContext applyHandlerTo: exception }
 closure except: \handle: {
   dynamicContext applyHandlerTo: exception {
-    self applyHandlerTo: exception { self proto applyHandlerTo: exception } # For when $handle: reraises.
+    # Set up a new handler to hand off to the next-innermost exception handler (if any) should the
+    # user-supplied handler code decide to raise an exception itself.
+    self applyHandlerTo: exception { self proto applyHandlerTo: exception }
+    # Apply the user-supplied handler code to the exception that was raised.
     handle: exception
   }
   self
+}
+# A default handler.
+dynamicContext applyHandlerTo: exception {
+  "\nUnhandled exception: " print. exception print
+  abortToREPL
 }
 
 object include: fileName {
