@@ -1,5 +1,5 @@
 /*
-    Copyright © 2008 Sam Chapin
+    Copyright © 2008, 2009 Sam Chapin
 
     This file is part of Gospel.
 
@@ -18,10 +18,13 @@
 
 #include "core.h"
 #include "objects.h"
+#include "death.h"
+#include <unistd.h>
 
 int main(int argc, char **argv) {
   setupInterpreter();
+  if (argc > 2) die("Too many arguments.");
   loadFile("canon.gs", oLobby, oDynamicEnvironment);
-  for (int i = argc; --i;) loadFile(argv[i], oLobby, oDynamicEnvironment);
+  if (argc == 2) loadFile(argv[1], oLobby, oDynamicEnvironment);
   REPL();
 }
