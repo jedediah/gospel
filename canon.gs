@@ -21,21 +21,19 @@ false serialized = "<false>"
 object do { self }
 
 # The exception-handling system that the core expects.
-lobby raise: exception { dynamicContext applyHandlerTo: exception }
-closure except: \handle: {
-  dynamicContext applyHandlerTo: exception {
-    # Set up a new handler to hand off to the next-innermost exception handler (if any) should the
-    # user-supplied handler code decide to raise an exception itself.
-    self applyHandlerTo: exception { self proto applyHandlerTo: exception }
-    # Apply the user-supplied handler code to the exception that was raised.
-    handle: exception
-  }
-  self
-}
-# A default handler.
+
 dynamicContext applyHandlerTo: exception {
   "\nUnhandled exception: " print. exception print
   abortToREPL
+}
+
+lobby raise: exception { dynamicContext applyHandlerTo: exception }
+closure except: \handle: {
+  dynamicContext applyHandlerTo: exception {
+    self applyHandlerTo: exception { self proto applyHandlerTo: exception } # For when $handle: reraises.
+    handle: exception
+  }
+  self
 }
 
 object include: fileName {
@@ -85,6 +83,7 @@ vector each: \iterateOn: {
     recurse
   } do
 }
+
 vector mapping: \valueFor: {
   result = vector ofLength: self length
   index = 0
@@ -96,6 +95,7 @@ vector mapping: \valueFor: {
 }
 
 vector first { self at: 0 }
+vector last { self at: self length - 1 }
 vector rest {
   rest = vector ofLength: self length - 1
   index = 1
@@ -106,12 +106,11 @@ vector rest {
   } do
 }
 
-vector injecting: value into: \valueOf:with: {
-  accumulation = value
+vector injecting: initial into: \valueOf:with: {
+  accumulation = initial
   self each: { x | accumulation := valueOf: accumulation with: x }
   accumulation 
 }
-
 vector selecting: \selects: {
   self injecting: [] into: { collection element |
     :selects: element if: { collection ++ [element] } else: collection
@@ -128,14 +127,37 @@ vector nub {
   }
 }
 
-vector serialized {
-  self length == 0 if: { ^ "[]" }
-  elements = self mapping: { x | x serialized }
-  "[" ++ (elements rest injecting: elements first into: { x y | x ++ ", " ++ y }) ++ "]"  
+vector interspacing: glue {
+  self rest injecting: self first into: { a b | a ++ glue ++ b }
+}
+
+string asString = self
+integer asString { self serialized }
+
+vector serialized { 
+  "[" ++ (self mapping: { x | x serialized } interspacing: ", ") asString ++ "]" 
+}
+
+vector asString { 
+  self length == 0 if: { ^ "" }
+  self rest injecting: self first asString into: { a b | a ++ b asString } 
+}
+
+vector reversed { 
+  accumulation = []
+  index = self length - 1
+  { index == -1 if: { ^^ accumulation }
+    accumulation := accumulation ++ [self at: index]
+    index := index - 1
+    recurse
+  } do
 }
 
 object print { self serialized print }
+object printLine { self print. "\n" print. self }
 vector print { self each: { x | x print } }
+vector printLine { self each: { x | x printLine } }
+printLine { "\n" print }
 
 TCPSocket = object new
 TCPSocket maximumBacklog = 128
