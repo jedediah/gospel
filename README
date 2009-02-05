@@ -1,12 +1,27 @@
 Copyright © 2008, 2009 Sam Chapin
 
-Gospel is a prototype-based, object-oriented programming language with special support for concurrency. This interpreter for it is being distributed under version 3 of the GNU General Public License: See the "LICENSE" file in the root directory for details.
+Gospel is a prototype-based, object-oriented programming language with special
+support for concurrency. This interpreter for it is being distributed under
+version 3 of the GNU General Public License: See the "LICENSE" file in the root
+directory for details.
 
-At the moment it is still missing some planned core features, and generally isn't yet capable of doing any real work. This first release is intended mainly as proof that, after months of talk, some part of Gospel does in fact exist outside of the author's head. The "MANUAL" file contains a brief introduction: "canon.gs" (the core library) and "inquisition.gs" (the first stab at an xUnit implementation) can be looked to for examples.
+At the moment it is still missing some planned core features, and generally
+isn't yet capable of doing any real work. This first release is intended mainly
+as proof that, after months of talk, some part of Gospel does in fact exist
+outside of the author's head. The "MANUAL" file contains a brief introduction:
+"canon.gs" (the core library) and "inquisition.gs" (the first stab at an xUnit
+implementation) can be looked to for examples.
 
-Running "make" in the root directory will build the interactive interpreter, a file called "gospel". When run, before presenting the REPL, it will attempt to interpret and execute "canon.gs". If gospel is invoked with command-line arguments it will attempt to interpret and execute those files as well.
+Running "make" in the root directory will build the interactive interpreter, a
+file called "gospel". When run, before presenting the REPL, it will attempt to
+interpret and execute "canon.gs". If gospel is invoked with command-line
+arguments it will attempt to interpret and execute those files as well.
 
-Running "make test" will instead generate a file called "test", which when executed will run a small suite of C unit tests for some of the interpreter's internals using the cGreen unit-testing framework. See "cgreen/README" for more information about cGreen.
+Running "make test" will instead generate a file called "test", which when
+executed will run a small suite of C unit tests for some of the interpreter's
+internals using the cGreen unit-testing framework. See "cgreen/README" for more
+information about cGreen.
 
-Gospel normally uses a GCC extension to achieve thread-local storage, but this will not work on some
+Gospel normally uses a GCC extension to achieve thread-local storage, but this
+will not work on some
 platforms. If your compiler complains, try "PORTABLE=1 make".
