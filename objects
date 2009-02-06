@@ -99,10 +99,6 @@
                                waitFor(arg(0)),
                                emptyVector);
   gotoNext;
-!respondsTo:
-  obj a = waitFor(arg(0)), t = target;
-  for (int i = 0; i < slotCount(t); i++) if (slotName(t, i) == a) valueReturn(oTrue);
-  valueReturn(oFalse);
 !localSelectors
   obj o = target;
   int n = slotCount(o);
