@@ -1,0 +1,13 @@
+/core.o
+/death.o
+/gc.o
+/gospel
+/lex.yy.c
+/lex.yy.o
+/main.o
+/objects.c
+/objects.h
+/threadData.o
+/y.tab.c
+/y.tab.h
+/y.tab.o
