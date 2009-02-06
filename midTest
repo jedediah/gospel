@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+require 'tests/runTest'
+ARGV.each do |test|
+  run "tests/#{test}.mid.gs"
+end
+
+def test_files
+  Dir["tests/*.mid.gs"]
+end
+
+if ARGV.empty?
+  files = test_files
+  puts "Testing #{files.length} items..."
+  files.each { |file| run file }
+end

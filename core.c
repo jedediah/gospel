@@ -579,7 +579,7 @@ void REPL() {
   void *scanner = beginParsing(stdin);
   for (;;) {
     invalidateEden();
-    fputs("\n> ", stdout);
+    fputs("> ", stdout);
     fflush(stdout);
     // We just serialize first, to give the expression a chance to do its own terminal output, before
     // displaying the "=>" and printing.
@@ -588,10 +588,12 @@ void REPL() {
     if (!parserOutput) exit(0); // EOF character was input.
     newThread(REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
     obj serialization = waitFor(REPLPromise);
-    fputs("\n=> ", stdout);
+    fputs("=> ", stdout);
     fflush(stdout);
     REPLPromise = newPromise();
     newThread(REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);
     waitFor(REPLPromise);
+    fputs("\n", stdout);
+    fflush(stdout);
   }
 }
