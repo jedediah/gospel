@@ -187,6 +187,8 @@ $serialized string("<canon!>")
                                   dynamicEnv(c)));
   computeTailcall(primitiveCode(code));
 @string object newAtomVector(1, 0)
+!parse
+  valueReturn(parseString(safeStringValue(target)));
 !serialized
   // FIXME: This should probably convert e.g. newlines to "\n".
   obj quote = string("\""); // TODO: Create this string once, at startup.
