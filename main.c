@@ -21,7 +21,7 @@
 
 int main(int argc, char **argv) {
   setupInterpreter();
-  loadFile("lib/canon.gs", oLobby, oDynamicEnvironment);
+  loadFile("canon.gs", oLobby, oDynamicEnvironment);
   for (int i = argc; --i;) loadFile(argv[i], oLobby, oDynamicEnvironment);
   REPL();
 }
