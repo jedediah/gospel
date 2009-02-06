@@ -1,5 +1,5 @@
 require 'test/unit'
-require File.dirname(File.expand_path(__FILE__)) + '/runTests.rb'
+require File.dirname(File.expand_path(__FILE__)) + '/runTest.rb'
 
 def mock(*args)
   CheekyMock.new(*args)
