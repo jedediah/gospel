@@ -6,7 +6,10 @@ Basic stuff only currently
 
 printException = { e | "Received: " print. e printLine }
 
-"--- Addition\n" printLine
+00090 printLine # leading zeros not octal
+00077 printLine
+
+"\n--- Addition\n" printLine
   1 printLine
   (1 + 1) printLine
   (1 + 10) printLine
@@ -46,6 +49,9 @@ printException = { e | "Received: " print. e printLine }
   {1 < null} except: \printException
   
 === Expected StdOut
+
+90
+77
 
 --- Addition
 

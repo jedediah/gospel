@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
-require 'midTests/runTest'
+require 'tests/runTest'
 ARGV.each do |test|
-  run "midTests/#{test}.mid.gs"
+  run "tests/#{test}.mid.gs"
 end
 
 def test_files
-  Dir["midTests/*.mid.gs"]
+  Dir["tests/*.mid.gs"]
 end
 
 if ARGV.empty?

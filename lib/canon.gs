@@ -131,7 +131,7 @@ vector interspacing: glue {
   self rest injecting: self first into: { a b | a ++ glue ++ b }
 }
 
-string asString = self
+string asString { self }
 integer asString { self serialized }
 
 vector serialized { 
@@ -183,4 +183,3 @@ TCPSocket shutdown {
 TCPSocket close {
   POSIX close: self POSIXFileDescriptor
 }
-
