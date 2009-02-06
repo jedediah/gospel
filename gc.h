@@ -22,9 +22,6 @@
 // A compiler hint.
 #define tailcall(t_f) do { (t_f)(); return; } while (0)
 
-// The maximum depth, in cells, of the C stack required by each interpreter instance.
-#define STACKDEPTH 2048
-
 #define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(int) - 1) / sizeof(int))
 
 #define EDEN_OVERHEAD 5 // For the sake of testing.
