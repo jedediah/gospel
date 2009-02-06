@@ -94,10 +94,6 @@ vector mapping: \valueFor: {
     recurse
   } do
 }
-vector among: collection {
-  collection length == 0 if: { ^ collection }
-  collection first injecting: collection rest into: { x y | x ++ self ++ y }
-}
 
 vector first { self at: 0 }
 vector rest {
@@ -133,7 +129,9 @@ vector nub {
 }
 
 vector serialized {
-  "[" ++ (", " among: self :mapping: { x | x serialized }) ++ "]"
+  self length == 0 if: { ^ "[]" }
+  elements = self mapping: { x | x serialized }
+  "[" ++ (elements rest injecting: elements first into: { x y | x ++ ", " ++ y }) ++ "]"
 }
 
 object print { self serialized print }
