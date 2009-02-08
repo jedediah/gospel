@@ -462,6 +462,11 @@ obj promiseCode(obj message) {
 obj promiseCodeValue(obj p) {
   return hiddenEntity(p);
 }
+// FIXME: This should be done with Gospel polymorphism.
+obj targetCascade(obj code, obj cascade) {
+  return proto(code) == oPromiseCode ? promiseCode(targetCascade(promiseCodeValue(code), cascade))
+                                     : codeWithTarget(code, cascade);  
+}
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
 

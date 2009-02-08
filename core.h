@@ -51,6 +51,7 @@ vector vectorAppend(vector, vector);
 obj appendStrings(obj, obj);
 
 obj promiseCode(obj);
+obj targetCascade(obj, obj);
 
 obj expressionSequence(vector);
 
