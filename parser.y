@@ -320,7 +320,7 @@ void yyerror (YYLTYPE *location,
               void *scanner,
               char const *msg) {
   if (location->first_line == (*line = location->last_line))
-    printf("\nSyntax error at line %d.", location->last_line);
+    printf("\nSyntax error at line %d.\n", location->last_line);
   else
-    printf("\nSyntax error between lines %d and %d.", location->first_line, location->last_line);
+    printf("\nSyntax error between lines %d and %d.\n", location->first_line, location->last_line);
 }

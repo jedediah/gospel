@@ -34,7 +34,7 @@ closure except: \handle: {
 }
 # A default handler.
 dynamicContext applyHandlerTo: exception {
-  "\nUnhandled exception: " print. exception print
+  "\nUnhandled exception: " print. exception printLine
   abortToREPL
 }
 
