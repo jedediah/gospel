@@ -41,7 +41,8 @@ object declareTestSuite {
     totalTests = tests length
     passes = totalTests - failures - exceptions
     
-    accumilation = passes serialized ++ " passes, "
+    accumilation = totalTests serialized ++ " tests. "
+    accumilation := accumilation ++ passes serialized ++ " passes, "
     accumilation := accumilation ++ failures serialized ++ " failures, "
     accumilation := accumilation ++ exceptions serialized ++ " exceptions"
   }

@@ -1,15 +1,86 @@
-#!/usr/bin/env ruby
-require 'tests/runTest'
-ARGV.each do |test|
-  run "tests/#{test}.mid.gs"
-end
+#!/usr/bin/env bash -u
 
-def test_files
-  Dir["tests/*.mid.gs"]
-end
+# consider making it possible to specify these from command line
+  interpreter=gospel
+  midTestExt=mid.sh
+  midTestDir=tests
+  
+passes=0
+failures=0
 
-if ARGV.empty?
-  files = test_files
-  puts "Testing #{files.length} items..."
-  files.each { |file| run file }
-end
+# Run Gospel interpreter
+#
+# arg 1: code to execute (piped in) with some basic wrapping -- last statement is printed
+# arg 2 to n: command line arguments to the interpreter
+interpret() {
+  local code="$1"; shift
+  set -e
+  interpreterOutput="$(echo "(${code}) print. exit" | "$interpreter" "$@")"
+  set +e
+}
+
+# Assertions
+
+  # Equal assertion
+  # 
+  # arg 1: code to execute
+  # arg 2: output you expect it to generate
+  # arg 3 to n: command line arguments to the interpreter
+  eq () {
+    local code="$1"; shift
+    local expectation="> $1"; shift
+    interpret "$code" "$@"
+    if [ "$interpreterOutput" = "$expectation" ]; then
+      let passes++
+      return 0
+    fi
+    echo "'$code' expected '$expectation' got '$interpreterOutput' in $midTest"
+    let failures++
+    return 1
+  }
+
+# Execute any number of file in the test dir
+# args: File should be named without the mid-test extension defined in $midTestExt
+#       dir starts from $midTestDir
+runMid () {
+  local status=0
+  while [ $# -gt 0 ]; do
+    # these vars may also be accessed by the mid-test itself or eq()
+    local midTest="$1" 
+    local midTestPath="$midTestDir/$midTest.$midTestExt"
+    if [ -r "$midTestPath" ]; then
+      source "$midTestPath"
+    else
+      # will continue to try any others specified
+      echo "Couldn't find mid-test $midTest to load at $midTestPath" 1>&2
+      status=1
+    fi
+    shift
+  done
+  return $status
+}
+
+# Prints a report of all the tests executed
+report () {
+  if [ $failures -gt 0 ]; then
+    echo
+  fi
+  echo "$(expr $passes + $failures) test executed. $passes pass(es), $failures failure(s)"
+}
+
+# Run multiple mid-test specified at the time of invoking this script or by discoving all 
+# the ones available in $midTestDir that can be executed.
+go () {
+  if [ $# -eq 0 ]; then # all tests in dir
+    for midTestPath in "$midTestDir"/*."$midTestExt"; do
+      midTestWithExt="$(basename "$midTestPath")"
+      midTest="${midTestWithExt:0:${#midTestWithExt}-${#midTestExt}-1}"
+      runMid "$midTest"
+    done
+  else # specific tests as specified by user
+    runMid "$@"
+  fi
+  report
+}
+
+go "$@"

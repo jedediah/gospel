@@ -1,27 +1,24 @@
+Literals
+
+  : { 1 print } "1"
+  : { 0090 print } "90"
+  : -i ../lib/octal.gs { 0100 print } "64"
+  
+  % 0090  # => 90
+  % 077   # => 77
+  % -0    # => 0
+  % -1    # => -1
+  
+  %=
+  =%
+    
+
 === Arithmatic
 
 Basic stuff only currently
 
 === Program
 
-printException = { e | "Received: " print. e printLine }
-
-"--- Integer Literals\n" printLine
-  1 printLine
-  00090 printLine # leading zeros not octal
-  00077 printLine 
-
-"\n--- Addition\n" printLine
-  (1 + 1) printLine
-  (1 + 10) printLine
-  (-1 + 1) printLine
-  (5 + -7) printLine
-  999999999999 printLine
-  (2147483647 + 1) printLine
-  { 1 + false } except: \printException
-  { 1 + [0] } except: \printException
-  { 1 + null } except: \printException
-  
 "\n--- Subtraction\n" printLine
   (1 - 1) printLine
   (1 - 2) printLine
