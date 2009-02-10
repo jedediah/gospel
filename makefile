@@ -57,7 +57,7 @@ cgreen/cgreen.a : ;
 cgreen/cgreen.h : cgreen/cgreen.a ;
 # Dependencies cause core.c to be compiled twice anyway, might as well depend on core.o as a convenient
 # shorthand for all the things that core.c depends on.
-test.o : tests/test.c cgreen/cgreen.h core.o
+test.o : test.c cgreen/cgreen.h core.o
 
 
 .PHONY : clean
