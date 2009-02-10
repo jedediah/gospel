@@ -50,23 +50,6 @@
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null
-!cascade:
-  continuation c = threadContinuation(currentThread);
-  obj cascader = arg(0);
-  setContinuation(currentThread,
-                  newContinuation(origin(c),
-                                  sIdentity,
-                                  newVector(1, target),
-                                  newVector(2,
-                                            target,
-                                            message(message(quotation(cascader),
-                                                            sWithTarget_,
-                                                            newVector(1, target)),
-                                                    sInterpret,
-                                                    emptyVector)),
-                                  env(c),
-                                  dynamicEnv(c)));
-  gotoNext;
 !evaluate:in:
   setSubexpressionContinuation(currentThread,
                                origin(threadContinuation(currentThread)),
@@ -229,12 +212,6 @@ $serialized string("<canon!>")
 !environment
   valueReturn(closureEnv(target));
 @code object
-!message
-  normalReturn;
-!target
-  valueReturn(codeTarget(target) ?: env(threadContinuation(currentThread)));
-!withTarget:
-  valueReturn(codeWithTarget(target, waitFor(arg(0))));
 !interpret
   continuation c = threadContinuation(currentThread);
   setContinuation(currentThread,
@@ -245,42 +222,21 @@ $serialized string("<canon!>")
                                   env(c),
                                   dynamicEnv(c)));
   gotoNext;
-@specialCode object
-!message
-  resend(newVector(1, hiddenEntity(target)));
-!withTarget:
-  resend(newVector(2, hiddenEntity(target), waitFor(arg(0))));
-!target
-  resend(newVector(1, hiddenEntity(target)));
-@quotation object
-!interpret
-  valueReturn(hiddenEntity(target));
-@promiseCode specialCode
+@promiseCode object
 !interpret
   promise p = newPromise();
   continuation c = threadContinuation(currentThread);
-  newThread(p, env(c), dynamicEnv(c), hiddenEntity(target), sIdentity, emptyVector);
+  obj m = target;  
+  newThread(p, env(c), dynamicEnv(c), codeTarget(m), codeSelector(m), codeArgs(m));
   valueReturn(p);
-!withTarget:
-  valueReturn(slotlessObject(oPromiseCode, codeWithTarget(hiddenEntity(target), arg(0))));
-@cascade specialCode
+@cascade object
 !interpret
+  // TODO: Find a way to execute a cascade without having to spawn a thread.
+  promise p = newPromise();
   continuation c = threadContinuation(currentThread);
-  obj cascader = quotation(target);
-  setContinuation(currentThread,
-                  newContinuation(origin(c),
-                                  sCascade_,
-                                  emptyVector,
-                                  newVector(2,
-                                            message(message(quotation(target),
-                                                            sTarget,
-                                                            emptyVector),
-                                                    sInterpret,
-                                                    emptyVector),
-                                            cascader),
-                                  env(c),
-                                  dynamicEnv(c)));
-  gotoNext;
+  obj m = hiddenEntity(target);
+  newThread(p, env(c), dynamicEnv(c), codeTarget(m), codeSelector(m), codeArgs(m));
+  valueReturn(waitFor(p));
 @arrowCode object
 !from:
   promise p = newPromise();

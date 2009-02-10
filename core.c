@@ -438,14 +438,9 @@ obj intern(obj symbol) {
   return symbol;
 }
 
-obj quotation(obj o) { return slotlessObject(oQuotation, o); }
-
 obj  codeTarget(obj c)   { return idx(hiddenEntity(c), 0); }
 obj  codeSelector(obj c) { return idx(hiddenEntity(c), 1); }
 pair codeArgs(obj c)     { return idx(hiddenEntity(c), 2); }
-obj codeWithTarget(obj c, obj t) {
-  return slotlessObject(oCode, newVector(3, t, codeSelector(c), codeArgs(c)));
-}
 
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));
@@ -457,15 +452,12 @@ obj expressionSequence(vector exprs) {
   return message(oInternals, sMethodBody, exprs);
 }
 obj promiseCode(obj message) {
-  return slotlessObject(oPromiseCode, message);
+  return slotlessObject(oPromiseCode,
+                        newVector(3, codeTarget(message), codeSelector(message), codeArgs(message)));
 }
-obj promiseCodeValue(obj p) {
-  return hiddenEntity(p);
-}
-// FIXME: This should be done with Gospel polymorphism.
+
 obj targetCascade(obj code, obj cascade) {
-  return proto(code) == oPromiseCode ? promiseCode(targetCascade(promiseCodeValue(code), cascade))
-                                     : codeWithTarget(code, cascade);  
+  return slotlessObject(oCode, newVector(3, cascade, codeSelector(code), codeArgs(code)));
 }
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
