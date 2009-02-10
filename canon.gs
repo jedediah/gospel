@@ -23,12 +23,13 @@ object do { self }
 # The exception-handling system that the core expects.
 lobby raise: exception { dynamicContext applyHandlerTo: exception }
 closure except: \handle: {
+  # Install the exception handler.
   dynamicContext applyHandlerTo: exception {
-    # Set up a new handler to hand off to the next-innermost exception handler (if any) should the
-    # user-supplied handler code decide to raise an exception itself.
+    # Set up a new handler in place of ourself, to hand off to the next-innermost handler (if any)
+    # should the user-supplied handler code decide to raise an exception itself.
     self applyHandlerTo: exception { self proto applyHandlerTo: exception }
     # Apply the user-supplied handler code to the exception that was raised.
-    handle: exception
+    ^ handle: exception
   }
   self
 }
