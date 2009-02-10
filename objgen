@@ -25,20 +25,21 @@ sub cname {
 }
 
 $id = qr/[[:alnum:]]*[[:alpha:]][[:alnum:]]*/;
+$ids = qr/$id(?::(?:$id:)*)?/;
 while (<>) {
-  if    (/^(\#.*| *)$/            ) {                                                            }
-  elsif (/^&((?:$id:?)+)/         ) { push @symbols, $1;                                         }
-  elsif (/^@($id) ($id) ?(.*)$/   ) { $parent{$currentObject = $1} = $2;
-                                      $objects{$currentObject} = [];
-                                      $hidden{$currentObject} = $3;
-                                      $currentMethod = 0;                                        }
-  elsif (/^~($id) ([^\n]*)$/      ) { $exceptions{$currentObject}{$1} = $2;                      }
-  elsif (/^!($id(?::(?:$id:)*)?)/ ) { $methods{$currentMethod = $1} = $1; $callable = 0;         }
-  elsif (/^!([^ ]+) ($id)/        ) { $methods{$currentMethod = $2} = $1; $callable = 0;         }
-  elsif (/^\?($id(?::(?:$id:)*)?)/) { $callableMethods{$currentMethod = $1} = $1; $callable = 1; }
-  elsif (/^\?([^ ]+) ($id)/       ) { $callableMethods{$currentMethod = $2} = $1; $callable = 1; }
-  elsif (/^\$($id) ([^\n]+)/      ) { push @{$constants{$currentObject}}, [$1, $2];              }
-  elsif (/^\$($id)/               ) { push @{$constants{$currentObject}}, [$1, "o" . cname($1)]; }
+  if    (/^(\#.*| *)$/          ) {                                                            }
+  elsif (/^&((?:$id:?)+)/       ) { push @symbols, $1;                                         }
+  elsif (/^@($id) ($id) ?(.*)$/ ) { $parent{$currentObject = $1} = $2;
+                                    $objects{$currentObject} = [];
+                                    $hidden{$currentObject} = $3;
+                                    $currentMethod = 0;                                        }
+  elsif (/^~($id) ([^\n]*)$/    ) { $exceptions{$currentObject}{$1} = $2;                      }
+  elsif (/^!($ids)/             ) { $methods{$currentMethod = $1} = $1; $callable = 0;         }
+  elsif (/^!([^ ]+) ($ids)/     ) { $methods{$currentMethod = $2} = $1; $callable = 0;         }
+  elsif (/^\?($ids)/            ) { $callableMethods{$currentMethod = $1} = $1; $callable = 1; }
+  elsif (/^\?([^ ]+) ($ids)/    ) { $callableMethods{$currentMethod = $2} = $1; $callable = 1; }
+  elsif (/^\$($id) ([^\n]+)/    ) { push @{$constants{$currentObject}}, [$1, $2];              }
+  elsif (/^\$($id)/             ) { push @{$constants{$currentObject}}, [$1, "o" . cname($1)]; }
   else {
     if ($currentMethod) { $objects{$currentObject}[$callable]{$currentMethod} .= $_; }
     else                { $dispatchMethods{$currentObject} .= $_;                    }
