@@ -21,7 +21,7 @@ object assert { self }
 false  assert { raise: exception failedAssertion }
 
 # Turn an object into a test suite. Should be used after all test slots are added but before
-# any non-test slots (including \setup and/or \teardown) are added.
+# any non-test slots (including $setup and/or $teardown) are added.
 object declareTestSuite {
   tests = self localSelectors
   self setup {}
@@ -37,13 +37,14 @@ object declareTestSuite {
       } do
       self teardown
     }
-    
-    totalTests = tests length
-    passes = totalTests - failures - exceptions
-    
-    accumilation = totalTests serialized ++ " tests. "
-    accumilation := accumilation ++ passes serialized ++ " passes, "
-    accumilation := accumilation ++ failures serialized ++ " failures, "
-    accumilation := accumilation ++ exceptions serialized ++ " exceptions"
+    inflect: string with: suffix for: number {
+      number serialized ++ (number == 1 if: string else: { string ++ suffix })
+    }
+    total = tests length
+    passes = total - failures - exceptions
+    (inflect: " test" with: "s" for: total) ++ " run: " ++
+     (inflect: " pass" with: "es" for: passes) ++ ", " ++
+      (inflect: " failure" with: "s" for: failures) ++ ", " ++
+       (inflect: " exception" with: "s" for: exceptions) ++ "."
   }
 }
