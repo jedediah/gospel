@@ -345,12 +345,12 @@ $serialized string("<canon!>")
 @exception object
 ~inclusion Error while attempting to open a file for inclusion.
 ~badArity Wrong number of arguments to closure.
-~stringExpected Non-string encountered where string expected.
-~stackFrameExpected Something other than a stack frame encountered where stack frame expected.
-~primitiveExpected Non-primitive encountered where primitive expected.
-~closureExpected Non-closure encountered where closure expected.
-~vectorExpected Non-vector encountered where vector expected.
-~integerExpected Non-integer encountered where integer expected.
+~stringExpected String expected.
+~stackFrameExpected Stack frame expected.
+~primitiveExpected Primitive expected.
+~closureExpected Closure expected.
+~vectorExpected Vector expected.
+~integerExpected Integer expected.
 ~negativeVectorLength Attempted to create a vector with negative length.
 ~messageNotUnderstood Message not understood.
 ~outOfBounds Out-of-bounds array access.
