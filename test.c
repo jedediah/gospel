@@ -201,6 +201,13 @@ test(vectorAppend,
   assert_equal(idx(v, 1), a);
   assert_equal(idx(v, 2), b);
 )
+test(callWithEnvironment,
+  assert_equal(integerValue(callWithEnvironment(oDynamicEnvironment,
+                                                integer(40),
+                                                sPlus_,
+                                                newVector(1, integer(2)))),
+               42);
+)
 
   return run_test_suite(suite, create_text_reporter());
 }

@@ -37,6 +37,9 @@
   fputs("<null>", stdout);
   fflush(stdout);
   normalReturn;
+@defaultMessageTarget object
+!interpret
+  valueReturn(env(threadContinuation(currentThread)));
 @internals null
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
 # The hidden data field contains the symbol table. The default initialization, to NULL, is correct:
@@ -50,6 +53,11 @@
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null
+!targetting:
+  // Used by the parser while assembling a cascade. We are the target of the message on the right side
+  // of the semicolon and we are to be replaced by the argument passed to us - the target of the message
+  // on the left side.
+  valueReturn(waitFor(arg(0)));
 !evaluate:in:
   setSubexpressionContinuation(currentThread,
                                origin(threadContinuation(currentThread)),
@@ -211,7 +219,14 @@ $serialized string("<canon!>")
   gotoNext;
 !environment
   valueReturn(closureEnv(target));
+@quote object
+!interpret
+  valueReturn(hiddenEntity(target));
 @code object
+!targetting:
+  valueReturn(message(call(quote(codeTarget(target)), sTargetting_, newVector(1, quote(waitFor(arg(0))))),
+                      codeSelector(target),
+                      codeArgs(target)));
 !interpret
   continuation c = threadContinuation(currentThread);
   setContinuation(currentThread,
@@ -222,7 +237,7 @@ $serialized string("<canon!>")
                                   env(c),
                                   dynamicEnv(c)));
   gotoNext;
-@promiseCode object
+@promiseCode code
 !interpret
   promise p = newPromise();
   continuation c = threadContinuation(currentThread);
@@ -232,11 +247,14 @@ $serialized string("<canon!>")
 @cascade object
 !interpret
   // TODO: Find a way to execute a cascade without having to spawn a thread.
-  promise p = newPromise();
+  promise tp = newPromise(), p = newPromise();
   continuation c = threadContinuation(currentThread);
-  obj m = hiddenEntity(target);
-  newThread(p, env(c), dynamicEnv(c), codeTarget(m), codeSelector(m), codeArgs(m));
-  valueReturn(waitFor(p));
+  obj m = hiddenEntity(target), t = codeTarget(m);
+  newThread(tp, env(c), dynamicEnv(c), codeTarget(m), sIdentity, emptyVector);
+  obj tv = waitFor(tp);
+  newThread(p, env(c), dynamicEnv(c), quote(tv), codeSelector(m), codeArgs(m));
+  waitFor(p);
+  valueReturn(tv);
 @arrowCode object
 !from:
   promise p = newPromise();

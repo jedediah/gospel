@@ -103,8 +103,7 @@ declaration:
                                  listToVector($4)))); }
 ;
 statement:
-  expr
-| cascade
+  returnValue
 | carets
   { $$ = message(0, sReturn_atDepth_, newVector(2, oNull, integer((int)$1))); }
 | carets returnValue
@@ -145,14 +144,18 @@ expr:
 | dependency
 ;
 
+// We cannot use call() because it accesses the current continuation, which won't be present if
+// the parser is being used in the main thread.
 cascade:
   cascadeLeader ';' cascadeFollower
-  { $$ = targetCascade($3, cascade($1)); }
-| cascade ';' cascadeFollower
-  { $$ = targetCascade($3, cascade($1)); }
+  { $$ = callWithEnvironment(oDynamicEnvironment,
+                             quote($3),
+                             sTargetting_,
+                             newVector(1, quote(cascade($1)))); }
 ;
 cascadeLeader:
-  unaryMessage
+  cascade
+| unaryMessage
 | binaryMessage
 | keywordMessage
 | assignment
@@ -215,7 +218,7 @@ unaryMessage:
   { $$ = message($1, sContentsOfSlot_, newVector(1, $2)); }
 ;
 unaryTarget:
-  { $$ = 0; }
+  { $$ = oDefaultMessageTarget; }
 | parens
 | literal
 | unaryMessage
@@ -224,9 +227,9 @@ unaryTarget:
 
 untargettedBinaryMessage:
   OPERATOR gap operand
-  { $$ = message(0, $1, newVector(1, $3)); }
+  { $$ = message(oDefaultMessageTarget, $1, newVector(1, $3)); }
 | '@' gap OPERATOR gap operand
-  { $$ = promiseCode(message(0, $3, newVector(1, $5))); }
+  { $$ = promiseCode(message(oDefaultMessageTarget, $3, newVector(1, $5))); }
 ;
 
 binaryMessage:
@@ -249,9 +252,9 @@ operand:
 
 untargettedKeywordMessage:
   keywords
-  { $$ = keywordMessage(0, nreverse($1)); }
+  { $$ = keywordMessage(oDefaultMessageTarget, nreverse($1)); }
 | '@' gap keywords
-  { $$ = promiseCode(keywordMessage(0, nreverse($3))); }
+  { $$ = promiseCode(keywordMessage(oDefaultMessageTarget, nreverse($3))); }
 ;
 
 keywordMessage:
@@ -339,3 +342,4 @@ void yyerror (YYLTYPE *location,
   else
     printf("\nSyntax error between lines %d and %d.\n", location->first_line, location->last_line);
 }
+

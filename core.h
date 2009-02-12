@@ -43,6 +43,7 @@ obj message(obj, obj, vector);
 
 obj block(vector, vector);
 obj cascade(obj);
+obj quote(obj);
 
 vector emptyVector;
 
@@ -74,6 +75,8 @@ pair nreverse(pair);
 int isEmpty(vector);
 
 void dispatch(void);
+
+obj callWithEnvironment(obj, obj, obj, vector);
 
 void setupInterpreter(void);
 void *loadFile(const char *, obj, obj);

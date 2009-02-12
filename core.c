@@ -405,10 +405,13 @@ void doNext() {
   tailcall(dispatch);
 }
 
-obj call(obj dynamicEnv, obj target, obj selector, vector args) {
+obj callWithEnvironment(obj dynamicEnv, obj target, obj selector, vector args) {
   promise p = newPromise();
   newThread(p, oLobby, dynamicEnv, target, selector, args);
   return waitFor(p);
+}
+obj call(obj target, obj selector, vector args) {
+  return callWithEnvironment(dynamicEnv(threadContinuation(currentThread)), target, selector, args);
 }
 
 vector cons(void *car, void *cdr) {
@@ -438,9 +441,12 @@ obj intern(obj symbol) {
   return symbol;
 }
 
+obj quote(obj o) { return slotlessObject(oQuote, o); }
+
 obj  codeTarget(obj c)   { return idx(hiddenEntity(c), 0); }
 obj  codeSelector(obj c) { return idx(hiddenEntity(c), 1); }
 pair codeArgs(obj c)     { return idx(hiddenEntity(c), 2); }
+obj setCodeTarget(obj c, obj t) { return setIdx(hiddenEntity(c), 0, t); }
 
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));
@@ -459,6 +465,7 @@ obj promiseCode(obj message) {
 obj targetCascade(obj code, obj cascade) {
   return slotlessObject(oCode, newVector(3, cascade, codeSelector(code), codeArgs(code)));
 }
+
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
 
