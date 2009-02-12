@@ -8,5 +8,3 @@ Running "make" in the root directory will build the interactive interpreter, a f
 
 Running "make test" will instead generate a file called "test", which when executed will run a small suite of C unit tests for some of the interpreter's internals using the cGreen unit-testing framework. See "cgreen/README" for more information about cGreen.
 
-Gospel normally uses a GCC extension to achieve thread-local storage, but this will not work on some
-platforms. If your compiler complains, try "PORTABLE=1 make".
