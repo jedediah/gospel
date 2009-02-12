@@ -143,8 +143,13 @@ vector setSubexpressionContinuation(vector thread,
                                          dynamicEnv));
 }
 
-vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
-  return setContinuation(thread,
+vector prepareMessageReturn(obj value) {
+  continuation c = origin(threadContinuation(currentThread));
+  if (isPromise(c)) {
+    keep(currentThread, c, value);
+    explicitlyEndThread();
+  }  
+  return setContinuation(currentThread,
                          newContinuation(origin(c),
                                          selector(c),
                                          suffix(value, evaluated(c)),
@@ -152,18 +157,6 @@ vector setMessageReturnContinuation(vector thread, continuation c, obj value) {
                                          env(c),
                                          dynamicEnv(c)));
 }
-
-#define prepareMessageReturn(pmr_value) do { \
-  vector pmr_v = (pmr_value); \
-  continuation pmr_c = origin(threadContinuation(currentThread)); \
-  /* This logic can't easily be moved from the macro into the function call,
-     because the return from keep() is what kills the thread. */ \
-  if (isPromise(pmr_c)) { \
-    keep(currentThread, pmr_c, pmr_v); \
-    explicitlyEndThread(); \
-  } \
-  setMessageReturnContinuation(currentThread, pmr_c, pmr_v); \
-} while (0)
 
 #ifdef NO_COMPUTED_TAILCALLS
   #define gotoNext return
