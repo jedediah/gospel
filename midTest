@@ -1,7 +1,8 @@
-#!/usr/bin/env bash -u
+#!/usr/bin/env bash
+set -u
 
 # consider making it possible to specify these from command line
-  interpreter=gospel
+  interpreter=./gospel
   midTestExt=mid.sh
   midTestDir=tests
   
@@ -84,3 +85,4 @@ go () {
 }
 
 go "$@"
+
