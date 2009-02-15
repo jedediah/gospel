@@ -20,29 +20,37 @@ false serialized = "<false>"
 
 object do { self }
 
-# The exception-handling system that the core expects.
+## The exception-handling system that the core expects.
 lobby raise: exception { dynamicContext applyHandlerTo: exception }
-closure except: \handle: {
-  # Install the exception handler.
-  dynamicContext applyHandlerTo: exception {
+# Establish the target block as a handler in the current environment. Allows execution to return back
+# through the \raise: expression if the block does not perform a nonlocal exit, which may yield strange
+# behaviour for exceptions raised by primitives.
+closure handleExceptions {
+  handle: = \self
+  # Install a handler that will apply us to the exceptions it catches.
+  dynamicContext proto applyHandlerTo: exception {
     # Set up a new handler in place of ourself, to hand off to the next-innermost handler (if any)
-    # should the user-supplied handler code decide to raise an exception itself.
+    # should \handle: decide to raise an exception itself.
     self applyHandlerTo: exception { self proto applyHandlerTo: exception }
-    # Apply the user-supplied handler code to the exception that was raised.
-    ^ handle: exception
+    handle: exception
   }
+}
+# Execute the target block. If it raises an exception, return the result of applying the argument block
+# to the exception object.
+closure except: \handle: {
+  { e | ^ handle: e } handleExceptions
   self
 }
 # A default handler.
-dynamicContext applyHandlerTo: exception {
-  "\nUnhandled exception: " print. exception printLine
-  abortToREPL
-}
+{ e | "\nUnhandled exception: " print
+      e printLine
+      exit
+} handleExceptions
 
 object include: fileName {
-  fileScope = dynamicContext new
-  value = self include: fileName in: fileScope
-  dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileScope namespaces) nub
+  fileEnvironment = dynamicContext new
+  value = self include: fileName in: fileEnvironment
+  dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
   value
 }
 
@@ -137,6 +145,7 @@ vector serialized {
 
 object print { self serialized print }
 object printLine { self print. "\n" print }
+vector print { self each: { element | element print } }
 
 TCPSocket = object new
 TCPSocket maximumBacklog = 128

@@ -33,6 +33,8 @@
   normalReturn;
 !interpret
   normalReturn;
+!interpretInScope:inEnvironment:
+  normalReturn;
 !print
   fputs("<null>", stdout);
   fflush(stdout);
@@ -53,6 +55,15 @@
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null
+!interpretInScope:inEnvironment:
+  setContinuation(currentThread,
+                  newContinuation(origin(threadContinuation(currentThread)),
+                                  sInterpret,
+                                  newVector(1, target),
+                                  emptyVector, // There should be no reason for anyone to examine this.
+                                  waitFor(arg(0)),
+                                  waitFor(arg(1))));
+  gotoNext;
 !targetting:
   // Used by the parser while assembling a cascade. We are the target of the message on the right side
   // of the semicolon and we are to be replaced by the argument passed to us - the target of the message
@@ -72,7 +83,9 @@
   if (!isString(filename)) raise(currentThread, eStringExpected);
   FILE *f = fopen(stringData(filename), "r");
   if (!f) raise(currentThread, eInclusion);
-  valueReturn(loadStream(f, target, waitFor(arg(1))));
+  void *lastValue = loadStream(f, target, waitFor(arg(1)));
+  if (lastValue == eSyntaxError) raise(currentThread, eSyntaxError);
+  valueReturn(lastValue);
 !setProto:
   obj p = waitFor(arg(0));
   setProto(target, p);
@@ -173,7 +186,7 @@ $serialized string("<canon!>")
                   newContinuation(origin(c),
                                   oNull,
                                   prefix(waitFor(arg(0)), vectorObjectVector(argsObject)),
-                                  NIL, // There should be no reason for anyone to examine this.
+                                  emptyVector, // There should be no reason for anyone to examine this.
                                   env(c),
                                   dynamicEnv(c)));
   computeTailcall(primitiveCode(code));
@@ -271,6 +284,17 @@ $serialized string("<canon!>")
   continuation c = threadContinuation(currentThread);
   obj o = continuationTarget(c);
   valueReturn(newClosure(env(c), blockParams(o), blockBody(o)));
+@endOfFile object
+# Returned by the parser when it encounters an end-of-file.
+!interpret
+  exit(0);
+@parser object newAtomVector(1, beginParsing(stdin))
+~syntaxError Syntax error.
+!read
+  // FIXME: This is not typesafe.
+  obj parserOutput = parse(hiddenAtom(target));
+  if (parserOutput == eSyntaxError) raise(currentThread, eSyntaxError);
+  valueReturn(parserOutput);
 @integer object newAtomVector(1, 0)
 ?serialized
   char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
@@ -295,6 +319,7 @@ $serialized string("<canon!>")
   valueReturn(target);
 @POSIX null
 ~POSIX Error during a POSIX system call.
+$stdin integer(0)
 !errno
   valueReturn(integer(errno));
 !close:
@@ -388,13 +413,10 @@ $serialized string("<canon!>")
   if (target == oLobby) raise(currentThread, eTopLevelRecursion);
   setContinuation(currentThread, safeStackFrameContinuation(target));
   gotoNext;
-!abortToREPL
-  tailcall(returnToREPL);
-!abort
-  tailcall(returnToREPL);
 !end
   killThreadData(currentThread);
   // Permit a C subroutine return, thus killing the current thread.
+$parser
 $true
 $false
 $object

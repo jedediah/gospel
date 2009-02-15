@@ -276,16 +276,6 @@ vector newThread(void *cc,
   return threadData;
 }
 
-promise REPLPromise;
-void returnToREPL() {
-  keep(currentThread, REPLPromise, oNull);
-  #ifdef NO_COMPUTED_TAILCALLS
-    // This function won't have been tailcalled, and therefore the return won't kill the thread,
-    // so we need to do that ourselves.
-    explicitlyEndThread();
-  #endif
-}
-
 void invokeDispatchMethod(void);
 
 obj newDynamicScope(continuation c) {
@@ -557,7 +547,11 @@ void setupInterpreter() {
 void *loadStream(FILE *f, obj staticEnv, obj dynamicEnv) {
   void *scanner = beginParsing(f);
   obj parserOutput, lastValue = oNull;
-  while (parserOutput = parse(scanner)) {
+  while ((parserOutput = parse(scanner)) != oEndOfFile) {
+    if (parserOutput == eSyntaxError) {
+      lastValue = eSyntaxError;
+      break;
+    }
     promise p = newPromise();
     newThread(p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
     lastValue = waitFor(p);
@@ -566,31 +560,13 @@ void *loadStream(FILE *f, obj staticEnv, obj dynamicEnv) {
   fclose(f);
   return lastValue;
 }
+
+// Currently used only by main.c for loading command-line arguments.
 void *loadFile(const char *filename, obj staticEnv, obj dynamicEnv) {
   FILE *f = fopen(filename, "r");
   if (!f) die("Could not open \"%s\" for input.", filename);
-  return loadStream(f, staticEnv, dynamicEnv);
+  void *lastValue = loadStream(f, staticEnv, dynamicEnv);
+  if (lastValue == eSyntaxError) die("Syntax error.");
+  return lastValue;
 }
 
-void REPL() {
-  void *scanner = beginParsing(stdin);
-  for (;;) {
-    invalidateEden();
-    fputs("> ", stdout);
-    fflush(stdout);
-    // We just serialize first, to give the expression a chance to do its own terminal output, before
-    // displaying the "=>" and printing.
-    REPLPromise = newPromise();
-    obj parserOutput = parse(scanner);
-    if (!parserOutput) exit(0); // EOF character was input.
-    newThread(REPLPromise, oLobby, oDynamicEnvironment, parserOutput, sSerialized, emptyVector);
-    obj serialization = waitFor(REPLPromise);
-    fputs("=> ", stdout);
-    fflush(stdout);
-    REPLPromise = newPromise();
-    newThread(REPLPromise, oLobby, oDynamicEnvironment, serialization, sPrint, emptyVector);
-    waitFor(REPLPromise);
-    fputs("\n", stdout);
-    fflush(stdout);
-  }
-}

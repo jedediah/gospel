@@ -80,6 +80,5 @@ obj callWithEnvironment(obj, obj, obj, vector);
 
 void setupInterpreter(void);
 void *loadFile(const char *, obj, obj);
-void REPL(void);
 
 #endif

@@ -72,13 +72,13 @@ void yyerror(YYLTYPE *, int *, int *, void **, void *, char const *);
 
 input:
   gap ENDOFFILE
-  { *parserOutput = 0; YYACCEPT; }
+  { *parserOutput = oEndOfFile; YYACCEPT; }
 | gap
   { *parserOutput = oNull; *lineNumber = @1.last_line; }
 | gap line gap
   { *parserOutput = $2; *lineNumber = @3.last_line; }
 | error
-  { *parserOutput = oNull; *lineNumber = @1.last_line; }
+  { *parserOutput = eSyntaxError; *lineNumber = @1.last_line; }
 ;
 
 line:
@@ -197,6 +197,7 @@ dependency:
 | assignment
 | declaration
 ;
+
 
 assignment:
   unaryTarget param ADDSLOT gap dependency
@@ -337,9 +338,11 @@ void yyerror (YYLTYPE *location,
               void **parserOutput,
               void *scanner,
               char const *msg) {
+/*
   if (location->first_line == (*line = location->last_line))
     printf("\nSyntax error at line %d.\n", location->last_line);
   else
     printf("\nSyntax error between lines %d and %d.\n", location->first_line, location->last_line);
+*/
 }
 
