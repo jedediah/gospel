@@ -16,7 +16,6 @@
 
 &do
 &self
-&raise:
 &currentMessageTarget
 
 # If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
@@ -27,8 +26,8 @@
 @null deadEnd
 !serialized
   valueReturn(string("<null>"));
-!raise:
-  die("Exception raised in an environment with no understanding of the $raise: message.");
+!raise
+  die("Attempted to raise nil as an exception.");
 !identity
   normalReturn;
 !interpret

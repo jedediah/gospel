@@ -179,9 +179,9 @@ vector setExceptionContinuation(vector thread, obj exception) {
                                       origin(c),
                                       env(c),
                                       dynamicEnv(c),
-                                      env(c),
-                                      sRaise_,
-                                      newVector(1, exception));
+                                      exception,
+                                      sRaise,
+                                      emptyVector);
 }
 
 #define raise(raise_thread, raise_exception) do { \

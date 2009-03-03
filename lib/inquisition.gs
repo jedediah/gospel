@@ -18,7 +18,7 @@ namespace: "inquisition"
 
 exception failedAssertion = "Failed assertion in unit test."
 object assert { self }
-false  assert { raise: exception failedAssertion }
+false  assert { exception failedAssertion raise }
 
 # Turn an object into a test suite. Should be used after all test slots are added but before
 # any non-test slots (including $setup and/or $teardown) are added.

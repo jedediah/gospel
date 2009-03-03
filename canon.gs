@@ -21,7 +21,9 @@ false serialized = "<false>"
 object do { self }
 
 ## The exception-handling system that the core expects.
-lobby raise: exception { dynamicContext applyHandlerTo: exception }
+
+object raise { dynamicContext applyHandlerTo: self }
+
 # Establish the target block as a handler in the current environment. Allows execution to return back
 # through the \raise: expression if the block does not perform a nonlocal exit, which may yield strange
 # behaviour for exceptions raised by primitives.
@@ -35,6 +37,7 @@ closure handleExceptions {
     handle: exception
   }
 }
+
 # Execute the target block. If it raises an exception, return the result of applying the argument block
 # to the exception object.
 closure except: \handle: {
@@ -62,10 +65,10 @@ lobby namespace: name {
 
 exception missingElement = "Missing collection element."
 vector at: index {
-  self at: index ifAbsent: { raise: exception missingElement }
+  self at: index ifAbsent: { exception missingElement raise }
 }
 vector at: index put: value {
-  self at: index put: value ifAbsent: { raise: exception missingElement }
+  self at: index put: value ifAbsent: { exception missingElement raise }
 }
 vector ofLength: n {
   self ofLength: n containing: null
