@@ -288,10 +288,9 @@ literal:
 | '[' gap list gap ']'
   { $$ = message(oInternals, sVectorLiteral, listToVector(nreverse($3))); }
 | '{' body '}'
-  { $$ = block(newVector(1, sCurrentMessageTarget), listToVector($2)); }
+  { $$ = blockLiteral(newVector(1, sCurrentMessageTarget), listToVector($2)); }
 | '{' params '|' body '}'
-  { $$ = block(listToVector(cons(sCurrentMessageTarget, nreverse($2))),
-               listToVector($4)); }
+  { $$ = blockLiteral(listToVector(cons(sCurrentMessageTarget, nreverse($2))), listToVector($4)); }
 ;
 list:
   expr

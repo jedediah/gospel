@@ -18,35 +18,34 @@ object serialized = "<object>"
 true serialized = "<true>"
 false serialized = "<false>"
 
-object do { self }
+object value { self }
 
 ## The exception-handling system that the core expects.
 
-object raise { dynamicContext applyHandlerTo: self }
+object raise { dynamicContext handler value: self }
 
 # Establish the target block as a handler in the current environment. Allows execution to return back
 # through the \raise: expression if the block does not perform a nonlocal exit, which may yield strange
 # behaviour for exceptions raised by primitives.
-closure handleExceptions {
-  handle: = \self
-  # Install a handler that will apply us to the exceptions it catches.
-  dynamicContext proto applyHandlerTo: exception {
-    # Set up a new handler in place of ourself, to hand off to the next-innermost handler (if any)
-    # should \handle: decide to raise an exception itself.
-    self applyHandlerTo: exception { self proto applyHandlerTo: exception }
-    handle: exception
+block handleExceptions {
+  # Install a handler into the enclosing dynamic context that will apply us to the exceptions it catches.
+  (enclosingDynamicContext = dynamicContext proto) handler = { exception |
+    # Prepare to hand off to the next-innermost handler if our handler raises an exception.
+    dynamicContext handler = { exception | enclosingDynamicContext proto handler value: exception }
+    # Apply our handler.
+    self value: exception
   }
 }
 
 # Execute the target block. If it raises an exception, return the result of applying the argument block
 # to the exception object.
-closure except: \handle: {
-  { e | ^ handle: e } handleExceptions
-  self
+block except: handler {
+  { e | ^ handler value: e } handleExceptions
+  self value
 }
+
 # A default handler.
-{ e | "\nUnhandled exception: " print
-      e printLine
+{ e | "\nUnhandled exception: " print. e print. "\n" print
       exit
 } handleExceptions
 
@@ -57,7 +56,8 @@ object include: fileName {
   value
 }
 
-lobby namespace: name {
+# TODO: Is there any reason we can't just allow any object as a namespace token?
+object namespace: name {
   (newNamespace = namespace new) serialized = "<" ++ name ++ "!>"
   dynamicContext proto setNamespaces: ([newNamespace] ++ dynamicContext proto namespaces) nub
   newNamespace
@@ -74,37 +74,30 @@ vector ofLength: n {
   self ofLength: n containing: null
 }
 
-object if: yes          { yes  }
-false  if: yes          { self }
-object if: yes else: no { yes  }
-false  if: yes else: no { no   }
-object         else: no { self }
-false          else: no { no   }
-
-object target: target with: arguments {
-  \self target: target withArgumentVector: arguments asVector
-}
-object target: target {
-  \self target: target withArgumentVector: []
-}
+object if: yes          { yes  value }
+false  if: yes          { self       }
+object if: yes else: no { yes  value }
+false  if: yes else: no { no   value }
+object         else: no { self       }
+false          else: no { no   value }
 
 vector asVector { self } 
-vector each: \iterateOn: {
+vector each: iteration {
   index = 0
   { index < self length else: { ^^ self }
-    iterateOn: self :at: index
+    iteration value: self :at: index
     index := index + 1
     recurse
-  } do
+  } value
 }
-vector mapping: \valueFor: {
+vector mapping: iteration {
   result = vector ofLength: self length
-  index = 0
+  index = 0 
   { index < self length else: { ^^ result }
-    result at: index put: (valueFor: self :at: index)
+    result at: index put: (iteration value: self :at: index)
     index := index + 1
     recurse
-  } do
+  } value
 }
 
 vector first { self at: 0 }
@@ -115,18 +108,18 @@ vector rest {
     rest at: index - 1 put: self :at: index
     index := index + 1
     recurse
-  } do
+  } value
 }
 
-vector injecting: value into: \valueOf:with: {
+vector injecting: value into: operator {
   accumulation = value
-  self each: { x | accumulation := valueOf: accumulation with: x }
+  self each: { x | accumulation := operator value: accumulation value: x }
   accumulation 
 }
 
-vector selecting: \selects: {
+vector selecting: selector {
   self injecting: [] into: { collection element |
-    :selects: element if: { collection ++ [element] } else: collection
+    selector :value: element if: { collection ++ [element] } else: collection
   }
 }
 
@@ -152,12 +145,12 @@ vector print { self each: { element | element print } }
 
 TCPSocket = object new
 TCPSocket maximumBacklog = 128
-TCPSocket serving: port with: \handle: {
+TCPSocket serving: port with: handler {
   descriptor = (server = self new) POSIXFileDescriptor = POSIX TCPSocket
   POSIX bindInternetSocket: descriptor to: port
   POSIX listenOn: descriptor withMaximumBacklog: self maximumBacklog
   { (connection = self new) POSIXFileDescriptor = POSIX acceptOn: descriptor
-    @handle: connection
+    handler @value: connection
     recurse
   } @except: { e | server close. end } # TODO: Rethrow exceptions that are not due to socket shutdown.
   server

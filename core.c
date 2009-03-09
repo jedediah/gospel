@@ -218,8 +218,16 @@ obj appendStrings(obj s1, obj s2) {
   return slotlessObject(oString, s);
 }
 
+obj blockLiteral(vector params, vector body) {
+  return slotlessObject(oBlockLiteral, newVector(2, params, body));
+}
+obj blockValue(obj env, vector params, vector body) {
+  return slotlessObject(oBlock, newVector(3, env, params, body));
+}
+
+// TODO: Rename these.
 obj block(vector params, vector body) {
-  return slotlessObject(oBlock, newVector(2, params, body));
+  return slotlessObject(oMethodDeclaration, newVector(2, params, body));
 }
 vector blockParams(obj b) { return idx(hiddenEntity(b), 0); }
 vector blockBody(obj b)   { return idx(hiddenEntity(b), 1); }
@@ -283,6 +291,19 @@ obj newDynamicScope(continuation c) {
   return slotlessObject(oldScope, hiddenEntity(oldScope));
 }
 
+void setMethodContinuation(vector c, vector args, obj method) {
+  setSubexpressionContinuation(currentThread,
+                               origin(c),
+                               stackFrame(continuationTarget(c),
+                                          closureParams(method),
+                                          args,
+                                          c),
+                               newDynamicScope(c),
+                               oInternals,
+                               sMethodBody,
+                               closureBody(method));
+}
+
 void normalDispatchMethod() {
   vector c = threadContinuation(currentThread);
   obj r = receiver(c);
@@ -300,16 +321,7 @@ void normalDispatchMethod() {
       setExceptionContinuation(currentThread, eBadArity);
       tailcall(doNext);
     }
-    setSubexpressionContinuation(currentThread,
-                                 origin(c),
-                                 stackFrame(closureEnv(contents),
-                                            params,
-                                            args,
-                                            c),
-                                 newDynamicScope(c),
-                                 oInternals,
-                                 sMethodBody,
-                                 closureBody(contents));
+    setMethodContinuation(c, args, contents);
     tailcall(doNext);
   }
   staticMessageReturn(contents); // The slot contains a constant value, not code.
@@ -325,17 +337,8 @@ void invokeDispatchMethod() {
   if (!dm) tailcall(normalDispatchMethod);
   if (isPrimitive(dm)) computeTailcall(primitiveCode(dm));
   if (isClosure(dm)) {
-    // Closures are checked for correct arity at the time the dispatch method is set.
-    setSubexpressionContinuation(currentThread,
-                                 origin(c),
-                                 stackFrame(closureEnv(dm),
-                                            closureParams(dm),
-                                            evaluated(c),
-                                            c),
-                                 slotlessObject(dynamicEnv(c), NIL),
-                                 oInternals,
-                                 sMethodBody,
-                                 closureBody(dm));
+    // Method is checked for correct arity when it's installed.
+    setMethodContinuation(c, evaluated(c), dm);
     tailcall(doNext);
   }
   staticMessageReturn(dm); // The dispatch method is actually just a constant value.
@@ -390,7 +393,7 @@ void doNext() {
 
 obj callWithEnvironment(obj dynamicEnv, obj target, obj selector, vector args) {
   promise p = newPromise();
-  newThread(p, oLobby, dynamicEnv, target, selector, args);
+  newThread(p, oObject, dynamicEnv, target, selector, args);
   return waitFor(p);
 }
 obj call(obj target, obj selector, vector args) {
@@ -538,7 +541,7 @@ obj symbol(const char *s) {
 void setupInterpreter() {
   initializeHeap();
   initializeMainThread();
-  setCurrentThread(garbageCollectorRoot = createGarbageCollectorRoot(oLobby));
+  setCurrentThread(garbageCollectorRoot = createGarbageCollectorRoot(oObject));
   initializeObjects();
   initializePrototypeTags();
   intern(oSymbol);

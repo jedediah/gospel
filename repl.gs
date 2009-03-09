@@ -18,13 +18,13 @@
   { env = dynamicContext
     { { continuation := thisContext
         "> " print
-        ["=> ", (parser read interpretInScope: lobby inEnvironment: env) serialized, "\n"] print
-      } do
+        ["=> ", (parser read interpretInScope: object inEnvironment: env) serialized, "\n"] print
+      } value
       recurse
-    } do
+    } value
   } except: { e |
     ["\nUnhandled exception: ", e, "\n"] print
     continuation return
   }
-} do
+} value
 

@@ -24,17 +24,17 @@ false  assert { exception failedAssertion raise }
 # any non-test slots (including $setup and/or $teardown) are added.
 object declareTestSuite {
   tests = self localSelectors
+  self tests = tests
   self setup {}
   self teardown {}
   self run {
     failures = exceptions = 0
     tests each: { selector |
       self setup
-      { { self send: selector } except: { e |
-          e == exception failedAssertion if: { ^^ failures := failures + 1 }
-          ^ exceptions := exceptions + 1
-        }
-      } do
+      { self send: selector } except: { e |
+        e == exception failedAssertion if: { ^ failures := failures + 1 }
+        exceptions := exceptions + 1
+      }
       self teardown
     }
     inflect: string with: suffix for: number {
@@ -48,3 +48,4 @@ object declareTestSuite {
        (inflect: " exception" with: "s" for: exceptions) ++ "."
   }
 }
+

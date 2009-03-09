@@ -24,8 +24,8 @@
 int main(int argc, char **argv) {
   setupInterpreter();
   if (argc > 2) die("Too many arguments.");
-  loadFile("canon.gs", oLobby, oDynamicEnvironment);
-  loadFile(argc == 2 ? argv[1] : "repl.gs", oLobby, oDynamicEnvironment);
+  loadFile("canon.gs", oObject, oDynamicEnvironment);
+  loadFile(argc == 2 ? argv[1] : "repl.gs", oObject, oDynamicEnvironment);
   return 0;
 }
 

@@ -28,6 +28,8 @@
   valueReturn(string("<null>"));
 !raise
   die("Attempted to raise nil as an exception.");
+!handler
+  die("Exception handler requested where none established.");
 !identity
   normalReturn;
 !interpret
@@ -53,7 +55,69 @@
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
-@object null
+@object null oInternals
+!self
+  normalReturn;
+# We stash a pointer to oInternals here to lend it oObjects's immunity to garbage collection.
+# It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
+# but future changes to the interpreter may eliminate the need for oInternals.
+!return:atDepth:
+  obj frame = target;
+  for (int i = safeIntegerValue(waitFor(arg(1)));;) {
+    if (frame == oObject) raise(currentThread, eBadReturnDepth);
+    if (!i--) break;
+    frame = proto(frame);
+  }
+  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
+  setContinuation(currentThread, safeStackFrameContinuation(frame));
+  valueReturn(v);
+!return
+  if (target == oObject) raise(currentThread, eBadReturnDepth);
+  setContinuation(currentThread, safeStackFrameContinuation(target));
+  valueReturn(oNull);
+!return:
+  if (target == oObject) raise(currentThread, eBadReturnDepth);
+  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
+  setContinuation(currentThread, safeStackFrameContinuation(target));
+  valueReturn(v);
+!thisContext
+  normalReturn;
+!recurse
+  if (target == oObject) raise(currentThread, eTopLevelRecursion);
+  setContinuation(currentThread, safeStackFrameContinuation(target));
+  gotoNext;
+!end
+  killThreadData(currentThread);
+  // Permit a C subroutine return, thus killing the current thread.
+$parser
+$true
+$false
+$object
+$closure
+$integer
+$null
+$code
+$promiseCode
+$arrowCode
+$block
+$primitive
+$string
+$symbol
+$exception
+$vector
+$POSIX
+$canon oNamespaceCanon
+$namespace
+!dynamicContext
+  valueReturn(dynamicEnv(threadContinuation(currentThread)));
+!collectGarbage
+  forbidGC();
+  collectGarbage();
+  permitGC();
+  normalReturn;
+!exit
+  exit(0);
+# "Lobby" stuff ends here.
 !interpretInScope:inEnvironment:
   setContinuation(currentThread,
                   newContinuation(origin(threadContinuation(currentThread)),
@@ -154,7 +218,7 @@ $serialized string("<canon!>")
                                  env(c),
                                  dynamicEnv(c),
                                  arg(2),
-                                 sDo,
+                                 sValue,
                                  emptyVector);
     gotoNext;
   }
@@ -170,7 +234,7 @@ $serialized string("<canon!>")
                                  env(c),
                                  dynamicEnv(c),
                                  arg(1),
-                                 sDo,
+                                 sValue,
                                  emptyVector);
     gotoNext;
   }
@@ -209,28 +273,59 @@ $serialized string("<canon!>")
 !serialized
   // TODO: Create the dollarsign string once, at startup.
   valueReturn(appendStrings(string("$"), target));
-@closure object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
-!target:withArgumentVector:
-  obj code = target, argsObject = waitFor(arg(1));
-  if (!isClosure(code)) raise(currentThread, eClosureExpected);
-  if (!isVectorObject(argsObject)) raise(currentThread, eVectorExpected);
-  vector args = vectorObjectVector(argsObject),
-         params = closureParams(code);
-  if (vectorLength(args) + 1 != vectorLength(params)) raise(currentThread, eBadArity);
+@blockLiteral object
+!interpret
   continuation c = threadContinuation(currentThread);
+  obj o = continuationTarget(c);
+  valueReturn(blockValue(env(c), blockParams(o), blockBody(o)));
+@block object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
+# Partially deprecating @closure, below. Once this works, @closure will become @method and lose its env.
+!value
+  // FIXME: This is not typesafe.
+  if (vectorLength(closureParams(target)) != 1) raise(currentThread, eBadArity);
+  vector c = threadContinuation(currentThread);
   setSubexpressionContinuation(currentThread,
                                origin(c),
-                               stackFrame(closureEnv(code),
-                                          params,
-                                          prefix(waitFor(arg(0)), args),
+                               stackFrame(closureEnv(target),
+                                          closureParams(target),
+                                          newVector(1, oNull),
                                           c),
-                               slotlessObject(dynamicEnv(c), NIL),
+                               newDynamicScope(c),
                                oInternals,
                                sMethodBody,
-                               closureBody(code));
+                               closureBody(target));
   gotoNext;
-!environment
-  valueReturn(closureEnv(target));
+!value:
+  // FIXME: This is not typesafe.
+  if (vectorLength(closureParams(target)) != 2) raise(currentThread, eBadArity);
+  vector c = threadContinuation(currentThread);
+  setSubexpressionContinuation(currentThread,
+                               origin(c),
+                               stackFrame(closureEnv(target),
+                                          closureParams(target),
+                                          newVector(2, oNull, arg(0)),
+                                          c),
+                               newDynamicScope(c),
+                               oInternals,
+                               sMethodBody,
+                               closureBody(target));
+  gotoNext;
+!value:value:
+  // FIXME: This is not typesafe.
+  if (vectorLength(closureParams(target)) != 3) raise(currentThread, eBadArity);
+  vector c = threadContinuation(currentThread);
+  setSubexpressionContinuation(currentThread,
+                               origin(c),
+                               stackFrame(closureEnv(target),
+                                          closureParams(target),
+                                          newVector(3, oNull, arg(0), arg(1)),
+                                          c),
+                               newDynamicScope(c),
+                               oInternals,
+                               sMethodBody,
+                               closureBody(target));
+  gotoNext;
+@closure object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
 @quote object
 !interpret
   valueReturn(hiddenEntity(target));
@@ -278,11 +373,12 @@ $serialized string("<canon!>")
             sMethodBody,
             newVector(2, message(arg(0), sIdentity, emptyVector), hiddenEntity(target)));
   valueReturn(p);
-@block object
+@methodDeclaration object
 !interpret
   continuation c = threadContinuation(currentThread);
   obj o = continuationTarget(c);
-  valueReturn(newClosure(env(c), blockParams(o), blockBody(o)));
+  // TODO: Get rid of this whole concept of "method objects".
+  valueReturn(newClosure(oNull, blockParams(o), blockBody(o)));
 @endOfFile object
 # Returned by the parser when it encounters an end-of-file.
 !interpret
@@ -383,67 +479,6 @@ $stdin integer(0)
 ~settingNonexistantSlot Attempted to set a nonexistant slot.
 ~gettingNonexistantSlot Attempted to access a nonexistant slot.
 ~missingArgument Too few arguments to primitive function.
-@lobby object oInternals
-# We stash a pointer to oInternals here to lend it oLobby's immunity to garbage collection.
-# It would perhaps make more sense to give oInternals the immunity, and let oLobby borrow it,
-# but future changes to the interpreter may eliminate the need for oInternals.
-!return:atDepth:
-  obj frame = target;
-  for (int i = safeIntegerValue(waitFor(arg(1)));;) {
-    if (frame == oLobby) raise(currentThread, eBadReturnDepth);
-    if (!i--) break;
-    frame = proto(frame);
-  }
-  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(currentThread, safeStackFrameContinuation(frame));
-  valueReturn(v);
-!return
-  if (target == oLobby) raise(currentThread, eBadReturnDepth);
-  setContinuation(currentThread, safeStackFrameContinuation(target));
-  valueReturn(oNull);
-!return:
-  if (target == oLobby) raise(currentThread, eBadReturnDepth);
-  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(currentThread, safeStackFrameContinuation(target));
-  valueReturn(v);
-!thisContext
-  normalReturn;
-!recurse
-  if (target == oLobby) raise(currentThread, eTopLevelRecursion);
-  setContinuation(currentThread, safeStackFrameContinuation(target));
-  gotoNext;
-!end
-  killThreadData(currentThread);
-  // Permit a C subroutine return, thus killing the current thread.
-$parser
-$true
-$false
-$object
-$closure
-$integer
-$null
-$lobby
-$code
-$promiseCode
-$arrowCode
-$block
-$primitive
-$string
-$symbol
-$exception
-$vector
-$POSIX
-$canon oNamespaceCanon
-$namespace
-!dynamicContext
-  valueReturn(dynamicEnv(threadContinuation(currentThread)));
-!collectGarbage
-  forbidGC();
-  collectGarbage();
-  permitGC();
-  normalReturn;
-!exit
-  exit(0);
 @dynamicEnvironment object newVector(1, oNamespaceCanon)
 !setNamespaces:
   obj v = waitFor(arg(0));
@@ -452,3 +487,5 @@ $namespace
   normalReturn;
 !namespaces
   valueReturn(vectorObject(hiddenEntity(target)));
+
+
