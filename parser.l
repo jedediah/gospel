@@ -90,9 +90,6 @@ OP  [!%&*\-+=<>?/]+
                             BEGIN(NEWLINES);
                             return KEYWORDS;
                           }
-\\({ID}|({ID}:)+|{OP})    { *value = symbol(yyget_text(yyscanner) + 1);
-                            return ESCAPE;
-                          }
 ->                        { BEGIN(NEWLINES);
                             return ARROW;
                           }

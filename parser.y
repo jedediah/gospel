@@ -47,8 +47,6 @@ void yyerror(YYLTYPE *, int *, int *, void **, void *, char const *);
 %token ADDSLOT
 %token SETSLOT
 
-%token ESCAPE
-
 %token ENDOFFILE
 
 %glr-parser
@@ -122,21 +120,17 @@ carets:
 signature:
   NAME
   { $$ = list($1); }
-| OPERATOR signatureparam
+| OPERATOR NAME
   { $$ = cons($1, list($2)); }
 | keywordsignature
   { pair keywords = nreverse($1);
     $$ = cons(appendSymbols(map(car, keywords)), map(cdr, keywords)); }
 ;
 keywordsignature:
-  KEYWORD gap signatureparam
+  KEYWORD gap NAME
   { $$ = list(cons($1, $3)); }
-| keywordsignature KEYWORD gap signatureparam
+| keywordsignature KEYWORD gap NAME
   { $$ = cons(cons($2, $4), $1); }
-;
-signatureparam:
-  NAME
-| ESCAPE
 ;
 
 expr:
@@ -215,8 +209,6 @@ unaryMessage:
   { $$ = message($1, $2, emptyVector); }
 | unaryTarget '@' NAME
   { $$ = promiseCode(message($1, $3, emptyVector)); }
-| unaryTarget ESCAPE
-  { $$ = message($1, sContentsOfSlot_, newVector(1, $2)); }
 ;
 unaryTarget:
   { $$ = oDefaultMessageTarget; }
