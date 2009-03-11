@@ -222,7 +222,7 @@ obj blockLiteral(vector params, vector body) {
   return slotlessObject(oBlockLiteral, newVector(2, params, body));
 }
 obj blockValue(obj env, vector params, vector body) {
-  return slotlessObject(oBlock, newVector(3, env, params, body));
+  return slotlessObject(oBlock, newVector(2, env, newClosure(oNull, params, body)));
 }
 
 // TODO: Rename these.
@@ -231,6 +231,13 @@ obj block(vector params, vector body) {
 }
 vector blockParams(obj b) { return idx(hiddenEntity(b), 0); }
 vector blockBody(obj b)   { return idx(hiddenEntity(b), 1); }
+
+// For the new meaning of 'block'.
+obj blockEnv(obj b)    { return idx(hiddenEntity(b), 0); }
+obj blockMethod(obj b) { return idx(hiddenEntity(b), 1); }
+int isBlock(obj b) { // FIXME: This is not a perfect test.
+  return vectorLength(hiddenEntity(b)) == 2 && isMethod(blockMethod(b));
+}
 
 vector vectorAppend(vector v1, vector v2) {
   int length1 = vectorLength(v1), length2 = vectorLength(v2);

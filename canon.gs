@@ -18,7 +18,14 @@ object serialized = "<object>"
 true serialized = "<true>"
 false serialized = "<false>"
 
-object value { self }
+object appliedTo: args {
+  args == [] if: { ^ self }
+  exception badArity raise
+}
+
+object value                   { self appliedTo: [          ] }
+block  value: arg              { self appliedTo: [arg       ] }
+block  value: arg1 value: arg2 { self appliedTo: [arg1, arg2] }
 
 ## The exception-handling system that the core expects.
 

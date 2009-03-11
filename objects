@@ -191,6 +191,9 @@ $namespace
 @namespaceCanon namespace
 $serialized string("<canon!>")
 @vector object
+!== equals
+  obj v1 = target, v2 = waitFor(arg(0));
+  valueReturn(vectorLength(safeVector(v1)) || vectorLength(safeVector(v2)) ? v1 == v2 ? v1 : oFalse : v1);
 !++ appending
   valueReturn(vectorObject(vectorAppend(safeVector(target), safeVector(waitFor(arg(0))))));
 !ofLength:containing:
@@ -213,8 +216,8 @@ $serialized string("<canon!>")
                                  env(c),
                                  dynamicEnv(c),
                                  arg(2),
-                                 sValue,
-                                 emptyVector);
+                                 sAppliedTo_,
+                                 newVector(1, vectorObject(emptyVector)));
     gotoNext;
   }
   valueReturn(setIdx(v, i, arg(1)));
@@ -229,8 +232,8 @@ $serialized string("<canon!>")
                                  env(c),
                                  dynamicEnv(c),
                                  arg(1),
-                                 sValue,
-                                 emptyVector);
+                                 sAppliedTo_,
+                                 newVector(1, vectorObject(emptyVector)));
     gotoNext;
   }
   valueReturn(idx(v, i));
@@ -273,52 +276,25 @@ $serialized string("<canon!>")
   continuation c = threadContinuation(currentThread);
   obj o = continuationTarget(c);
   valueReturn(blockValue(env(c), blockParams(o), blockBody(o)));
-@block object newVector(3, oNull, newVector(1, oNull), newVector(1, oMethod))
-# Partially deprecating @closure, below. Once this works, @closure will become @method and lose its env.
-!value
-  // FIXME: This is not typesafe.
-  if (vectorLength(closureParams(target)) != 1) raise(currentThread, eBadArity);
+@block object newVector(2, oNull, oMethod)
+~blockExpected Block expected.
+!appliedTo:
+  obj t = target;
+  if (!isBlock(t)) raise(currentThread, eBlockExpected);
+  vector args = safeVector(waitFor(arg(0)));
+  obj method = blockMethod(target);
+  if (vectorLength(args) != vectorLength(closureParams(method)) - 1) raise(currentThread, eBadArity);
   vector c = threadContinuation(currentThread);
   setSubexpressionContinuation(currentThread,
                                origin(c),
-                               stackFrame(closureEnv(target),
-                                          closureParams(target),
-                                          newVector(1, oNull),
+                               stackFrame(blockEnv(target),
+                                          closureParams(method),
+                                          prefix(target, args),
                                           c),
                                newDynamicScope(c),
                                oInternals,
                                sMethodBody,
-                               closureBody(target));
-  gotoNext;
-!value:
-  // FIXME: This is not typesafe.
-  if (vectorLength(closureParams(target)) != 2) raise(currentThread, eBadArity);
-  vector c = threadContinuation(currentThread);
-  setSubexpressionContinuation(currentThread,
-                               origin(c),
-                               stackFrame(closureEnv(target),
-                                          closureParams(target),
-                                          newVector(2, oNull, arg(0)),
-                                          c),
-                               newDynamicScope(c),
-                               oInternals,
-                               sMethodBody,
-                               closureBody(target));
-  gotoNext;
-!value:value:
-  // FIXME: This is not typesafe.
-  if (vectorLength(closureParams(target)) != 3) raise(currentThread, eBadArity);
-  vector c = threadContinuation(currentThread);
-  setSubexpressionContinuation(currentThread,
-                               origin(c),
-                               stackFrame(closureEnv(target),
-                                          closureParams(target),
-                                          newVector(3, oNull, arg(0), arg(1)),
-                                          c),
-                               newDynamicScope(c),
-                               oInternals,
-                               sMethodBody,
-                               closureBody(target));
+                               closureBody(method));
   gotoNext;
 @method object newVector(3, oNull, newVector(1, oNull), newVector(1, oMethod))
 @quote object
