@@ -202,12 +202,11 @@ int stringLength(obj s) {
   vector data = hiddenEntity(s);
   int i = vectorLength(data);
   if (!i) return 0;
-  int length = i * 4;
   char *last = (char *)idxPointer(data, i - 1);
-  return !last[0] ? length - 4
-       : !last[1] ? length - 3
-       : !last[2] ? length - 2
-                  : length - 1;
+  return i * 4 - ( !last[0] ? 4
+                 : !last[1] ? 3
+                 : !last[2] ? 2
+                            : 1);
 }
 
 obj appendStrings(obj s1, obj s2) {
