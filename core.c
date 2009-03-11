@@ -472,10 +472,9 @@ void *arg(vector thread, int i) {
 obj *filenameToInclude;
 promise *promiseOfInclusion;
 
-// The prototype primitive's behaviour should be to return itself, so that it won't be necessary to write
-// e.g. "\primitive foo {}".
+// This should never be called, as no primitive object should ever actually be sent a message.
 void prototypePrimitiveHiddenValue() {
-  messageReturn(oPrimitive);
+  die("The prototype primitive's code was executed.");
 }
 
 void *loadStream(FILE *, obj, obj);

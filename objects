@@ -238,19 +238,6 @@ $serialized string("<canon!>")
   }
   valueReturn(idx(v, i));
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
-!target:withArgumentVector:
-  obj code = target, argsObject = waitFor(arg(1));
-  if (!isPrimitive(code)) raise(currentThread, ePrimitiveExpected);
-  if (!isVectorObject(argsObject)) raise(currentThread, eVectorExpected);
-  continuation c = threadContinuation(currentThread);
-  setContinuation(currentThread,
-                  newContinuation(origin(c),
-                                  oNull,
-                                  prefix(waitFor(arg(0)), vectorObjectVector(argsObject)),
-                                  emptyVector, // There should be no reason for anyone to examine this.
-                                  env(c),
-                                  dynamicEnv(c)));
-  computeTailcall(primitiveCode(code));
 @string object newAtomVector(1, 0)
 !parse
   valueReturn(parseString(safeStringValue(target)));
