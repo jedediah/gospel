@@ -315,7 +315,7 @@ void normalDispatchMethod() {
   obj contents = *slot;
 
   if (isPrimitive(contents)) computeTailcall(primitiveCode(contents));
-  if (isClosure(contents)) {
+  if (isMethod(contents)) {
     vector params = closureParams(contents), args = evaluated(c);
     if (vectorLength(args) != vectorLength(params)) {
       setExceptionContinuation(currentThread, eBadArity);
@@ -336,7 +336,7 @@ void invokeDispatchMethod() {
 
   if (!dm) tailcall(normalDispatchMethod);
   if (isPrimitive(dm)) computeTailcall(primitiveCode(dm));
-  if (isClosure(dm)) {
+  if (isMethod(dm)) {
     // Method is checked for correct arity when it's installed.
     setMethodContinuation(c, evaluated(c), dm);
     tailcall(doNext);

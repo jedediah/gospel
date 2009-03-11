@@ -123,7 +123,7 @@ int isPromise(vector);
 int isChannel(vector);
 int isInteger(obj);
 int isPrimitive(obj);
-int isClosure(obj);
+int isMethod(obj);
 int isString(obj);
 int isSymbol(obj);
 int isStackFrame(obj);

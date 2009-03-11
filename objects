@@ -93,7 +93,6 @@ $parser
 $true
 $false
 $object
-$closure
 $integer
 $null
 $code
@@ -184,10 +183,6 @@ $namespace
   void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(currentThread));
   if (!slot) raise(currentThread, eSettingNonexistantSlot);
   valueReturn(*slot = arg(1));
-!contentsOfSlot:
-  void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(currentThread));
-  if (!slot) raise(currentThread, eGettingNonexistantSlot);
-  valueReturn(*slot);
 !new
   obj o = slotlessObject(target, hiddenEntity(target));
   setVectorType(o, vectorType(target));
@@ -278,7 +273,7 @@ $serialized string("<canon!>")
   continuation c = threadContinuation(currentThread);
   obj o = continuationTarget(c);
   valueReturn(blockValue(env(c), blockParams(o), blockBody(o)));
-@block object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
+@block object newVector(3, oNull, newVector(1, oNull), newVector(1, oMethod))
 # Partially deprecating @closure, below. Once this works, @closure will become @method and lose its env.
 !value
   // FIXME: This is not typesafe.
@@ -325,7 +320,7 @@ $serialized string("<canon!>")
                                sMethodBody,
                                closureBody(target));
   gotoNext;
-@closure object newVector(3, oNull, newVector(1, oNull), newVector(1, oClosure))
+@method object newVector(3, oNull, newVector(1, oNull), newVector(1, oMethod))
 @quote object
 !interpret
   valueReturn(hiddenEntity(target));

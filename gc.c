@@ -47,7 +47,7 @@ int liveSegmentCount = 0;
 #define CHANNEL       3
 #define FIXNUM        4
 #define PRIMITIVE     5
-#define CLOSURE       6
+#define METHOD        6
 #define STACK_FRAME   7
 #define MARK_BIT      8
 
@@ -116,7 +116,7 @@ int isChannel(vector v)   { return vectorType(v) == CHANNEL;   }
 
 int isInteger(obj o)    { return vectorType(o) == FIXNUM;      }
 int isPrimitive(obj o)  { return vectorType(o) == PRIMITIVE;   }
-int isClosure(obj o)    { return vectorType(o) == CLOSURE;     }
+int isMethod(obj o)     { return vectorType(o) == METHOD;      }
 int isStackFrame(obj o) { return vectorType(o) == STACK_FRAME; }
 
 // These typechecks are at least sufficient to prevent a segmentation fault, unless there is no null
@@ -257,7 +257,7 @@ void scan() {
       break;
     case ATOM_VECTOR:
       break;
-//  case FIXNUM: case PRIMITIVE: case ENTITY_VECTOR: case CLOSURE: case STACK_FRAME:
+//  case FIXNUM: case PRIMITIVE: case ENTITY_VECTOR: case METHOD: case STACK_FRAME:
     default:
       for (int i = 0; i < vectorLength(grayList); i++) mark(idx(grayList, i));
       break;
@@ -604,8 +604,8 @@ void (*primitiveCode(obj p))(void) {
 }
 
 obj newClosure(obj env, vector params, vector body) {
-  obj o = slotlessObject(oClosure, newVector(3, env, params, body));
-  setVectorType(o, CLOSURE);
+  obj o = slotlessObject(oMethod, newVector(3, env, params, body));
+  setVectorType(o, METHOD);
   return o;
 }
 vector closureEnv(obj c)    { return idx(hiddenEntity(c), 0); }
@@ -633,5 +633,5 @@ vector stackFrameContinuation(obj sf) {
 void initializePrototypeTags() {
   setVectorType(oInteger, FIXNUM);
   setVectorType(oPrimitive, PRIMITIVE);
-  setVectorType(oClosure, CLOSURE);
+  setVectorType(oMethod, METHOD);
 }
