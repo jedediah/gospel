@@ -105,12 +105,6 @@ void setVectorType(vector v, int t) {
   v->type = v->type & ~TYPE_BIT_MASK | t;
 }
 
-// Strictly speaking, we don't need to distinguish closures at the primitive-type level to avoid segfaults;
-// they could just be entity vectors. But requiring the dispatch code to traverse every object's prototype
-// chain in case it leads to the closure prototype would really suck, and in fact it might be desirable to
-// allow the possibility of executable closure-like objects that don't inherit from the closure prototype.
-// In any event, the extra type safety doesn't hurt.
-
 int isPromise(vector v)   { return vectorType(v) == PROMISE;   }
 int isChannel(vector v)   { return vectorType(v) == CHANNEL;   }
 
@@ -603,14 +597,13 @@ void (*primitiveCode(obj p))(void) {
   return hiddenAtom(p);
 }
 
-obj newClosure(obj env, vector params, vector body) {
-  obj o = slotlessObject(oMethod, newVector(3, env, params, body));
+obj method(vector params, vector body) {
+  obj o = slotlessObject(oMethod, newVector(2, params, body));
   setVectorType(o, METHOD);
   return o;
 }
-vector closureEnv(obj c)    { return idx(hiddenEntity(c), 0); }
-vector closureParams(obj c) { return idx(hiddenEntity(c), 1); }
-vector closureBody(obj c)   { return idx(hiddenEntity(c), 2); }
+vector methodParams(obj c) { return idx(hiddenEntity(c), 0); }
+vector methodBody(obj c)   { return idx(hiddenEntity(c), 1); }
 
 obj integer(int value) {
   return fixnumObject(oInteger, value);

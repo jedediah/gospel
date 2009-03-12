@@ -97,8 +97,8 @@ declaration:
                  sAddSlot_as_,
                  newVector(2,
                            car(sig),
-                           block(listToVector(cons(sSelf, cdr(sig))),
-                                 listToVector($4)))); }
+                           method(listToVector(cons(sSelf, cdr(sig))),
+                                  listToVector($4)))); }
 ;
 statement:
   returnValue

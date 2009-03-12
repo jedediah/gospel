@@ -259,10 +259,10 @@ $serialized string("<canon!>")
   // TODO: Create the dollarsign string once, at startup.
   valueReturn(appendStrings(string("$"), target));
 @blockLiteral object
+# This could inherit from oMethod, but we're avoiding that because we might want to make oMethod and
+# oPrimitive more magical than they are now.
 !interpret
-  continuation c = threadContinuation(currentThread);
-  obj o = continuationTarget(c);
-  valueReturn(blockValue(env(c), blockParams(o), blockBody(o)));
+  valueReturn(block(env(threadContinuation(currentThread)), blockLiteralMethod(target)));
 @block object newVector(2, oNull, oMethod)
 ~blockExpected Block expected.
 !appliedTo:
@@ -270,20 +270,20 @@ $serialized string("<canon!>")
   if (!isBlock(t)) raise(currentThread, eBlockExpected);
   vector args = safeVector(waitFor(arg(0)));
   obj method = blockMethod(target);
-  if (vectorLength(args) != vectorLength(closureParams(method)) - 1) raise(currentThread, eBadArity);
+  if (vectorLength(args) != vectorLength(methodParams(method)) - 1) raise(currentThread, eBadArity);
   vector c = threadContinuation(currentThread);
   setSubexpressionContinuation(currentThread,
                                origin(c),
                                stackFrame(blockEnv(target),
-                                          closureParams(method),
+                                          methodParams(method),
                                           prefix(target, args),
                                           c),
                                newDynamicScope(c),
                                oInternals,
                                sMethodBody,
-                               closureBody(method));
+                               methodBody(method));
   gotoNext;
-@method object newVector(3, oNull, newVector(1, oNull), newVector(1, oMethod))
+@method object newVector(2, newVector(1, oNull), newVector(1, oMethod))
 @quote object
 !interpret
   valueReturn(hiddenEntity(target));
@@ -331,12 +331,6 @@ $serialized string("<canon!>")
             sMethodBody,
             newVector(2, message(arg(0), sIdentity, emptyVector), hiddenEntity(target)));
   valueReturn(p);
-@methodDeclaration object
-!interpret
-  continuation c = threadContinuation(currentThread);
-  obj o = continuationTarget(c);
-  // TODO: Get rid of this whole concept of "method objects".
-  valueReturn(newClosure(oNull, blockParams(o), blockBody(o)));
 @endOfFile object
 # Returned by the parser when it encounters an end-of-file.
 !interpret
@@ -422,11 +416,10 @@ $stdin integer(0)
 @false object
 @exception object
 ~inclusion Error while attempting to open a file for inclusion.
-~badArity Wrong number of arguments to closure.
+~badArity Wrong number of arguments.
 ~stringExpected String expected.
 ~stackFrameExpected Stack frame expected.
 ~primitiveExpected Primitive expected.
-~closureExpected Closure expected.
 ~vectorExpected Vector expected.
 ~integerExpected Integer expected.
 ~negativeVectorLength Attempted to create a vector with negative length.

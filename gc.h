@@ -153,10 +153,9 @@ obj newObject(obj, vector, vector, void *);
 obj slotlessObject(obj, vector);
 obj fixnumObject(obj, int);
 
-obj newClosure(obj, vector, vector);
-vector closureEnv(obj);
-vector closureParams(obj);
-vector closureBody(obj);
+obj method(vector, vector);
+vector methodParams(obj);
+vector methodBody(obj);
 
 obj primitive(void *);
 void (*primitiveCode(obj))(void);

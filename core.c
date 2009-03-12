@@ -218,22 +218,16 @@ obj appendStrings(obj s1, obj s2) {
 }
 
 obj blockLiteral(vector params, vector body) {
-  return slotlessObject(oBlockLiteral, newVector(2, params, body));
+  return slotlessObject(oBlockLiteral, method(params, body));
 }
-obj blockValue(obj env, vector params, vector body) {
-  return slotlessObject(oBlock, newVector(2, env, newClosure(oNull, params, body)));
-}
+obj blockLiteralMethod(obj bl) { return hiddenEntity(bl); }
 
-// TODO: Rename these.
-obj block(vector params, vector body) {
-  return slotlessObject(oMethodDeclaration, newVector(2, params, body));
+obj block(obj env, obj method) {
+  return slotlessObject(oBlock, newVector(2, env, method));
 }
-vector blockParams(obj b) { return idx(hiddenEntity(b), 0); }
-vector blockBody(obj b)   { return idx(hiddenEntity(b), 1); }
-
-// For the new meaning of 'block'.
 obj blockEnv(obj b)    { return idx(hiddenEntity(b), 0); }
 obj blockMethod(obj b) { return idx(hiddenEntity(b), 1); }
+
 int isBlock(obj b) { // FIXME: This is not a perfect test.
   return vectorLength(hiddenEntity(b)) == 2 && isMethod(blockMethod(b));
 }
@@ -301,13 +295,13 @@ void setMethodContinuation(vector c, vector args, obj method) {
   setSubexpressionContinuation(currentThread,
                                origin(c),
                                stackFrame(continuationTarget(c),
-                                          closureParams(method),
+                                          methodParams(method),
                                           args,
                                           c),
                                newDynamicScope(c),
                                oInternals,
                                sMethodBody,
-                               closureBody(method));
+                               methodBody(method));
 }
 
 void normalDispatchMethod() {
@@ -322,7 +316,7 @@ void normalDispatchMethod() {
 
   if (isPrimitive(contents)) computeTailcall(primitiveCode(contents));
   if (isMethod(contents)) {
-    vector params = closureParams(contents), args = evaluated(c);
+    vector params = methodParams(contents), args = evaluated(c);
     if (vectorLength(args) != vectorLength(params)) {
       setExceptionContinuation(currentThread, eBadArity);
       tailcall(doNext);

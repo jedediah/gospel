@@ -42,9 +42,8 @@ obj appendSymbols(vector);
 obj message(obj, obj, vector);
 
 obj blockLiteral(vector, vector);
-obj blockValue(obj, vector, vector);
+obj block(obj, obj);
 
-obj block(vector, vector);
 obj cascade(obj);
 obj quote(obj);
 
