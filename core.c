@@ -437,9 +437,6 @@ obj setCodeTarget(obj c, obj t) { return setIdx(hiddenEntity(c), 0, t); }
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));
 }
-obj cascade(obj code) {
-  return slotlessObject(oCascade, code);
-}
 obj expressionSequence(vector exprs) {
   return message(oInternals, sMethodBody, exprs);
 }
@@ -447,11 +444,6 @@ obj promiseCode(obj message) {
   return slotlessObject(oPromiseCode,
                         newVector(3, codeTarget(message), codeSelector(message), codeArgs(message)));
 }
-
-obj targetCascade(obj code, obj cascade) {
-  return slotlessObject(oCode, newVector(3, cascade, codeSelector(code), codeArgs(code)));
-}
-
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
 

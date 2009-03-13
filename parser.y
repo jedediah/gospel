@@ -101,15 +101,11 @@ declaration:
                                   listToVector($4)))); }
 ;
 statement:
-  returnValue
+  expr
 | carets
   { $$ = message(0, sReturn_atDepth_, newVector(2, oNull, integer((int)$1))); }
-| carets returnValue
+| carets expr
   { $$ = message(0, sReturn_atDepth_, newVector(2, $2, integer((int)$1))); }
-;
-returnValue:
-  cascade
-| expr
 ;
 carets:
   '^'
@@ -136,39 +132,6 @@ keywordsignature:
 expr:
   arrow
 | dependency
-;
-
-// We cannot use call() because it accesses the current continuation, which won't be present if
-// the parser is being used in the main thread.
-cascade:
-  cascadeLeader ';' cascadeFollower
-  { $$ = callWithEnvironment(oDynamicEnvironment,
-                             quote($3),
-                             sTargetting_,
-                             newVector(1, quote(cascade($1)))); }
-;
-cascadeLeader:
-  cascade
-| unaryMessage
-| binaryMessage
-| keywordMessage
-| assignment
-| declaration
-| '(' cascadeBody ')'
-  { $$ = $2; }
-;
-cascadeBody:
-  cascadeLeader
-  /* TODO: Allow as a cascade leader any parenthesized statement list whose last statement is itself a
-           valid cascade leader. Doing this cleanly seems to indicate changing "bodies" from an internal 
-           message to a new type of AST object, which is probably overdue anyway. */
-;
-cascadeFollower:
-  unaryMessage
-| binaryMessage
-| keywordMessage
-| assignment
-| declaration
 ;
 
 parens:

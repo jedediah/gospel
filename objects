@@ -126,11 +126,6 @@ $namespace
                                   waitFor(arg(0)),
                                   waitFor(arg(1))));
   gotoNext;
-!targetting:
-  // Used by the parser while assembling a cascade. We are the target of the message on the right side
-  // of the semicolon and we are to be replaced by the argument passed to us - the target of the message
-  // on the left side.
-  valueReturn(waitFor(arg(0)));
 !evaluate:in:
   setSubexpressionContinuation(currentThread,
                                origin(threadContinuation(currentThread)),
@@ -288,10 +283,6 @@ $serialized string("<canon!>")
 !interpret
   valueReturn(hiddenEntity(target));
 @code object
-!targetting:
-  valueReturn(message(call(quote(codeTarget(target)), sTargetting_, newVector(1, quote(waitFor(arg(0))))),
-                      codeSelector(target),
-                      codeArgs(target)));
 !interpret
   continuation c = threadContinuation(currentThread);
   setContinuation(currentThread,
@@ -309,17 +300,6 @@ $serialized string("<canon!>")
   obj m = target;  
   newThread(p, env(c), dynamicEnv(c), codeTarget(m), codeSelector(m), codeArgs(m));
   valueReturn(p);
-@cascade object
-!interpret
-  // TODO: Find a way to execute a cascade without having to spawn a thread.
-  promise tp = newPromise(), p = newPromise();
-  continuation c = threadContinuation(currentThread);
-  obj m = hiddenEntity(target), t = codeTarget(m);
-  newThread(tp, env(c), dynamicEnv(c), codeTarget(m), sIdentity, emptyVector);
-  obj tv = waitFor(tp);
-  newThread(p, env(c), dynamicEnv(c), quote(tv), codeSelector(m), codeArgs(m));
-  waitFor(p);
-  valueReturn(tv);
 @arrowCode object
 !from:
   promise p = newPromise();

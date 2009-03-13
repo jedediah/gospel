@@ -44,7 +44,6 @@ obj message(obj, obj, vector);
 obj blockLiteral(vector, vector);
 obj block(obj, obj);
 
-obj cascade(obj);
 obj quote(obj);
 
 vector emptyVector;
@@ -54,7 +53,6 @@ vector vectorAppend(vector, vector);
 obj appendStrings(obj, obj);
 
 obj promiseCode(obj);
-obj targetCascade(obj, obj);
 
 obj expressionSequence(vector);
 
