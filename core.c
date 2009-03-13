@@ -227,6 +227,7 @@ obj block(obj env, obj method) {
 }
 obj blockEnv(obj b)    { return idx(hiddenEntity(b), 0); }
 obj blockMethod(obj b) { return idx(hiddenEntity(b), 1); }
+obj setBlockEnv(obj b, obj e) { return setIdx(hiddenEntity(b), 0, e); }
 
 int isBlock(obj b) { // FIXME: This is not a perfect test.
   return vectorLength(hiddenEntity(b)) == 2 && isMethod(blockMethod(b));

@@ -260,6 +260,11 @@ $serialized string("<canon!>")
   valueReturn(block(env(threadContinuation(currentThread)), blockLiteralMethod(target)));
 @block object newVector(2, oNull, oMethod)
 ~blockExpected Block expected.
+!bind:
+  obj t = target;
+  if (!isBlock(t)) raise(currentThread, eBlockExpected);
+  setBlockEnv(t, waitFor(arg(0)));
+  normalReturn;
 !appliedTo:
   obj t = target;
   if (!isBlock(t)) raise(currentThread, eBlockExpected);
