@@ -222,6 +222,10 @@ obj blockLiteral(vector params, vector body) {
 }
 obj blockLiteralMethod(obj bl) { return hiddenEntity(bl); }
 
+int methodArity(obj m) {
+  return vectorLength(methodParams(m)) - 1;
+}
+
 obj block(obj env, obj method) {
   return slotlessObject(oBlock, newVector(2, env, method));
 }

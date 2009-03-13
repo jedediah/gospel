@@ -56,6 +56,20 @@
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null oInternals
+!do:
+  obj b = waitFor(arg(0));
+  if (!isBlock(b)) raise(currentThread, eBlockExpected);
+  obj m = blockMethod(b);
+  if (methodArity(m)) raise(currentThread, eBadArity);
+  vector c = threadContinuation(currentThread);
+  setSubexpressionContinuation(currentThread,
+                               origin(c),
+                               target, // We don't construct a new lexical contour.
+                               newDynamicScope(c),
+                               oInternals,
+                               sMethodBody,
+                               methodBody(m));
+  gotoNext;
 !self
   normalReturn;
 # We stash a pointer to oInternals here to lend it oObjects's immunity to garbage collection.
@@ -270,7 +284,7 @@ $serialized string("<canon!>")
   if (!isBlock(t)) raise(currentThread, eBlockExpected);
   vector args = safeVector(waitFor(arg(0)));
   obj method = blockMethod(target);
-  if (vectorLength(args) != vectorLength(methodParams(method)) - 1) raise(currentThread, eBadArity);
+  if (vectorLength(args) != methodArity(method)) raise(currentThread, eBadArity);
   vector c = threadContinuation(currentThread);
   setSubexpressionContinuation(currentThread,
                                origin(c),
