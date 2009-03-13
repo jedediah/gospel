@@ -296,13 +296,10 @@ obj newDynamicScope(continuation c) {
   return slotlessObject(oldScope, hiddenEntity(oldScope));
 }
 
-void setMethodContinuation(vector c, vector args, obj method) {
+void setMethodContinuation(vector c, obj scope, vector args, obj method) {
   setSubexpressionContinuation(currentThread,
                                origin(c),
-                               stackFrame(continuationTarget(c),
-                                          methodParams(method),
-                                          args,
-                                          c),
+                               stackFrame(scope, methodParams(method), args, c),
                                newDynamicScope(c),
                                oInternals,
                                sMethodBody,
@@ -326,7 +323,7 @@ void normalDispatchMethod() {
       setExceptionContinuation(currentThread, eBadArity);
       tailcall(doNext);
     }
-    setMethodContinuation(c, args, contents);
+    setMethodContinuation(c, continuationTarget(c), args, contents);
     tailcall(doNext);
   }
   staticMessageReturn(contents); // The slot contains a constant value, not code.
@@ -343,7 +340,7 @@ void invokeDispatchMethod() {
   if (isPrimitive(dm)) computeTailcall(primitiveCode(dm));
   if (isMethod(dm)) {
     // Method is checked for correct arity when it's installed.
-    setMethodContinuation(c, evaluated(c), dm);
+    setMethodContinuation(c, continuationTarget(c), evaluated(c), dm);
     tailcall(doNext);
   }
   staticMessageReturn(dm); // The dispatch method is actually just a constant value.

@@ -283,19 +283,9 @@ $serialized string("<canon!>")
   obj t = target;
   if (!isBlock(t)) raise(currentThread, eBlockExpected);
   vector args = safeVector(waitFor(arg(0)));
-  obj method = blockMethod(target);
-  if (vectorLength(args) != methodArity(method)) raise(currentThread, eBadArity);
-  vector c = threadContinuation(currentThread);
-  setSubexpressionContinuation(currentThread,
-                               origin(c),
-                               stackFrame(blockEnv(target),
-                                          methodParams(method),
-                                          prefix(target, args),
-                                          c),
-                               newDynamicScope(c),
-                               oInternals,
-                               sMethodBody,
-                               methodBody(method));
+  obj m = blockMethod(t);
+  if (vectorLength(args) != methodArity(m)) raise(currentThread, eBadArity);
+  setMethodContinuation(threadContinuation(currentThread), blockEnv(t), prefix(t, args), m);
   gotoNext;
 @method object newVector(2, newVector(1, oNull), newVector(1, oMethod))
 @quote object
