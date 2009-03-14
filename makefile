@@ -33,11 +33,11 @@ objects : ;
 objects.c objects.h : objgen objects
 	./objgen objects
 
-y.tab.c y.tab.h : parser.y
-	bison -d -y $^
+y.tab.c y.tab.h : parser.y core.h objects.h
+	bison -d -y parser.y
 
-lex.yy.c : parser.l
-	flex $^
+lex.yy.c : parser.l death.h core.h y.tab.h
+	flex parser.l
 
 threadData.h : threadData.o gc.h ;
 gc.h : gc.o ;
@@ -45,8 +45,8 @@ death.h : death.o ;
 core.h : core.o ;
 #parser.h : lex.yy.o ; # Would just create a circular dependency and be dropped.
 
-lex.yy.o : lex.yy.c death.h core.h y.tab.h
-y.tab.o : y.tab.c core.h objects.h
+lex.yy.o : lex.yy.c
+y.tab.o : y.tab.c
 threadData.o : threadData.c gc.h
 gc.o : gc.c objects.h death.h
 death.o : death.c
