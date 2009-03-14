@@ -301,8 +301,8 @@ void setMethodContinuation(vector c, obj scope, vector args, obj method) {
                                origin(c),
                                stackFrame(scope, methodParams(method), args, c),
                                newDynamicScope(c),
-                               oInternals,
-                               sMethodBody,
+                               oMethodBody,
+                               sSubexpressions_,
                                methodBody(method));
 }
 
@@ -445,7 +445,7 @@ obj setMessageTarget(obj message, obj target) {
   return message;
 }
 obj expressionSequence(vector exprs) {
-  return message(oInternals, sMethodBody, exprs);
+  return message(oMethodBody, sSubexpressions_, exprs);
 }
 obj promiseCode(obj message) {
   return slotlessObject(oPromiseCode,
