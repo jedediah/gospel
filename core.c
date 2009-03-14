@@ -430,6 +430,7 @@ obj intern(obj symbol) {
 }
 
 obj quote(obj o) { return slotlessObject(oQuote, o); }
+obj unquote(obj q) { return hiddenEntity(q); }
 
 obj  codeTarget(obj c)   { return idx(hiddenEntity(c), 0); }
 obj  codeSelector(obj c) { return idx(hiddenEntity(c), 1); }
@@ -438,6 +439,10 @@ obj setCodeTarget(obj c, obj t) { return setIdx(hiddenEntity(c), 0, t); }
 
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));
+}
+obj setMessageTarget(obj message, obj target) {
+  setIdx(hiddenEntity(message), 0, target);
+  return message;
 }
 obj expressionSequence(vector exprs) {
   return message(oInternals, sMethodBody, exprs);

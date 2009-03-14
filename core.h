@@ -40,11 +40,14 @@ obj symbol(const char *c);
 obj appendSymbols(vector);
 
 obj message(obj, obj, vector);
+obj setMessageTarget(obj, obj);
 
 obj blockLiteral(vector, vector);
 obj block(obj, obj);
 
 obj quote(obj);
+
+obj call(obj, obj, vector);
 
 vector emptyVector;
 

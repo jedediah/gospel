@@ -101,11 +101,11 @@ declaration:
                                   listToVector($4)))); }
 ;
 statement:
-  expr
+  cascade
 | carets
-  { $$ = message(0, sReturn_atDepth_, newVector(2, oNull, integer((int)$1))); }
-| carets expr
-  { $$ = message(0, sReturn_atDepth_, newVector(2, $2, integer((int)$1))); }
+  { $$ = message(oDefaultMessageTarget, sReturn_atDepth_, newVector(2, oNull, integer((int)$1))); }
+| carets cascade
+  { $$ = message(oDefaultMessageTarget, sReturn_atDepth_, newVector(2, $2, integer((int)$1))); }
 ;
 carets:
   '^'
@@ -134,6 +134,19 @@ expr:
 | dependency
 ;
 
+cascade:
+  expr
+| cascade ';' message
+  { $$ = call(quote($3), sCascading_, newVector(1, quote($1))); }
+;
+message:
+  unaryMessage
+| binaryMessage
+| keywordMessage
+| declaration
+| assignment
+;
+
 parens:
  '(' body ')'
   { $$ = expressionSequence(listToVector($2)); }
@@ -154,7 +167,6 @@ dependency:
 | assignment
 | declaration
 ;
-
 
 assignment:
   unaryTarget param ADDSLOT gap dependency
@@ -248,9 +260,9 @@ literal:
   { $$ = blockLiteral(listToVector(cons(sCurrentMessageTarget, nreverse($2))), listToVector($4)); }
 ;
 list:
-  expr
+  cascade
   { $$ = list($1); }
-| list gap ',' gap expr
+| list gap ',' gap cascade
   { $$ = cons($5, $1); }
 ;
 params:

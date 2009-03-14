@@ -55,6 +55,9 @@
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
+!cascading:
+  // TODO: This happens when the lefmost message to the right of a cascade is parenthesized. This is another indication that we need to replace the "messageBody" message with a new AST object.
+  raise(currentThread, eSyntaxError);
 @object null oInternals
 !do:
   obj b = waitFor(arg(0));
@@ -104,6 +107,8 @@
   killThreadData(currentThread);
   // Permit a C subroutine return, thus killing the current thread.
 $parser
+# TODO: Put the next entry in an "interpreter" namespace when objgen supports it:
+$defaultMessageTarget
 $true
 $false
 $object
@@ -290,8 +295,13 @@ $serialized string("<canon!>")
 @method object newVector(2, newVector(1, oNull), newVector(1, oMethod))
 @quote object
 !interpret
-  valueReturn(hiddenEntity(target));
+  valueReturn(unquote(target));
 @code object
+!cascading:
+  obj m = target;
+  valueReturn(message(call(quote(codeTarget(m)), sCascading_, newVector(1, quote(arg(0)))),
+                      codeSelector(m),
+                      codeArgs(m)));  
 !interpret
   continuation c = threadContinuation(currentThread);
   setContinuation(currentThread,
