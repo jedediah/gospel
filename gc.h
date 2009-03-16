@@ -129,6 +129,9 @@ int isSymbol(obj);
 int isStackFrame(obj);
 int isVectorObject(obj);
 
+obj vectorObject(vector);
+vector vectorObjectVector(obj);
+
 int vectorType(vector);
 void setVectorType(vector, int);
 

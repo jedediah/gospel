@@ -262,13 +262,6 @@ obj addSlot(obj o, obj s, void *v, continuation c) {
   return slot ? *slot = v : newSlot(o, s, v, currentNamespace(c));
 }
 
-obj vectorObject(vector v) {
-  return slotlessObject(oVector, v);
-}
-obj vectorObjectVector(obj v) {
-  return hiddenEntity(v);
-}
-
 void doNext(void);
 vector newThread(void *cc,
                  obj staticEnv,

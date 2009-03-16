@@ -60,7 +60,6 @@ obj promiseCode(obj);
 obj expressionSequence(vector);
 
 obj string(const char *);
-obj vectorObject(vector);
 
 typedef vector pair;
 #define emptyList 0

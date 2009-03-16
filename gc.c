@@ -49,6 +49,7 @@ int liveSegmentCount = 0;
 #define PRIMITIVE      5
 #define METHOD         6
 #define STACK_FRAME    7
+#define VECTOR         8
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -108,10 +109,11 @@ void setVectorType(vector v, int t) {
 int isPromise(vector v)   { return vectorType(v) == PROMISE;   }
 int isChannel(vector v)   { return vectorType(v) == CHANNEL;   }
 
-int isInteger(obj o)    { return vectorType(o) == FIXNUM;      }
-int isPrimitive(obj o)  { return vectorType(o) == PRIMITIVE;   }
-int isMethod(obj o)     { return vectorType(o) == METHOD;      }
-int isStackFrame(obj o) { return vectorType(o) == STACK_FRAME; }
+int isInteger(obj o)      { return vectorType(o) == FIXNUM;      }
+int isPrimitive(obj o)    { return vectorType(o) == PRIMITIVE;   }
+int isMethod(obj o)       { return vectorType(o) == METHOD;      }
+int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
+int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
 
 // These typechecks are at least sufficient to prevent a segmentation fault, unless there is no null
 // terminator between the beginning of the hidden atom vector and the end of the program's segment.
@@ -121,10 +123,6 @@ int isString(obj o) {
 }
 int isSymbol(obj o) {
   return isString(o);
-}
-int isVectorObject(obj o) {
-  return vectorType(o) == ENTITY_VECTOR
-         && (vectorType(hiddenEntity(o)) == ENTITY_VECTOR || hiddenEntity(o) == emptyVector);
 }
 
 // Used only during a garbage collection cycle.
@@ -621,10 +619,21 @@ vector stackFrameContinuation(obj sf) {
   return hiddenEntity(sf);  
 }
 
+obj vectorObject(vector v) {
+  obj vo = slotlessObject(oVector, v);
+  setVectorType(vo, VECTOR);
+  return vo;
+}
+obj vectorObjectVector(obj v) {
+  return hiddenEntity(v);
+}
+
 // Certain objects have to be given special type tags.
 // TODO: Make it possible to specify this in the builtins file.
 void initializePrototypeTags() {
   setVectorType(oInteger, FIXNUM);
   setVectorType(oPrimitive, PRIMITIVE);
   setVectorType(oMethod, METHOD);
+  setVectorType(oVector, VECTOR);
 }
+
