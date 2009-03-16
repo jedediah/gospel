@@ -35,21 +35,21 @@ int liveSegmentCount = 0;
 
 #define ARENA_CELLS (1024 * 1024)
 
-#define TYPE_BIT_MASK 7
+#define TYPE_BIT_MASK 15
 // "Tag bits" are the type bits plus the GC mark bit.
 #define TAG_BIT_MASK  (TYPE_BIT_MASK * 2 + 1)
-#define TAG_BIT_COUNT 4
+#define TAG_BIT_COUNT 5
 
 
-#define ATOM_VECTOR   0
-#define ENTITY_VECTOR 1
-#define PROMISE       2
-#define CHANNEL       3
-#define FIXNUM        4
-#define PRIMITIVE     5
-#define METHOD        6
-#define STACK_FRAME   7
-#define MARK_BIT      8
+#define ATOM_VECTOR    0
+#define ENTITY_VECTOR  1
+#define PROMISE        2
+#define CHANNEL        3
+#define FIXNUM         4
+#define PRIMITIVE      5
+#define METHOD         6
+#define STACK_FRAME    7
+#define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
 // TODO: Merge "threadData.c" back in here, since we have to expose its implementation anyway.
