@@ -87,6 +87,20 @@ false do: {
 
 exception missingElement = "Missing collection element."
 
+block do: {
+  over: collection { collection mapping: self }
+  over: collection1 and: collection2 {
+    collection1 length == collection2 length else: { "Bad collection lengths." raise }
+    index = 0
+    result = collection1 ofLength: collection1 length
+    { index < result length else: { ^^ result }
+      result at: index put: (self value: collection1 :at: index value: collection2 :at: index) 
+      index := index + 1
+      recurse
+    } value
+  }
+}
+
 vector do: {
   at: index {
     self at: index ifAbsent: { exception missingElement raise }
@@ -97,7 +111,12 @@ vector do: {
   ofLength: n {
     self ofLength: n containing: null
   }
-  asVector { self } 
+  asVector { self }
+  == object {
+    self length == object length else: { ^ false }
+    { x y | x == y else: { ^^ false } } over: self and: object
+    true
+  }
   each: iteration {
     index = 0
     { index < self length else: { ^^ self }

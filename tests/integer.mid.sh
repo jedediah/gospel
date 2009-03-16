@@ -60,8 +60,7 @@
 
   # Equality
   
-    eq '1 == 1'      1         # same to same returning one thing
-    eq '2 == 2'      2         # same to same returning another
+    eq '1 == 1'      '<true>'  # same to same
     eq '1 == 2'      '<false>' # different of same type
     eq '1 == object' '<false>' # different of different type
     eq '1 == null'   '<false>' # with null

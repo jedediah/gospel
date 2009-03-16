@@ -82,6 +82,7 @@
 # It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
 # but future changes to the interpreter may eliminate the need for oInternals.
 !return:atDepth:
+  retarget(isStackFrame);
   obj frame = target;
   for (int i = safeIntegerValue(waitFor(arg(1)));;) {
     if (frame == oObject) raise(currentThread, eBadReturnDepth);
@@ -89,22 +90,22 @@
     frame = proto(frame);
   }
   obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(currentThread, safeStackFrameContinuation(frame));
+  setContinuation(currentThread, stackFrameContinuation(frame));
   valueReturn(v);
 !return
-  if (target == oObject) raise(currentThread, eBadReturnDepth);
+  retarget(isStackFrame);
   setContinuation(currentThread, safeStackFrameContinuation(target));
   valueReturn(oNull);
 !return:
-  if (target == oObject) raise(currentThread, eBadReturnDepth);
+  retarget(isStackFrame);
   obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(currentThread, safeStackFrameContinuation(target));
+  setContinuation(currentThread, stackFrameContinuation(target));
   valueReturn(v);
 !thisContext
   normalReturn;
 !recurse
-  if (target == oObject) raise(currentThread, eTopLevelRecursion);
-  setContinuation(currentThread, safeStackFrameContinuation(target));
+  retarget(isStackFrame);
+  setContinuation(currentThread, stackFrameContinuation(target));
   gotoNext;
 !end
   killThreadData(currentThread);
@@ -183,10 +184,9 @@ $namespace
                                emptyVector);
   gotoNext;
 !localSelectors
-  obj o = target;
-  int n = slotCount(o);
+  int n = slotCount(target);
   vector v = makeVector(n);
-  while (n--) setIdx(v, n, slotName(o, n));
+  while (n--) setIdx(v, n, slotName(target, n));
   valueReturn(vectorObject(v));
 !proto
   valueReturn(proto(target));
@@ -208,11 +208,9 @@ $namespace
 @namespaceCanon namespace
 $serialized string("<canon!>")
 @vector object emptyVector
-!== equals
-  obj v1 = target, v2 = waitFor(arg(0));
-  valueReturn(vectorLength(safeVector(v1)) || vectorLength(safeVector(v2)) ? v1 == v2 ? v1 : oFalse : v1);
 !++ appending
-  valueReturn(vectorObject(vectorAppend(safeVector(target), safeVector(waitFor(arg(0))))));
+  retarget(isVectorObject);
+  valueReturn(vectorObject(vectorAppend(vectorObjectVector(target), safeVector(waitFor(arg(0))))));
 !ofLength:containing:
   int l = safeIntegerValue(waitFor(arg(0)));
   if (l < 0) raise(currentThread, eNegativeVectorLength);
@@ -221,10 +219,12 @@ $serialized string("<canon!>")
   while (l--) setIdx(v, l, o);
   valueReturn(vectorObject(v));
 !length
-  valueReturn(integer(vectorLength(safeVector(target))));
+  retarget(isVectorObject);
+  valueReturn(integer(vectorLength(vectorObjectVector(target))));
 !at:put:ifAbsent:
+  retarget(isVectorObject);
   int i = safeIntegerValue(waitFor(arg(0)));
-  obj v = hiddenEntity(target);
+  vector v = vectorObjectVector(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
     continuation c = origin(threadContinuation(currentThread));
@@ -239,8 +239,9 @@ $serialized string("<canon!>")
   }
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
+  retarget(isVectorObject);
   int i = safeIntegerValue(waitFor(arg(0)));
-  obj v = hiddenEntity(target);
+  vector v = vectorObjectVector(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
     continuation c = origin(threadContinuation(currentThread));
@@ -257,61 +258,70 @@ $serialized string("<canon!>")
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
 @string object newAtomVector(1, 0)
 !parse
-  valueReturn(parseString(safeStringValue(target)));
+  retarget(isString);
+  valueReturn(parseString(stringData(target)));
 !serialized
+  retarget(isString);
   // FIXME: This should probably convert e.g. newlines to "\n".
   obj quote = string("\""); // TODO: Create this string once, at startup.
   valueReturn(appendStrings(quote, appendStrings(target, quote)));
 !++ appending:
+  retarget(isString);
   obj a = waitFor(arg(0));
-  if (!isString(target) || !isString(a)) raise(currentThread, eStringExpected);
-  valueReturn(appendStrings(target, waitFor(arg(0))));
+  if (!isString(a)) raise(currentThread, eStringExpected);
+  valueReturn(appendStrings(target, a));
 !print
-  if (!isString(target)) raise(currentThread, eStringExpected);
+  retarget(isString);
   fputs(stringData(target), stdout);
   fflush(stdout);
   normalReturn;
 @symbol object newAtomVector(1, 0)
 !serialized
+  retarget(isSymbol);
   // TODO: Create the dollarsign string once, at startup.
   valueReturn(appendStrings(string("$"), target));
-@blockLiteral object
+@blockLiteral object method(newVector(1, oSymbol), newVector(1, oBlockLiteral))
 # This could inherit from oMethod, but we're avoiding that because we might want to make oMethod and
 # oPrimitive more magical than they are now.
 !interpret
-  valueReturn(block(env(threadContinuation(currentThread)), blockLiteralMethod(target)));
+  retarget(isBlockLiteral);
+  valueReturn(block(env(threadContinuation(currentThread)), hiddenEntity(target)));
 @block object newVector(2, oNull, oMethod)
 ~blockExpected Block expected.
 !bind:
-  obj t = target;
-  if (!isBlock(t)) raise(currentThread, eBlockExpected);
-  setBlockEnv(t, waitFor(arg(0)));
+  retarget(isBlock);
+  setBlockEnv(target, waitFor(arg(0)));
   normalReturn;
 !appliedTo:
-  obj t = target;
-  if (!isBlock(t)) raise(currentThread, eBlockExpected);
+  retarget(isBlock);
   vector args = safeVector(waitFor(arg(0)));
-  obj m = blockMethod(t);
+  obj m = blockMethod(target);
   if (vectorLength(args) != methodArity(m)) raise(currentThread, eBadArity);
-  setMethodContinuation(threadContinuation(currentThread), blockEnv(t), prefix(t, args), m);
+  setMethodContinuation(threadContinuation(currentThread), blockEnv(target), prefix(target, args), m);
   gotoNext;
-@method object newVector(2, newVector(1, oNull), newVector(1, oMethod))
+!arity
+  retarget(isBlock);
+  valueReturn(integer(methodArity(blockMethod(target))));
+@method object newVector(2, newVector(1, oSymbol), newVector(1, oNull))
 @quote object
 !interpret
+  retarget(isQuote);
   valueReturn(unquote(target));
 @code object
 !cascading:
-  obj m = target, messageTarget = codeTarget(m), cascadeTarget = quote(arg(0));
+  retarget(isCode);
+  obj messageTarget = codeTarget(target), cascadeTarget = quote(arg(0));
   if (messageTarget == oMethodBody) {
     // We have been called on the methodBody#subexpressions: message generated by the parser to represent a parenthesized list of statements. We will cascade the first of those statements.
-    vector statements = duplicateVector(codeArgs(m));
+    vector statements = duplicateVector(codeArgs(target));
     setIdx(statements, 0, call(quote(idx(statements, 0)), sCascading_, newVector(1, cascadeTarget)));
     valueReturn(message(oMethodBody, sSubexpressions_, statements));
   }
   valueReturn(message(call(quote(messageTarget), sCascading_, newVector(1, cascadeTarget)),
-                      codeSelector(m),
-                      codeArgs(m)));  
+                      codeSelector(target),
+                      codeArgs(target)));  
 !interpret
+  retarget(isCode);
   continuation c = threadContinuation(currentThread);
   setContinuation(currentThread,
                   newContinuation(origin(c),
@@ -323,13 +333,14 @@ $serialized string("<canon!>")
   gotoNext;
 @promiseCode code
 !interpret
+  retarget(isCode);
   promise p = newPromise();
   continuation c = threadContinuation(currentThread);
-  obj m = target;  
-  newThread(p, env(c), dynamicEnv(c), codeTarget(m), codeSelector(m), codeArgs(m));
+  newThread(p, env(c), dynamicEnv(c), codeTarget(target), codeSelector(target), codeArgs(target));
   valueReturn(p);
 @arrowCode object
 !from:
+  // FIXME: Type safety?
   promise p = newPromise();
   continuation c = threadContinuation(currentThread);
   newThread(p,
@@ -352,24 +363,32 @@ $serialized string("<canon!>")
   valueReturn(parserOutput);
 @integer object newAtomVector(1, 0)
 ?serialized
+  retarget(isInteger);
   char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
   sprintf(buffer, "%d", safeIntegerValue(target));
   valueReturn(string(buffer));
 !== equals
-  if (safeIntegerValue(target) == safeIntegerValue(waitFor(arg(0)))) normalReturn;
+  retarget(isInteger);
+  obj a = waitFor(arg(0));
+  if (isInteger(a) && integerValue(target) == integerValue(a)) valueReturn(oTrue);
   valueReturn(oFalse);
 !< isLessThan
-  if (safeIntegerValue(target) < safeIntegerValue(waitFor(arg(0)))) normalReturn;
+  retarget(isInteger);
+  if (integerValue(target) < safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
 !> isGreaterThan
-  if (safeIntegerValue(target) > safeIntegerValue(waitFor(arg(0)))) normalReturn;
+  retarget(isInteger);
+  if (integerValue(target) > safeIntegerValue(waitFor(arg(0)))) normalReturn;
   valueReturn(oFalse);
 !- minus:
-  valueReturn(integer(safeIntegerValue(target) - safeIntegerValue(waitFor(arg(0)))));
+  retarget(isInteger);
+  valueReturn(integer(integerValue(target) - safeIntegerValue(waitFor(arg(0)))));
 !+ plus:
-  valueReturn(integer(safeIntegerValue(target) + safeIntegerValue(waitFor(arg(0)))));
+  retarget(isInteger);
+  valueReturn(integer(integerValue(target) + safeIntegerValue(waitFor(arg(0)))));
 !secondsDelay
-  int i = safeIntegerValue(target);
+  retarget(isInteger);
+  int i = integerValue(target);
   while (i) i = sleep(i);
   valueReturn(target);
 @POSIX null
@@ -425,7 +444,7 @@ $stdin integer(0)
 @exception object
 ~badTarget Message target has incorrect primitive type.
 ~inclusion Error while attempting to open a file for inclusion.
-~badArity Wrong number of arguments.
+~badArity Wrong number of arguments. 
 ~stringExpected String expected.
 ~stackFrameExpected Stack frame expected.
 ~primitiveExpected Primitive expected.
@@ -441,11 +460,11 @@ $stdin integer(0)
 ~missingArgument Too few arguments to primitive function.
 @dynamicEnvironment object newVector(1, oNamespaceCanon)
 !setNamespaces:
-  obj v = waitFor(arg(0));
-  if (!isVectorObject(v)) raise(currentThread, eVectorExpected);
-  setHiddenData(target, vectorObjectVector(v));
+  retarget(isEnvironment);
+  setHiddenData(target, safeVector(waitFor(arg(0))));
   normalReturn;
 !namespaces
+  retarget(isEnvironment);
+  // FIXME: Typesafety?
   valueReturn(vectorObject(hiddenEntity(target)));
-
 

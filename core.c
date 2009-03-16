@@ -200,7 +200,7 @@ obj appendStrings(obj s1, obj s2) {
 obj blockLiteral(vector params, vector body) {
   return slotlessObject(oBlockLiteral, method(params, body));
 }
-obj blockLiteralMethod(obj bl) { return hiddenEntity(bl); }
+int isBlockLiteral(obj bl) { return isMethod(hiddenEntity(bl)); }
 
 int methodArity(obj m) {
   return vectorLength(methodParams(m)) - 1;
@@ -266,7 +266,7 @@ void invokeDispatchMethod(void);
 
 obj newDynamicScope(continuation c) {
   obj oldScope = dynamicEnv(c);
-  return slotlessObject(oldScope, hiddenEntity(oldScope));
+  return typedObject(oldScope, hiddenEntity(oldScope));
 }
 
 void setMethodContinuation(vector c, obj scope, vector args, obj method) {
@@ -404,11 +404,13 @@ obj intern(obj symbol) {
 
 obj quote(obj o) { return slotlessObject(oQuote, o); }
 obj unquote(obj q) { return hiddenEntity(q); }
+int isQuote(obj o) { return -1; } // FIXME: How do we test for this without adding a primitive type?
 
 obj  codeTarget(obj c)   { return idx(hiddenEntity(c), 0); }
 obj  codeSelector(obj c) { return idx(hiddenEntity(c), 1); }
 pair codeArgs(obj c)     { return idx(hiddenEntity(c), 2); }
 obj setCodeTarget(obj c, obj t) { return setIdx(hiddenEntity(c), 0, t); }
+int isCode(obj c) { return vectorLength(hiddenEntity(c)) == 3; } // FIXME: Find a better test.
 
 obj message(obj target, obj selector, vector args) {
   return slotlessObject(oCode, newVector(3, target, selector, args));

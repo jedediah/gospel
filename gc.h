@@ -128,6 +128,7 @@ int isString(obj);
 int isSymbol(obj);
 int isStackFrame(obj);
 int isVectorObject(obj);
+int isEnvironment(obj);
 
 obj vectorObject(vector);
 vector vectorObjectVector(obj);
@@ -158,6 +159,7 @@ obj proto(obj);
 obj setProto(obj, obj);
 obj newObject(obj, vector, vector, void *);
 obj slotlessObject(obj, vector);
+obj typedObject(obj, vector);
 obj fixnumObject(obj, int);
 
 obj method(vector, vector);

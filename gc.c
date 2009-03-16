@@ -50,6 +50,7 @@ int liveSegmentCount = 0;
 #define METHOD         6
 #define STACK_FRAME    7
 #define VECTOR         8
+#define ENVIRONMENT    9
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -114,6 +115,7 @@ int isPrimitive(obj o)    { return vectorType(o) == PRIMITIVE;   }
 int isMethod(obj o)       { return vectorType(o) == METHOD;      }
 int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
 int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
+int isEnvironment(obj o)  { return vectorType(o) == ENVIRONMENT; }
 
 // As long as we admit as "strings" only NUL-terminated atom vectors, we won't segfault.
 int isString(obj o) {
@@ -604,6 +606,11 @@ obj newSlot(obj o, obj s, void *v, obj namespace) {
 obj slotlessObject(obj proto, vector hidden) {
   return newObject(proto, emptyVector, emptyVector, hidden);
 }
+obj typedObject(obj proto, vector hidden) {
+  obj o = slotlessObject(proto, hidden);
+  setVectorType(o, vectorType(proto)); // Inherit the primitive type of our proto.
+  return o;
+}
 
 obj fixnumObject(obj proto, int hidden) {
   obj o = slotlessObject(proto, newAtomVector(1, hidden));
@@ -660,5 +667,6 @@ void initializePrototypeTags() {
   setVectorType(oPrimitive, PRIMITIVE);
   setVectorType(oMethod, METHOD);
   setVectorType(oVector, VECTOR);
+  setVectorType(oDynamicEnvironment, ENVIRONMENT);
 }
 
