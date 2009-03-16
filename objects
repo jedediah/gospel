@@ -207,7 +207,7 @@ $namespace
 @namespace object
 @namespaceCanon namespace
 $serialized string("<canon!>")
-@vector object
+@vector object emptyVector
 !== equals
   obj v1 = target, v2 = waitFor(arg(0));
   valueReturn(vectorLength(safeVector(v1)) || vectorLength(safeVector(v2)) ? v1 == v2 ? v1 : oFalse : v1);
