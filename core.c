@@ -189,26 +189,6 @@ vector setExceptionContinuation(vector thread, obj exception) {
   gotoNext; \
 } while (0)
 
-obj string(const char *s) {
-  int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
-  vector v = makeAtomVector(length);
-  strcpy((char *)vectorData(v), s);
-  return slotlessObject(oString, v);
-}
-char *stringData(obj s) {
-  return (char *)(hiddenEntity(s)->data);
-}
-int stringLength(obj s) {
-  vector data = hiddenEntity(s);
-  int i = vectorLength(data);
-  if (!i) return 0;
-  char *last = (char *)idxPointer(data, i - 1);
-  return i * 4 - ( !last[0] ? 4
-                 : !last[1] ? 3
-                 : !last[2] ? 2
-                            : 1);
-}
-
 obj appendStrings(obj s1, obj s2) {
   int length1 = stringLength(s1);
   vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(length1 + stringLength(s2) + 1));

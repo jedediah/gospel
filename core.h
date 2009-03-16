@@ -59,8 +59,6 @@ obj promiseCode(obj);
 
 obj expressionSequence(vector);
 
-obj string(const char *);
-
 typedef vector pair;
 #define emptyList 0
 pair cons(void *, void *);

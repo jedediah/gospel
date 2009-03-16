@@ -132,6 +132,10 @@ int isVectorObject(obj);
 obj vectorObject(vector);
 vector vectorObjectVector(obj);
 
+obj string(const char *);
+char *stringData(obj);
+int stringLength(obj);
+
 int vectorType(vector);
 void setVectorType(vector, int);
 

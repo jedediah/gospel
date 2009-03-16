@@ -208,6 +208,11 @@ test(callWithEnvironment,
                                                 newVector(1, integer(2)))),
                42);
 )
+test(isString,
+  assert_false(isString(integer(42)));
+  assert_false(isString(slotlessObject(oString, newAtomVector(1, 0xdeadbeef))));
+  assert_true(isString(string("foo")));
+)
 
   return run_test_suite(suite, create_text_reporter());
 }

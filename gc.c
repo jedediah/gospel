@@ -115,14 +115,39 @@ int isMethod(obj o)       { return vectorType(o) == METHOD;      }
 int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
 int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
 
-// These typechecks are at least sufficient to prevent a segmentation fault, unless there is no null
-// terminator between the beginning of the hidden atom vector and the end of the program's segment.
-// TODO: Consider giving strings their own type label, in future tagging schemes that have the room?
+// As long as we admit as "strings" only NUL-terminated atom vectors, we won't segfault.
 int isString(obj o) {
-  return vectorType(o) == ENTITY_VECTOR && vectorType(hiddenEntity(o)) == ATOM_VECTOR;
+  if (vectorType(o) == ENTITY_VECTOR) {
+    vector v = hiddenEntity(o);
+    if (vectorType(v) != ATOM_VECTOR) return 0;
+    int last = (int)idx(v, vectorLength(v) - 1);
+    // FIXME: Assumes 32-bit integers.
+    return !(last & 0xff000000 && last & 0x00ff0000 && last & 0x0000ff00 && last & 0x000000ff);
+  }
+  return 0;
 }
 int isSymbol(obj o) {
   return isString(o);
+}
+
+obj string(const char *s) {
+  int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
+  vector v = makeAtomVector(length);
+  strcpy((char *)vectorData(v), s);
+  return slotlessObject(oString, v);
+}
+char *stringData(obj s) {
+  return (char *)(hiddenEntity(s)->data);
+}
+int stringLength(obj s) {
+  vector data = hiddenEntity(s);
+  int i = vectorLength(data);
+  if (!i) return 0;
+  char *last = (char *)idxPointer(data, i - 1);
+  return i * 4 - ( !last[0] ? 4
+                 : !last[1] ? 3
+                 : !last[2] ? 2
+                            : 1);
 }
 
 // Used only during a garbage collection cycle.
