@@ -498,7 +498,6 @@ void *loadStream(FILE *, obj, obj);
 #define valueReturn(vr_v) messageReturn(vr_v)
 #define normalReturn valueReturn(continuationTarget(threadContinuation(currentThread)))
 #define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(currentThread, eMissingArgument); (void *)0; }))
-#define target continuationTarget(threadContinuation(currentThread))
 #define resend(r_args) do { \
   continuation r_c = threadContinuation(currentThread); \
   obj r_a = (r_args); \
@@ -516,7 +515,6 @@ void *loadStream(FILE *, obj, obj);
 #include "objects.c"
 
 #undef resend
-#undef target
 #undef arg
 #undef normalReturn
 #undef valueReturn
