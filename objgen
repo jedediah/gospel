@@ -65,11 +65,13 @@ print HEADER "#ifndef OBJECTS_H\n#define OBJECTS_H\n\nobj ",
            (map { join "\n  , ", map { "e" . cname $_ } keys %$_ } values %exceptions)),
       ";\n\n#endif\n";
 
+sub emitMethod {
+  print SOURCE "void $_[0]() {\n  $_[1]\n}\n";
+}
+
 foreach $object (keys %objects) {
   print SOURCE "\n";
-  print SOURCE "void m", cname($object), cname($_), "() {\n",
-                  $objects{$object}[0]{$_},
-               "}\n"
+  emitMethod "m" . cname($object) . cname($_), $objects{$object}[0]{$_}
    foreach (keys %{$objects{$object}[0]});
   foreach (keys %{$objects{$object}[1]}) {
     my $id = cname($object) . cname($_);
@@ -84,10 +86,8 @@ foreach $object (keys %objects) {
 print SOURCE "\n#undef gotoNext\n",
                "#define gotoNext return\n";
 foreach $object (keys %objects) {
-  print SOURCE "void b", cname($object), cname($_), "() {\n",
-                  $objects{$object}[1]{$_},
-               "}\n"
-   foreach (keys %{$objects{$object}[1]});
+  emitMethod "b" . cname($object) . cname($_), $objects{$object}[1]{$_}
+    foreach (keys %{$objects{$object}[1]});
 }
 print SOURCE "#undef gotoNext\n";
 
