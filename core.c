@@ -460,6 +460,9 @@ void *safeIdx(vector thread, vector v, int i) {
 void *arg(vector thread, int i) {
   return safeIdx(thread, evaluated(threadContinuation(thread)), i + 1);
 }
+int arity() {
+  return vectorLength(evaluated(threadContinuation(currentThread))) - 1;
+}
 
 obj *filenameToInclude;
 promise *promiseOfInclusion;
