@@ -474,7 +474,8 @@ void prototypePrimitiveHiddenValue() {
 
 void *loadStream(FILE *, obj, obj);
 
-
+#define retarget(r_predicate) \
+  while (!r_predicate(target)) if ((target = proto(target)) == oDeadEnd) raise(currentThread, eBadTarget)
 #define safeIntegerValue(siv_i) ({ \
   obj s_i = (siv_i); \
   isInteger(s_i) ? integerValue(s_i) : ({ raise(currentThread, eIntegerExpected); 0; }); \
@@ -522,6 +523,7 @@ void *loadStream(FILE *, obj, obj);
 #undef safeStringValue
 #undef safeStackFrameContinuation
 #undef safeIntegerValue
+#undef retarget
 
 obj appendSymbols(pair symbols) {
   obj s = string("");

@@ -423,6 +423,7 @@ $stdin integer(0)
 @true object
 @false object
 @exception object
+~badTarget Message target has incorrect primitive type.
 ~inclusion Error while attempting to open a file for inclusion.
 ~badArity Wrong number of arguments.
 ~stringExpected String expected.
