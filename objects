@@ -221,7 +221,7 @@ $serialized string("<canon!>")
   while (l--) setIdx(v, l, o);
   valueReturn(vectorObject(v));
 !length
-  valueReturn(integer(vectorLength(hiddenEntity(target))));
+  valueReturn(integer(vectorLength(safeVector(target))));
 !at:put:ifAbsent:
   int i = safeIntegerValue(waitFor(arg(0)));
   obj v = hiddenEntity(target);
