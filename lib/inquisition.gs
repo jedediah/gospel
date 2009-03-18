@@ -30,12 +30,12 @@ object declareTestSuite {
   self run {
     failures = exceptions = 0
     tests each: { selector |
-      self setup
+      setup
       { self send: selector } except: { e |
         e == exception failedAssertion if: { ^ failures := failures + 1 }
         exceptions := exceptions + 1
       }
-      self teardown
+      teardown
     }
     inflect: string with: suffix for: number {
       number serialized ++ (number == 1 if: string else: { string ++ suffix })
