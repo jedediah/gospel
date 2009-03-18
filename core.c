@@ -449,28 +449,16 @@ void prototypePrimitiveHiddenValue() {
 
 void *loadStream(FILE *, obj, obj);
 
-#define retarget(r_predicate) \
-  while (!r_predicate(target)) if ((target = proto(target)) == oDeadEnd) raise(currentThread, eBadTarget)
-#define safeIntegerValue(siv_i) ({ \
-  obj s_i = (siv_i); \
-  isInteger(s_i) ? integerValue(s_i) : ({ raise(currentThread, eIntegerExpected); 0; }); \
-})
-#define safeStackFrameContinuation(ssfc_f) ({ \
-  obj s_f = (ssfc_f); \
-  isStackFrame(s_f) ? stackFrameContinuation(s_f) : ({ raise(currentThread, eStackFrameExpected); \
-                                                       (vector)0; \
-                                                     }); \
-})
-#define safeStringValue(ssv_s) ({ \
-  obj s_s = (ssv_s); \
-  isString(s_s) ? stringData(s_s) : ({ raise(currentThread, eStringExpected); (char *)0; }); \
-})
-#define safeVector(sv_v) ({ \
-  obj s_v = (sv_v); \
-  isVectorObject(s_v) ? vectorObjectVector(s_v) : ({ raise(currentThread, eVectorExpected); \
-                                                     (vector)0; \
-                                                   }); \
-})  
+#define check(c_value, c_predicate) \
+  ({ obj c_newValue = waitFor(c_value); \
+     while (!(c_predicate)(c_newValue)) \
+       if ((c_newValue = proto(c_newValue)) == oDeadEnd) \
+         raise(currentThread, eBadType); \
+     c_newValue; })
+#define retarget(r_predicate) target = check(target, (r_predicate))
+#define safeIntegerValue(siv_i) (integerValue(check((siv_i), isInteger)))
+#define safeStringValue(ssv_s) (stringData(check((ssv_s), isString)))
+#define safeVector(sv_v) (vectorObjectVector(check((sv_v), isVectorObject)))
 #define valueReturn(vr_v) messageReturn(vr_v)
 #define normalReturn valueReturn(continuationTarget(threadContinuation(currentThread)))
 #define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(currentThread, eMissingArgument); (void *)0; }))
@@ -496,9 +484,9 @@ void *loadStream(FILE *, obj, obj);
 #undef valueReturn
 #undef safeVector
 #undef safeStringValue
-#undef safeStackFrameContinuation
 #undef safeIntegerValue
 #undef retarget
+#undef check
 
 obj appendSymbols(pair symbols) {
   obj s = string("");

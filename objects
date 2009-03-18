@@ -63,9 +63,7 @@
   valueReturn(l == 1 ? oNull : arg(l - 2));
 @object null oInternals
 !do:
-  obj b = waitFor(arg(0));
-  if (!isBlock(b)) raise(currentThread, eBlockExpected);
-  obj m = blockMethod(b);
+  obj m = blockMethod(check(arg(0), isBlock));
   if (methodArity(m)) raise(currentThread, eBadArity);
   vector c = threadContinuation(currentThread);
   setSubexpressionContinuation(currentThread,
@@ -84,7 +82,7 @@
 !return:atDepth:
   retarget(isStackFrame);
   obj frame = target;
-  for (int i = safeIntegerValue(waitFor(arg(1)));;) {
+  for (int i = safeIntegerValue(arg(1));;) {
     if (frame == oObject) raise(currentThread, eBadReturnDepth);
     if (!i--) break;
     frame = proto(frame);
@@ -94,7 +92,7 @@
   valueReturn(v);
 !return
   retarget(isStackFrame);
-  setContinuation(currentThread, safeStackFrameContinuation(target));
+  setContinuation(currentThread, stackFrameContinuation(target));
   valueReturn(oNull);
 !return:
   retarget(isStackFrame);
@@ -154,14 +152,12 @@ $namespace
                                origin(threadContinuation(currentThread)),
                                target,
                                waitFor(arg(1)),
-                               parseString(safeStringValue(waitFor(arg(0)))),
+                               parseString(safeStringValue(arg(0))),
                                sIdentity,
                                emptyVector);
   gotoNext;
 !include:in:
-  obj filename = waitFor(arg(0));
-  if (!isString(filename)) raise(currentThread, eStringExpected);
-  FILE *f = fopen(stringData(filename), "r");
+  FILE *f = fopen(safeStringValue(arg(0)), "r");
   if (!f) raise(currentThread, eInclusion);
   void *lastValue = loadStream(f, target, waitFor(arg(1)));
   if (lastValue == eSyntaxError) raise(currentThread, eSyntaxError);
@@ -210,9 +206,9 @@ $serialized string("<canon!>")
 @vector object emptyVector
 !++ appending
   retarget(isVectorObject);
-  valueReturn(vectorObject(vectorAppend(vectorObjectVector(target), safeVector(waitFor(arg(0))))));
+  valueReturn(vectorObject(vectorAppend(vectorObjectVector(target), safeVector(arg(0)))));
 !ofLength:containing:
-  int l = safeIntegerValue(waitFor(arg(0)));
+  int l = safeIntegerValue(arg(0));
   if (l < 0) raise(currentThread, eNegativeVectorLength);
   obj o = arg(1);
   vector v = makeVector(l);
@@ -223,7 +219,7 @@ $serialized string("<canon!>")
   valueReturn(integer(vectorLength(vectorObjectVector(target))));
 !at:put:ifAbsent:
   retarget(isVectorObject);
-  int i = safeIntegerValue(waitFor(arg(0)));
+  int i = safeIntegerValue(arg(0));
   vector v = vectorObjectVector(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
@@ -240,7 +236,7 @@ $serialized string("<canon!>")
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
   retarget(isVectorObject);
-  int i = safeIntegerValue(waitFor(arg(0)));
+  int i = safeIntegerValue(arg(0));
   vector v = vectorObjectVector(target);
   if (i < 0) i = vectorLength(v) + i;
   if (i < 0 || i >= vectorLength(v)) {
@@ -267,9 +263,7 @@ $serialized string("<canon!>")
   valueReturn(appendStrings(quote, appendStrings(target, quote)));
 !++ appending:
   retarget(isString);
-  obj a = waitFor(arg(0));
-  if (!isString(a)) raise(currentThread, eStringExpected);
-  valueReturn(appendStrings(target, a));
+  valueReturn(appendStrings(target, check(arg(0), isString)));
 !print
   retarget(isString);
   fputs(stringData(target), stdout);
@@ -365,7 +359,7 @@ $serialized string("<canon!>")
 ?serialized
   retarget(isInteger);
   char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
-  sprintf(buffer, "%d", safeIntegerValue(target));
+  sprintf(buffer, "%d", integerValue(target));
   valueReturn(string(buffer));
 !== equals
   retarget(isInteger);
@@ -442,7 +436,7 @@ $stdin integer(0)
 @true object
 @false object
 @exception object
-~badTarget Message target has incorrect primitive type.
+~badType Message target or argument has incorrect primitive type.
 ~inclusion Error while attempting to open a file for inclusion.
 ~badArity Wrong number of arguments. 
 ~stringExpected String expected.
