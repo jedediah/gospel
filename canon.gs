@@ -175,3 +175,34 @@ object do: {
   printLine { self print. "\n" print }
 }
 
+file do: {
+  path = ""
+  POSIXFileMode = ""
+  named: newPath { new do: { path = newPath. identity } }
+  copy {
+    newFile = file new; path = self path
+    newFile
+  }
+  forReading {
+    copy do: {
+      POSIXFileMode = "r"
+      forAppending { self POSIXFileMode = "a+" }
+      identity
+    }
+  }
+  forWriting {
+    copy do: {
+      POSIXFileMode = "w+"
+      identity
+    }
+  }
+  forAppending {
+    copy do: {
+      POSIXFileMode = "a"
+      forAppending { self POSIXFileMode = "a+" }
+      identity
+    }
+  }
+  # $open is defined in the core.
+}
+

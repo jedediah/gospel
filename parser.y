@@ -134,10 +134,11 @@ expr:
 | dependency
 ;
 
+// We cannot use call() because it accesses the current continuation, which won't be present when the parser is being run in the main thread.
 cascade:
   expr
 | cascade ';' message
-  { $$ = call(quote($3), sCascading_, newVector(1, quote($1))); }
+  { $$ = callWithEnvironment(oDynamicEnvironment, quote($3), sCascading_, newVector(1, quote($1))); }
 ;
 message:
   unaryMessage

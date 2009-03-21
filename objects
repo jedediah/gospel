@@ -14,9 +14,11 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
-&do
 &self
 &currentMessageTarget
+
+&path
+&POSIXFileMode
 
 # If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
 # a pointer to its own automatic memory, then declare it ?foo rather than !foo.
@@ -45,7 +47,6 @@
   valueReturn(env(threadContinuation(currentThread)));
 @methodBody null
 !cascading:
-  die("$cascading: received by oMethodBody."); 
 !subexpressions:
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
@@ -71,7 +72,7 @@
                                target, // We don't construct a new lexical contour.
                                newDynamicScope(c),
                                oMethodBody,
-                               sSubexpressions_,
+                               sSubexpressions_, // TODO: A different method, returning the target of $do.
                                methodBody(m));
   gotoNext;
 !self
@@ -125,7 +126,7 @@ $string
 $symbol
 $exception
 $vector
-$POSIX
+$file
 $canon oNamespaceCanon
 $namespace
 !dynamicContext
@@ -253,6 +254,8 @@ $serialized string("<canon!>")
   valueReturn(idx(v, i));
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
 @string object newAtomVector(1, 0)
+!length
+  valueReturn(integer(stringLength(check(target, isString))));
 !parse
   retarget(isString);
   valueReturn(parseString(stringData(target)));
@@ -385,6 +388,34 @@ $serialized string("<canon!>")
   int i = integerValue(target);
   while (i) i = sleep(i);
   valueReturn(target);
+@file object
+# Assumes the presence of some methods defined in Canon.
+~errorWhileOpening Error while attempting to open a file.
+~errorWhileClosing Error while attempting to close a file.
+!open
+  FILE *fd = fopen(safeStringValue(call(target, sPath, emptyVector)),
+                   safeStringValue(call(target, sPOSIXFileMode, emptyVector)));
+  if (!fd) raise(currentThread, eErrorWhileOpening);
+  valueReturn(typedObject(oFileStream, newAtomVector(1, fd)));
+@fileStream object newAtomVector(1, 0)
+~errorWhileReading Error while reading from a file stream.
+# Has a primitive type of "fixnum", set in initializePrototypeTags().
+!read:
+  int expectedCount = safeIntegerValue(arg(0)), actualCount;
+  vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(expectedCount + 1));
+  char *b = vectorData(s);
+  b[actualCount = fread(b, sizeof(char), expectedCount, (FILE *)safeIntegerValue(target))] = 0;
+  // If we got the number of characters we expected, we can use the vector we've already allocated for the hidden data of the string object. Otherwise we use string() to reallocate.
+  valueReturn(actualCount < expectedCount ? string(b) : typedObject(oString, s));
+!write:
+  obj s = check(arg(0), isString);
+  valueReturn(integer(fwrite(stringData(s),
+                             sizeof(char),
+                             stringLength(s),
+                             (FILE *)safeIntegerValue(target))));
+!close
+  if (fclose((FILE *)safeIntegerValue(target))) raise(currentThread, eErrorWhileClosing);
+  normalReturn;
 @POSIX null
 ~POSIX Error during a POSIX system call.
 $stdin integer(0)

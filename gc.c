@@ -668,5 +668,6 @@ void initializePrototypeTags() {
   setVectorType(oMethod, METHOD);
   setVectorType(oVector, VECTOR);
   setVectorType(oDynamicEnvironment, ENVIRONMENT);
+  setVectorType(oFileStream, FIXNUM);
 }
 
