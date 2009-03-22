@@ -449,11 +449,24 @@ void prototypePrimitiveHiddenValue() {
 
 void *loadStream(FILE *, obj, obj);
 
+#define invokeBlock(b) do { \
+  continuation c = origin(threadContinuation(currentThread)); \
+  setSubexpressionContinuation(currentThread, \
+                               c, \
+                               env(c), \
+                               dynamicEnv(c), \
+                               (b), \
+                               sAppliedTo_, \
+                               newVector(1, vectorObject(emptyVector))); \
+  gotoNext; \
+} while(0)
 #define check(c_value, c_predicate) \
   ({ obj c_newValue = waitFor(c_value); \
-     while (!(c_predicate)(c_newValue)) \
-       if ((c_newValue = proto(c_newValue)) == oDeadEnd) \
-         raise(currentThread, eBadType); \
+     for (;;) { \
+       if (c_newValue == oNull) raise(currentThread, eBadType); \
+       if ((c_predicate)(c_newValue)) break; \
+       c_newValue = proto(c_newValue); \
+     } \
      c_newValue; })
 #define retarget(r_predicate) target = check(target, (r_predicate))
 #define safeIntegerValue(siv_i) (integerValue(check((siv_i), isInteger)))

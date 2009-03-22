@@ -136,6 +136,8 @@ vector vectorObjectVector(obj);
 obj string(const char *);
 char *stringData(obj);
 int stringLength(obj);
+char stringIdx(obj, int);
+void setStringIdx(obj, int, char);
 
 int vectorType(vector);
 void setVectorType(vector, int);

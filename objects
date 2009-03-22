@@ -223,37 +223,34 @@ $serialized string("<canon!>")
   int i = safeIntegerValue(arg(0));
   vector v = vectorObjectVector(target);
   if (i < 0) i = vectorLength(v) + i;
-  if (i < 0 || i >= vectorLength(v)) {
-    continuation c = origin(threadContinuation(currentThread));
-    setSubexpressionContinuation(currentThread,
-                                 c,
-                                 env(c),
-                                 dynamicEnv(c),
-                                 arg(2),
-                                 sAppliedTo_,
-                                 newVector(1, vectorObject(emptyVector)));
-    gotoNext;
-  }
+  if (i < 0 || i >= vectorLength(v)) invokeBlock(arg(2));
   valueReturn(setIdx(v, i, arg(1)));
 !at:ifAbsent:
-  retarget(isVectorObject);
   int i = safeIntegerValue(arg(0));
-  vector v = vectorObjectVector(target);
+  vector v = safeVector(target);
   if (i < 0) i = vectorLength(v) + i;
-  if (i < 0 || i >= vectorLength(v)) {
-    continuation c = origin(threadContinuation(currentThread));
-    setSubexpressionContinuation(currentThread,
-                                 c,
-                                 env(c),
-                                 dynamicEnv(c),
-                                 arg(1),
-                                 sAppliedTo_,
-                                 newVector(1, vectorObject(emptyVector)));
-    gotoNext;
-  }
+  if (i < 0 || i >= vectorLength(v)) invokeBlock(arg(1));
   valueReturn(idx(v, i));
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
 @string object newAtomVector(1, 0)
+~singleCharacterExpected Attempted to set a string position to something other than a single character.
+!at:ifAbsent:
+  obj s = check(target, isString);
+  int i = safeIntegerValue(arg(0)), length = stringLength(s);
+  if (i < 0) i = length + i;
+  if (i < 0 || i >= length) invokeBlock(arg(1));
+  obj c = string(" ");
+  setStringIdx(c, 0, stringIdx(s, i));
+  valueReturn(c);
+!at:put:ifAbsent:
+  obj s = check(target, isString);
+  int i = safeIntegerValue(arg(0)), length = stringLength(s);
+  if (i < 0) i = length + i;
+  if (i < 0 || i >= length) invokeBlock(arg(2));
+  obj c = check(arg(1), isString);
+  if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
+  setStringIdx(s, i, stringIdx(c, 0));
+  valueReturn(c);
 !length
   valueReturn(integer(stringLength(check(target, isString))));
 !parse

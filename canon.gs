@@ -101,13 +101,16 @@ block do: {
   }
 }
 
-vector do: {
+object do: {
   at: index {
     at: index ifAbsent: { exception missingElement raise }
   }
   at: index put: value {
     at: index put: value ifAbsent: { exception missingElement raise }
   }
+}
+
+vector do: {
   ofLength: n {
     ofLength: n containing: null
   }

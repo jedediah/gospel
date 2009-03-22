@@ -151,6 +151,13 @@ int stringLength(obj s) {
                  : !last[2] ? 2
                             : 1);
 }
+char stringIdx(obj s, int i) {
+  return stringData(s)[i];
+}
+// TODO: Write barrier.
+void setStringIdx(obj s, int i, char c) {
+  stringData(s)[i] = c;
+}
 
 // Used only during a garbage collection cycle.
 int isMarked(vector v) {
