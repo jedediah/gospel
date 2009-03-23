@@ -387,8 +387,8 @@ $serialized string("<canon!>")
   valueReturn(target);
 @file object
 # Assumes the presence of some methods defined in Canon.
-~errorWhileOpening Error while attempting to open a file.
-~errorWhileClosing Error while attempting to close a file.
+~errorWhileOpening Error while opening a file.
+~errorWhileClosing Error while closing a file.
 !open
   FILE *fd = fopen(safeStringValue(call(target, sPath, emptyVector)),
                    safeStringValue(call(target, sPOSIXFileMode, emptyVector)));
