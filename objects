@@ -17,7 +17,9 @@
 &self
 &currentMessageTarget
 
+&maximumConnectionBacklog
 &path
+&POSIXFileDescriptor
 &POSIXFileMode
 
 # If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
@@ -127,6 +129,7 @@ $symbol
 $exception
 $vector
 $file
+$TCPSocket
 $canon oNamespaceCanon
 $namespace
 !dynamicContext
@@ -385,8 +388,64 @@ $serialized string("<canon!>")
   int i = integerValue(target);
   while (i) i = sleep(i);
   valueReturn(target);
+@TCPSocket object
+~socketCreation Error while creating socket.
+~socketBinding Error while binding socket.
+~socketClosing Error while closing socket.
+~socketListening Error while beginning to listen on socket.
+~socketAccept Error while accepting connection to socket.
+!shutdown:
+  if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(currentThread, ePOSIX);
+  normalReturn;
+!new
+  int fd = socket(PF_INET, SOCK_STREAM, 0);
+  if (fd == -1) raise(currentThread, eSocketCreation);
+  obj s = slotlessObject(oTCPSocket, emptyVector);
+  addSlot(s, sPOSIXFileDescriptor, integer(fd), threadContinuation(currentThread));
+  valueReturn(s);
+?accept
+  struct sockaddr socketParameters;
+  socklen_t socketParametersSize = sizeof(struct sockaddr);
+  int fd = accept(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)),
+                  &socketParameters,
+                  &socketParametersSize);
+  if (fd == -1) raise(currentThread, eSocketAccept);
+  obj s = slotlessObject(oTCPSocket, emptyVector);
+  addSlot(s, sPOSIXFileDescriptor, integer(fd), threadContinuation(currentThread));
+  valueReturn(s);
+?bind:
+  struct sockaddr_in s;
+  memset(&s, 0, sizeof(struct sockaddr_in));
+  s.sin_family = AF_INET;
+  s.sin_port = htons(safeIntegerValue(waitFor(arg(0))));
+  s.sin_addr.s_addr = htonl(INADDR_ANY);
+  if (bind(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)),
+           (struct sockaddr *)&s, (socklen_t)sizeof(struct sockaddr_in)))
+    raise(currentThread, eSocketBinding);
+  normalReturn;
+!listen
+  if (listen(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)),
+             safeIntegerValue(call(target, sMaximumConnectionBacklog, emptyVector))))
+    raise(currentThread, eSocketListening);
+  normalReturn;
+?read:
+  int count = safeIntegerValue(arg(0));
+  char s[count];
+  ssize_t i = read(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, count);
+  if (i == -1) raise(currentThread, ePOSIX);
+  s[i] = 0;
+  valueReturn(string(s));
+!write:
+  char *s = safeStringValue(arg(0));
+  ssize_t i = write(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, strlen(s));
+  if (i == -1) raise(currentThread, ePOSIX);
+  valueReturn(integer(i));
+!close
+  if (close(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector))))
+    raise(currentThread, eSocketClosing);
+  normalReturn;
 @file object
-# Assumes the presence of some methods defined in Canon.
+# Relies on canon.
 ~errorWhileOpening Error while opening a file.
 ~errorWhileClosing Error while closing a file.
 !open
@@ -417,50 +476,7 @@ $serialized string("<canon!>")
 ~POSIX Error during a POSIX system call.
 $stdin integer(0)
 !errno
-  valueReturn(integer(errno));
-!close:
-  if (close(safeIntegerValue(arg(0)))) raise(currentThread, ePOSIX);
-  normalReturn;
-!read:from:
-  int count = safeIntegerValue(waitFor(arg(0)));
-  vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(count + 1));
-  char *b = vectorData(s);
-  ssize_t i = read(safeIntegerValue(waitFor(arg(1))), b, count);
-  if (i == -1) raise(currentThread, ePOSIX);
-  b[i] = 0;
-  valueReturn(slotlessObject(oString, s));
-!write:to:
-  char *s = safeStringValue(waitFor(arg(0)));
-  ssize_t i = write(safeIntegerValue(waitFor(arg(1))), s, strlen(s));
-  if (i == -1) raise(currentThread, ePOSIX);
-  valueReturn(integer(i));
-?bindInternetSocket:to:
-  struct sockaddr_in s;
-  memset(&s, 0, sizeof(struct sockaddr_in));
-  s.sin_family = AF_INET;
-  s.sin_port = htons(safeIntegerValue(waitFor(arg(1))));
-  s.sin_addr.s_addr = htonl(INADDR_ANY);
-  if (bind(safeIntegerValue(waitFor(arg(0))),
-           (struct sockaddr *)&s, (socklen_t)sizeof(struct sockaddr_in)))
-    raise(currentThread, ePOSIX);
-  normalReturn;
-!TCPSocket
-  int s = socket(PF_INET, SOCK_STREAM, 0);
-  if (s == -1) raise(currentThread, ePOSIX);
-  valueReturn(integer(s));
-!listenOn:withMaximumBacklog:
-  if (listen(safeIntegerValue(waitFor(arg(0))), safeIntegerValue(waitFor(arg(1)))))
-    raise(currentThread, ePOSIX);
-  normalReturn;
-?acceptOn:
-  struct sockaddr socketParameters;
-  socklen_t socketParametersSize = sizeof(struct sockaddr);
-  int newSocket = accept(safeIntegerValue(waitFor(arg(0))), &socketParameters, &socketParametersSize);
-  if (newSocket == -1) raise(currentThread, ePOSIX);
-  valueReturn(integer(newSocket));
-!shutdown:
-  if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(currentThread, ePOSIX);
-  normalReturn;
+  valueReturn(integer(errno));  
 @true object
 @false object
 @exception object

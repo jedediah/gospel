@@ -209,3 +209,7 @@ file do: {
   # $open is defined in the core.
 }
 
+TCPSocket do: {
+  maximumConnectionBacklog = 42
+}
+
