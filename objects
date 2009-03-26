@@ -394,8 +394,12 @@ $serialized string("<canon!>")
 ~socketClosing Error while closing socket.
 ~socketListening Error while beginning to listen on socket.
 ~socketAccept Error while accepting connection to socket.
-!shutdown:
-  if (shutdown(safeIntegerValue(waitFor(arg(0))), SHUT_RDWR)) raise(currentThread, ePOSIX);
+~socketShutdown Error during socket shutdown.
+~socketRead Error while reading from socket.
+~socketWrite Error while writing to socket.
+!shutdown
+  if (shutdown(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), SHUT_RDWR))
+    raise(currentThread, eSocketShutdown);
   normalReturn;
 !new
   int fd = socket(PF_INET, SOCK_STREAM, 0);
@@ -432,13 +436,13 @@ $serialized string("<canon!>")
   int count = safeIntegerValue(arg(0));
   char s[count];
   ssize_t i = read(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, count);
-  if (i == -1) raise(currentThread, ePOSIX);
+  if (i == -1) raise(currentThread, eSocketRead);
   s[i] = 0;
   valueReturn(string(s));
 !write:
   char *s = safeStringValue(arg(0));
   ssize_t i = write(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, strlen(s));
-  if (i == -1) raise(currentThread, ePOSIX);
+  if (i == -1) raise(currentThread, eSocketWrite);
   valueReturn(integer(i));
 !close
   if (close(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector))))
@@ -472,11 +476,6 @@ $serialized string("<canon!>")
 !close
   if (fclose((FILE *)safeIntegerValue(target))) raise(currentThread, eErrorWhileClosing);
   normalReturn;
-@POSIX null
-~POSIX Error during a POSIX system call.
-$stdin integer(0)
-!errno
-  valueReturn(integer(errno));  
 @true object
 @false object
 @exception object
