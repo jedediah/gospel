@@ -74,8 +74,8 @@
                                target, // We don't construct a new lexical contour.
                                newDynamicScope(c),
                                oMethodBody,
-                               sSubexpressions_, // TODO: A different method, returning the target of $do.
-                               methodBody(m));
+                               sSubexpressions_,
+                               suffix(quote(target), methodBody(m)));
   gotoNext;
 !self
   normalReturn;
