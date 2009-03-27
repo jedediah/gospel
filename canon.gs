@@ -181,29 +181,21 @@ object do: {
 file do: {
   path = ""
   POSIXFileMode = ""
-  named: newPath { new do: { path = newPath. identity } }
-  copy {
-    newFile = file new; path = self path
-    newFile
-  }
+  named: newPath { new do: { path = newPath } }
+  copy { proto named: path }
   forReading {
     copy do: {
       POSIXFileMode = "r"
       forAppending { self POSIXFileMode = "a+" }
-      identity
     }
   }
   forWriting {
-    copy do: {
-      POSIXFileMode = "w+"
-      identity
-    }
+    copy POSIXFileMode = "w+"
   }
   forAppending {
     copy do: {
       POSIXFileMode = "a"
       forAppending { self POSIXFileMode = "a+" }
-      identity
     }
   }
   # $open is defined in the core.
