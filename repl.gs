@@ -19,7 +19,7 @@
     { { continuation := thisContext
         "> " print
         ["=> ", (parser read interpretInScope: object inEnvironment: env) serialized, "\n"] print
-      } value
+      } value # This block provides a continuation that can be invoked to reenter the loop.
       recurse
     } value
   } except: { e |
