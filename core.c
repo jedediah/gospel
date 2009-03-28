@@ -460,15 +460,16 @@ void *loadStream(FILE *, obj, obj);
                                newVector(1, vectorObject(emptyVector))); \
   gotoNext; \
 } while(0)
-#define check(c_value, c_predicate) \
-  ({ obj c_newValue = waitFor(c_value); \
+#define checkWithoutWaiting(c_value, c_predicate) \
+  ({ obj c_newValue = (c_value); \
      for (;;) { \
        if (c_newValue == oNull) raise(currentThread, eBadType); \
        if ((c_predicate)(c_newValue)) break; \
        c_newValue = proto(c_newValue); \
      } \
      c_newValue; })
-#define retarget(r_predicate) target = check(target, (r_predicate))
+#define check(c_value, c_predicate) (checkWithoutWaiting(waitFor(c_value), (c_predicate)))
+#define retarget(r_predicate) (target = checkWithoutWaiting(target, (r_predicate)))
 #define safeIntegerValue(siv_i) (integerValue(check((siv_i), isInteger)))
 #define safeStringValue(ssv_s) (stringData(check((ssv_s), isString)))
 #define safeVector(sv_v) (vectorObjectVector(check((sv_v), isVectorObject)))
