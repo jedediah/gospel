@@ -173,15 +173,20 @@ vector prepareMessageReturn(obj value) {
 #define staticMessageReturn(smr_v) do { prepareMessageReturn(smr_v); tailcall(doNext); } while (0)
 
 
-vector setExceptionContinuation(vector thread, obj exception) {
+vector setExceptionContinuationWithEnvironment(vector thread, obj exception, obj environment) {
   continuation c = threadContinuation(thread);
   return setSubexpressionContinuation(thread,
                                       origin(c),
                                       env(c),
-                                      dynamicEnv(c),
+                                      environment,
                                       exception,
                                       sRaise,
                                       emptyVector);
+}
+vector setExceptionContinuation(vector thread, obj exception) {
+  return setExceptionContinuationWithEnvironment(thread,
+                                                 exception,
+                                                 dynamicEnv(threadContinuation(thread)));
 }
 
 #define raise(raise_thread, raise_exception) do { \
@@ -237,6 +242,9 @@ void **deepLookup(obj o, obj name, continuation c) {
   return o == oNull ? 0 : deepLookup(proto(o), name, c);
 }
 
+obj addCanonSlot(obj o, obj s, void *v) {
+  return newSlot(o, s, v, oNamespaceCanon);
+}
 obj addSlot(obj o, obj s, void *v, continuation c) {
   void **slot = shallowLookup(o, s, c);
   return slot ? *slot = v : newSlot(o, s, v, currentNamespace(c));
@@ -264,16 +272,15 @@ vector newThread(void *cc,
 
 void invokeDispatchMethod(void);
 
-obj newDynamicScope(continuation c) {
-  obj oldScope = dynamicEnv(c);
-  return typedObject(oldScope, hiddenEntity(oldScope));
+obj newEnvironment(obj oldEnv) {
+  return typedObject(oldEnv, hiddenEntity(oldEnv));
 }
 
 void setMethodContinuation(vector c, obj scope, vector args, obj method) {
   setSubexpressionContinuation(currentThread,
                                origin(c),
                                stackFrame(scope, methodParams(method), args, c),
-                               newDynamicScope(c),
+                               newEnvironment(dynamicEnv(c)),
                                oMethodBody,
                                sSubexpressions_,
                                methodBody(method));
@@ -366,10 +373,27 @@ void doNext() {
   tailcall(dispatch);
 }
 
-obj callWithEnvironment(obj dynamicEnv, obj target, obj selector, vector args) {
+obj callWithEnvironment(obj env, obj target, obj selector, vector args) {
   promise p = newPromise();
-  newThread(p, oObject, dynamicEnv, target, selector, args);
-  return waitFor(p);
+  obj newEnv = newEnvironment(env);
+  // FIXME: Assumes that the Canon namespace will always be visible, which is probably a bad idea.
+  addCanonSlot(newEnv,
+               sHandler,
+               block(oNull,
+                     method(newVector(2, sCurrentMessageTarget, oSymbol),
+                            newVector(1,
+                                      message(oInternals,
+                                              sTerminateThread_andReraise_in_,
+                                              newVector(3,
+                                                        quote(p),
+                                                        message(oDefaultMessageTarget,
+                                                                oSymbol,
+                                                                emptyVector),
+                                                        quote(env)))))));
+  newThread(p, oObject, newEnv, target, selector, args);
+  obj v = waitFor(p);
+  if (v == oThreadExpiryIndicator) explicitlyEndThread();
+  return v;
 }
 obj call(obj target, obj selector, vector args) {
   return callWithEnvironment(dynamicEnv(threadContinuation(currentThread)), target, selector, args);

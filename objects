@@ -64,6 +64,12 @@
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
+!terminateThread:andReraise:in:
+  fulfillPromise(arg(0), oThreadExpiryIndicator);
+  setExceptionContinuationWithEnvironment(currentThread, arg(1), arg(2));
+  gotoNext;
+@threadExpiryIndicator null
+# Returned to indicate to call() that it should terminate the thread that invoked it.
 @object null oInternals
 !do:
   obj m = blockMethod(check(arg(0), isBlock));
@@ -72,7 +78,7 @@
   setSubexpressionContinuation(currentThread,
                                origin(c),
                                target, // We don't construct a new lexical contour.
-                               newDynamicScope(c),
+                               newEnvironment(dynamicEnv(c)),
                                oMethodBody,
                                sSubexpressions_,
                                suffix(quote(target), methodBody(m)));
