@@ -205,3 +205,16 @@ TCPSocket do: {
   maximumConnectionBacklog = 42
 }
 
+object do: {
+  from: first to: last {
+    result = ofLength: last - first
+    index = 0
+    { index < result length else: { ^^ result }
+      result at: index put: (at: first + index)
+      index := index + 1
+      recurse
+    } value
+  }
+  from: first through: last { from: first to: last + 1 }
+}
+
