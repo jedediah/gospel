@@ -107,7 +107,7 @@ block do: {
   }
 }
 
-# The ordered collection protocol.
+### The ordered collection protocol.
 exception missingElement = "Missing collection element."
 as: anOrderedCollection {
   result = anOrderedCollection ofLength: length;
@@ -209,7 +209,6 @@ file do: {
       forAppending { self POSIXFileMode = "a+" }
     }
   }
-  # $open is defined in the core.
 }
 
 TCPSocket do: {

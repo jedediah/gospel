@@ -25,7 +25,7 @@
 &selector
 
 # If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
-# a pointer to its own automatic memory, then declare it ?foo rather than !foo.
+# a pointer to its own automatic memory, then declare it with ?foo rather than !foo.
 
 @deadEnd deadEnd
   obj e = slotlessObject(oMessageNotUnderstoodException, 0);
