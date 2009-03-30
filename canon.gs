@@ -111,7 +111,7 @@ block do: {
 exception missingElement = "Missing collection element."
 as: anOrderedCollection {
   result = anOrderedCollection ofLength: length;
-    eachIndex: { i | result at: i put: (at: i) }
+   eachIndex: { i | result at: i put: (at: i) }
 }
 at: index {
   at: index ifAbsent: { exception missingElement raise }
@@ -137,8 +137,8 @@ map: aBlock {
   eachIndex: { i | at: i put: (aBlock value: at: i) }
 }
 mapping: aBlock {
-  result = ofLength: length
-  eachIndex: { i | result at: i put: (aBlock value: at: i) }
+  result = ofLength: length;
+   eachIndex: { i | result at: i put: (aBlock value: at: i) }
 }
 first {
   at: 0
