@@ -74,6 +74,11 @@ object do: {
   }
 }
 
+object tap: aBlock {
+  aBlock value: self
+  self
+}
+
 object do: {
   if: yes          { yes  value }
   if: yes else: no { yes  value }
@@ -84,9 +89,10 @@ false do: {
   if: yes else: no { no   value }
           else: no { no   value }
 }
+object and: aBlock { aBlock value }
+false  and: aBlock { false        }
 
-exception missingElement = "Missing collection element."
-
+# TODO: Generalize or eliminate.
 block do: {
   over: collection { collection mapping: self }
   over: collection1 and: collection2 {
@@ -101,76 +107,81 @@ block do: {
   }
 }
 
-object do: {
-  at: index {
-    at: index ifAbsent: { exception missingElement raise }
-  }
-  at: index put: value {
-    at: index put: value ifAbsent: { exception missingElement raise }
+# The ordered collection protocol.
+exception missingElement = "Missing collection element."
+as: anOrderedCollection {
+  result = anOrderedCollection ofLength: length;
+    eachIndex: { i | result at: i put: (at: i) }
+}
+at: index {
+  at: index ifAbsent: { exception missingElement raise }
+}
+at: index put: value {
+  at: index put: value ifAbsent: { exception missingElement raise }
+}
+ofLength: n {
+  ofLength: n containing: null
+}
+eachIndex: aBlock {
+  index = 0
+  { index < self length else: { ^^ self }
+    aBlock value: index
+    index := index + 1
+    recurse
+  } value
+}
+each: aBlock {
+  eachIndex: { i | aBlock value: at: i }
+}
+map: aBlock {
+  eachIndex: { i | at: i put: (aBlock value: at: i) }
+}
+mapping: aBlock {
+  result = ofLength: length
+  eachIndex: { i | result at: i put: (aBlock value: at: i) }
+}
+first {
+  at: 0
+}
+rest {
+  result = ofLength: length - 1;
+   eachIndex: { i | result at: i put: (at: i + 1) }
+}
+injecting: accumulation into: operator {
+  each: { x | accumulation := operator value: accumulation value: x }
+  accumulation
+}
+selecting: selector {
+  injecting: (ofLength: 0) into: { collection element |
+    selector value: element; if: { collection ++ [element] } else: collection
   }
 }
+occurrencesOf: anObject {
+  injecting: 0 into: { count element | element == anObject if: { count + 1 } else: count }
+}
+nub {
+  injecting: (ofLength: 0) into: { nub element |
+    nub :occurrencesOf: element == 0 if: { nub ++ (containing: element) } else: nub
+  }
+}
+containing: element {
+  ofLength: 1; tap: { newCollection | newCollection at: 0 put: element }
+}
+
+# TODO: Reconsider this design, it seems like an abuse of polymorphism.
+vector print { each: { element | element print } }
 
 vector do: {
-  ofLength: n {
-    ofLength: n containing: null
-  }
-  asVector { self }
   == object {
     length == object length else: { ^ false }
     { x y | x == y else: { ^^ false } } over: self and: object
     true
-  }
-  each: iteration {
-    index = 0
-    { index < self length else: { ^^ self }
-      iteration value: self :at: index
-      index := index + 1
-      recurse
-    } value
-  }
-  mapping: iteration {
-    result = vector ofLength: length
-    index = 0 
-    { index < length else: { ^^ result }
-      result at: index put: (iteration value: self :at: index)
-      index := index + 1
-      recurse
-    } value
-  }
-  first { at: 0 }
-  rest {
-    rest = ofLength: length - 1
-    index = 1
-    { index < length else: { ^^ rest }
-      rest at: index - 1 put: self :at: index
-      index := index + 1
-      recurse
-    } value
-  }
-  injecting: value into: operator {
-    accumulation = value
-    each: { x | accumulation := operator value: accumulation value: x }
-    accumulation 
-  }
-  selecting: selector {
-    injecting: [] into: { collection element |
-      selector :value: element if: { collection ++ [element] } else: collection
-    }
-  }
-  occurrencesOf: object {
-    injecting: 0 into: { count element | element == object if: { count + 1 } else: count }
-  }
-  nub {
-    injecting: [] into: { nub element |
-      nub :occurrencesOf: element == 0 if: { nub ++ [element] } else: nub
-    }
   }
   serialized {
     length == 0 if: { ^ "[]" }
     elements = mapping: { x | x serialized }
     "[" ++ (elements rest injecting: elements first into: { x y | x ++ ", " ++ y }) ++ "]"
   }
-  print { each: { element | element print } }
 }
 
 object do: {
@@ -205,16 +216,40 @@ TCPSocket do: {
   maximumConnectionBacklog = 42
 }
 
-object do: {
+integer successor { self + 1 }
+
+range = object new do: {
+  first = 0
+  last = 1
+
+  length {
+    last - first
+  }
+  at: index ifAbsent: aBlock {
+    index < 0 if: { index := index + length }
+    index > -1 and: { index < length }; else: { ^ aBlock value }
+    first + index
+  }
   from: first to: last {
-    result = ofLength: last - first
-    index = 0
-    { index < result length else: { ^^ result }
-      result at: index put: (at: first + index)
-      index := index + 1
+    new tap: { range | range first = first. range last = last }
+  }
+  from: first through: last {
+    from: first to: last + 1
+  }
+  each: aBlock {
+    current = first
+    { current < last else: { ^^ self }
+      aBlock value: current
+      current := current successor
       recurse
     } value
   }
-  from: first through: last { from: first to: last + 1 }
+  of: aCollection {
+    result = aCollection ofLength: length;
+     eachIndex: { i | result at: i put: (aCollection at: first + i) }
+  }
+  serialized {
+    first serialized ++ "..." ++ last serialized
+  }
 }
 
