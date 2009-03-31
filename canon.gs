@@ -24,7 +24,7 @@ false serialized = "<false>"
 
 object do: {
   appliedTo: args {
-    args == [] if: { ^ self }
+    args length == 0 if: { ^ self }
     exception badArity raise
   }
   value                   { appliedTo: [          ] }
@@ -68,7 +68,7 @@ object do: {
   }
   # TODO: Is there any reason we can't just allow any object as a namespace token?
   namespace: name {
-    (newNamespace = namespace new) serialized = "<" ++ name ++ "!>"
+    newNamespace = namespace new; serialized = "<" ++ name ++ "!>"
     dynamicContext proto setNamespaces: ([newNamespace] ++ dynamicContext proto namespaces) nub
     newNamespace
   }
@@ -100,7 +100,7 @@ block do: {
     index = 0
     result = collection1 ofLength: collection1 length
     { index < result length else: { ^^ result }
-      result at: index put: (value: collection1 :at: index value: collection2 :at: index) 
+      result at: index put: value: (collection1 at: index) value: (collection2 at: index)
       index := index + 1
       recurse
     } value
@@ -111,7 +111,7 @@ block do: {
 exception missingElement = "Missing collection element."
 as: anOrderedCollection {
   result = anOrderedCollection ofLength: length;
-   eachIndex: { i | result at: i put: (at: i) }
+   eachIndex: { i | result at: i put: at: i }
 }
 at: index {
   at: index ifAbsent: { exception missingElement raise }
@@ -124,7 +124,7 @@ ofLength: n {
 }
 eachIndex: aBlock {
   index = 0
-  { index < self length else: { ^^ self }
+  { index < length else: { ^^ self }
     aBlock value: index
     index := index + 1
     recurse
@@ -145,7 +145,7 @@ first {
 }
 rest {
   result = ofLength: length - 1;
-   eachIndex: { i | result at: i put: (at: i + 1) }
+   eachIndex: { i | result at: i put: at: i + 1 }
 }
 injecting: accumulation into: operator {
   each: { x | accumulation := operator value: accumulation value: x }
@@ -153,7 +153,7 @@ injecting: accumulation into: operator {
 }
 selecting: selector {
   injecting: (ofLength: 0) into: { collection element |
-    selector value: element; if: { collection ++ [element] } else: collection
+    selector value: element; if: { collection ++ containing: element } else: collection
   }
 }
 occurrencesOf: anObject {
@@ -161,11 +161,11 @@ occurrencesOf: anObject {
 }
 nub {
   injecting: (ofLength: 0) into: { nub element |
-    nub :occurrencesOf: element == 0 if: { nub ++ (containing: element) } else: nub
+    nub occurrencesOf: element; == 0 if: { nub ++ containing: element } else: nub
   }
 }
 containing: element {
-  ofLength: 1; tap: { newCollection | newCollection at: 0 put: element }
+  ofLength: 1 containing: element
 }
 
 # TODO: Reconsider this design, it seems like an abuse of polymorphism.
@@ -192,8 +192,13 @@ object do: {
 file do: {
   path = ""
   POSIXFileMode = ""
-  named: newPath { new do: { path = newPath } }
-  copy { proto named: path }
+
+  named: newPath {
+    new tap: { newFile | newFile path = newPath }
+  }
+  copy {
+    file named: path
+  }
   forReading {
     copy do: {
       POSIXFileMode = "r"
