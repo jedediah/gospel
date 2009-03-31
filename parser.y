@@ -195,23 +195,22 @@ unaryTarget:
 ;
 
 untargettedBinaryMessage:
-  OPERATOR gap operand
+  OPERATOR gap binaryArgument
   { $$ = message(oDefaultMessageTarget, $1, newVector(1, $3)); }
-| '@' gap OPERATOR gap operand
+| '@' gap OPERATOR gap binaryArgument
   { $$ = promiseCode(message(oDefaultMessageTarget, $3, newVector(1, $5))); }
 ;
-
 binaryMessage:
-  binaryTarget OPERATOR gap operand
+  binaryTarget OPERATOR gap binaryArgument
   { $$ = message($1, $2, newVector(1, $4)); }
-| binaryTarget '@' gap OPERATOR gap operand
+| binaryTarget '@' gap OPERATOR gap binaryArgument
   { $$ = promiseCode(message($1, $4, newVector(1, $6))); }
 ;
 binaryTarget:
   unaryTarget
 | binaryMessage
 ;
-operand:
+binaryArgument:
   parens
 | literal
 | unaryMessage
@@ -225,25 +224,34 @@ untargettedKeywordMessage:
 | '@' gap keywords
   { $$ = promiseCode(keywordMessage(oDefaultMessageTarget, nreverse($3))); }
 ;
-
 keywordMessage:
   binaryTarget keywords
   { $$ = keywordMessage($1, nreverse($2)); }
 | binaryTarget '@' gap keywords
   { $$ = promiseCode(keywordMessage($1, nreverse($4))); }
-| binaryTarget KEYWORD gap untargettedBinaryMessage
-  { $$ = message($1, $2, newVector(1, $4)); }
-| binaryTarget '@' gap KEYWORD untargettedKeywordMessage
-  { $$ = promiseCode(message($1, $4, newVector(1, $5))); }
 ;
 keywords:
-  KEYWORD gap msgarg
+  completeKeywords
+| cutOffKeywords
+;
+completeKeywords:
+  KEYWORD gap keywordArgument
   { $$ = list(cons($1, $3)); }
-| keywords KEYWORD gap msgarg
+| completeKeywords KEYWORD gap keywordArgument
   { $$ = cons(cons($2, $4), $1); }
 ;
-msgarg:
-  operand
+cutOffKeywords:
+  keywordsPrecedingCutoff KEYWORD gap untargettedKeywordMessage
+  { $$ = cons(cons($2, $4), $1); }
+;
+keywordsPrecedingCutoff:
+  { $$ = emptyList; }
+| completeKeywords
+;
+keywordArgument:
+  parens
+| literal
+| unaryMessage
 | binaryMessage
 ;
 
