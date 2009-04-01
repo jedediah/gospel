@@ -15,27 +15,26 @@
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
 # Used by the parser to construct cascades.
-object cascading: target { "Syntax error in cascade - leftmost message had a target." raise. exit }
+cascading: target { "Syntax error in cascade - leftmost message had a target." raise. exit }
 defaultMessageTarget cascading: target { target }
 
-object serialized = "<object>"
+serialized = "<object>"
 true serialized = "<true>"
 false serialized = "<false>"
 
-object do: {
-  appliedTo: args {
-    args length == 0 if: { ^ self }
-    exception badArity raise
-  }
-  value                   { appliedTo: [          ] }
+appliedTo: args {
+  args length == 0 if: { ^ self }
+  exception badArity raise
 }
+value { appliedTo: [] }
+
 block do: {
   value: arg              { appliedTo: [arg       ] }
   value: arg1 value: arg2 { appliedTo: [arg1, arg2] }
 }
 
 ## The exception-handling system that the core expects.
-object raise { dynamicContext handler value: self }
+raise { dynamicContext handler value: self }
 block do: {
   # Establish the target block as a handler in the current environment. Allows execution to return back through the $raise: expression if the block does not perform a nonlocal exit, which may yield strange behaviour for exceptions raised by primitives.
   handleExceptions {
@@ -59,38 +58,36 @@ block do: {
       exit
 } handleExceptions
 
-object do: {
-  include: fileName {
-    fileEnvironment = dynamicContext new
-    value = self include: fileName in: fileEnvironment
-    dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
-    value
-  }
-  # TODO: Is there any reason we can't just allow any object as a namespace token?
-  namespace: name {
-    newNamespace = namespace new; serialized = "<" ++ name ++ "!>"
-    dynamicContext proto setNamespaces: ([newNamespace] ++ dynamicContext proto namespaces) nub
-    newNamespace
-  }
+include: fileName {
+  fileEnvironment = dynamicContext new
+  value = self include: fileName in: fileEnvironment
+  dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
+  value
+}
+# TODO: Is there any reason we can't just allow any object as a namespace token?
+namespace: name {
+  newNamespace = namespace new; serialized = "<" ++ name ++ "!>"
+  dynamicContext proto setNamespaces: ([newNamespace] ++ dynamicContext proto namespaces) nub
+  newNamespace
 }
 
-object tap: aBlock {
+tap: aBlock {
   aBlock value: self
   self
 }
 
-object do: {
-  if: yes          { yes  value }
-  if: yes else: no { yes  value }
-          else: no { self       }
-}
+if: yes          { yes  value }
+if: yes else: no { yes  value }
+        else: no { self       }
+
 false do: {
   if: yes          { self       }
   if: yes else: no { no   value }
           else: no { no   value }
 }
-object and: aBlock { aBlock value }
-false  and: aBlock { false        }
+
+and: aBlock { aBlock value }
+false and: aBlock { self }
 
 # TODO: Generalize or eliminate.
 block do: {
@@ -184,10 +181,9 @@ vector do: {
   }
 }
 
-object do: {
-  print { self serialized print }
-  printLine { self print. "\n" print }
-}
+
+print { self serialized print }
+printLine { self print. "\n" print }
 
 file do: {
   path = ""
@@ -222,7 +218,7 @@ TCPSocket do: {
 
 integer successor { self + 1 }
 
-range = object new do: {
+range = new do: {
   first = 0
   last = 1
 
