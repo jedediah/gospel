@@ -213,7 +213,7 @@ $namespace
   void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(currentThread));
   if (!slot) raise(currentThread, eSettingNonexistantSlot);
   valueReturn(*slot = arg(1));
-!new
+!instance
   obj o = slotlessObject(target, hiddenEntity(target));
   setVectorType(o, vectorType(target));
   valueReturn(o);

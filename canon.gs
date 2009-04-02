@@ -14,6 +14,8 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
+new { self instance }
+
 # Used by the parser to construct cascades.
 cascading: target { "Syntax error in cascade - leftmost message had a target." raise. exit }
 defaultMessageTarget cascading: target { target }
