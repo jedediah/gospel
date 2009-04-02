@@ -84,11 +84,9 @@ include: filename {
   dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
   lastValue
 }
-# TODO: Is there any reason we can't just allow any object as a namespace token?
-namespace: name {
-  newNamespace = namespace new; serialized = "<" ++ name ++ "!>"
-  dynamicContext proto setNamespaces: ([newNamespace] ++ dynamicContext proto namespaces) nub
-  newNamespace
+namespace {
+  dynamicContext proto setNamespaces: ([self] ++ dynamicContext proto namespaces) nub
+  self
 }
 
 tap: aBlock {

@@ -214,9 +214,8 @@ $namespace
   obj o = slotlessObject(target, hiddenEntity(target));
   setVectorType(o, vectorType(target));
   valueReturn(o);
-@namespace object
-@namespaceCanon namespace
-$serialized string("<canon!>")
+@namespaceCanon object
+$serialized string("<canon namespace>")
 @vector object emptyVector
 !++ appending
   retarget(isVectorObject);
