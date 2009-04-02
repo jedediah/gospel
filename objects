@@ -170,7 +170,7 @@ $namespace
                                sIdentity,
                                emptyVector);
   gotoNext;
-!include:in:
+!includeExactPath:in:
   FILE *f = fopen(safeStringValue(arg(0)), "r");
   if (!f) raise(currentThread, eInclusion);
   void *lastValue = loadStream(f, target, waitFor(arg(1)));

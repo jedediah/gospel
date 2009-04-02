@@ -70,11 +70,19 @@ exception do: {
   }
 }
 
-include: fileName {
+inclusionPaths = ["lib/"]
+include: filename in: environment {
+  inclusionPaths each: { path |
+    { ^^ self includeExactPath: path ++ filename in: environment } except:
+     { e | e is: exception inclusion; else: { e raise } }
+  }
+  "File to be included was not found: " ++ filename; raise
+}
+include: filename {
   fileEnvironment = dynamicContext new
-  value = self include: fileName in: fileEnvironment
+  lastValue = self include: filename in: fileEnvironment
   dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
-  value
+  lastValue
 }
 # TODO: Is there any reason we can't just allow any object as a namespace token?
 namespace: name {
