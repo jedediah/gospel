@@ -31,7 +31,7 @@ suite = new do: {
   teardown {}
   run {
     failures = exceptions = 0
-    "Tests: " ++ (tests localSelectors each: { selector |
+    "Tests: " ++ (tests localMethods each: { selector |
                     setup
                     { tests send: selector } except: { e |
                       e == failedAssertion if: { ^ failures := failures + 1 }

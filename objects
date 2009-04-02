@@ -193,7 +193,7 @@ $namespace
                                waitFor(arg(0)),
                                emptyVector);
   gotoNext;
-!localSelectors
+!localMethods
   int n = slotCount(target);
   vector v = makeVector(n);
   while (n--) setIdx(v, n, slotName(target, n));
