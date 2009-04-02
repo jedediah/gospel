@@ -60,8 +60,14 @@ block do: {
       exit
 } handleExceptions
 
-exception badType serialized {
-  "Message target or argument has incorrect primitive type: " ++ selector serialized
+exception do: {
+  # The $selector method is added by the C code that creates these objects.
+  badType serialized {
+    "Message target or argument has incorrect primitive type: " ++ selector serialized
+  }
+  messageNotUnderstood serialized {
+    "Message not understood: " ++ selector serialized
+  }
 }
 
 include: fileName {

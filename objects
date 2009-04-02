@@ -29,12 +29,8 @@
 
 @deadEnd deadEnd
   obj e = slotlessObject(oMessageNotUnderstoodException, 0);
-  addCanonSlot(e, sSelector, call(selector(threadContinuation(currentThread)), sSerialized, emptyVector));
+  addCanonSlot(e, sSelector, selector(threadContinuation(currentThread)));
   raise(currentThread, e);
-@messageNotUnderstoodException object
-!serialized
-  valueReturn(appendStrings(string("Message not understood: "), call(target, sSelector, emptyVector)));
-@badTypeException object
 @null deadEnd
 !serialized
   valueReturn(string("<null>"));
@@ -492,8 +488,11 @@ $serialized string("<canon!>")
   normalReturn;
 @true object
 @false object
+@messageNotUnderstoodException object
+@badTypeException object
 @exception object
 $badType oBadTypeException
+$messageNotUnderstood oMessageNotUnderstoodException
 ~inclusion Error while attempting to open a file for inclusion.
 ~badArity Wrong number of arguments. 
 ~stringExpected String expected.
