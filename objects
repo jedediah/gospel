@@ -245,6 +245,16 @@ $serialized string("<canon namespace>")
 @primitive object newAtomVector(1, prototypePrimitiveHiddenValue)
 @string object newAtomVector(1, 0)
 ~singleCharacterExpected Attempted to set a string position to something other than a single character.
+~negativeStringLength Attempted to create a string with negative length.
+!ofLength:containing:
+  obj c = check(arg(1), isString);
+  if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
+  int i = safeIntegerValue(arg(0));
+  if (i < 0) raise(currentThread, eNegativeStringLength);
+  vector s = newAtomVector(CELLS_REQUIRED_FOR_BYTES(i + 1));
+  memset(vectorData(s), stringIdx(c, 0), i); // TODO: Write barrier.
+  ((char *)vectorData(s))[i] = 0; // TODO: Write barrier.
+  valueReturn(typedObject(oString, s));
 !at:ifAbsent:
   obj s = check(target, isString);
   int i = safeIntegerValue(arg(0)), length = stringLength(s);
