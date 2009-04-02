@@ -267,3 +267,7 @@ range = new do: {
   }
 }
 
+methods {
+  object is: self; if: [] else: { self proto methods }; ++ self localMethods
+}
+
