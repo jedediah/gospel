@@ -16,36 +16,31 @@
 
 namespace: "inquisition"
 
-exception failedAssertion = "Failed assertion in unit test."
-object assert { self }
-false  assert { exception failedAssertion raise }
+assert { self }
+false assert { suite failedAssertion raise }
 
-# Turn an object into a test suite. Should be used after all test slots are added but before
-# any non-test slots (including $setup and/or $teardown) are added.
-object declareTestSuite {
-  tests = self localSelectors
-  self tests = tests
-  self setup {}
-  self teardown {}
-  self run {
+suite = new do: {
+  new {
+    suite instance tap: { newSuite | newSuite tests = object new }
+  }
+
+  tests = object new
+  failedAssertion = "Failed assertion in unit test."
+ 
+  setup {}
+  teardown {}
+  run {
     failures = exceptions = 0
-    tests each: { selector |
-      setup
-      { self send: selector } except: { e |
-        e == exception failedAssertion if: { ^ failures := failures + 1 }
-        exceptions := exceptions + 1
-      }
-      teardown
-    }
-    inflect: string with: suffix for: number {
-      number serialized ++ (number == 1 if: string else: { string ++ suffix })
-    }
-    total = tests length
-    passes = total - failures - exceptions
-    (inflect: " test" with: "s" for: total) ++ " run: " ++
-     (inflect: " pass" with: "es" for: passes) ++ ", " ++
-      (inflect: " failure" with: "s" for: failures) ++ ", " ++
-       (inflect: " exception" with: "s" for: exceptions) ++ "."
+    "Tests: " ++ (tests localSelectors each: { selector |
+                    setup
+                    { tests send: selector } except: { e |
+                      e == failedAssertion if: { ^ failures := failures + 1 }
+                      exceptions := exceptions + 1
+                    }
+                    teardown
+                  }; length serialized) ++
+     "\nFailures: " ++ failures serialized ++
+      "\nExceptions: " ++ exceptions serialized
   }
 }
 
