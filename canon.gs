@@ -201,6 +201,7 @@ vector do: {
   }
 }
 
+string ofLength: length { ofLength: length containing: " " }
 
 print { self serialized print }
 printLine { self print. "\n" print }
