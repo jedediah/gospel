@@ -98,6 +98,8 @@ false do: {
           else: no { no   value }
 }
 
+== anObject { self is: anObject }
+
 and: aBlock { aBlock value }
 false and: aBlock { self }
 

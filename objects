@@ -180,7 +180,7 @@ $namespace
   obj p = waitFor(arg(0));
   setProto(target, p);
   valueReturn(p);
-!== equals
+!is:
   if (target == waitFor(arg(0))) valueReturn(oTrue);
   valueReturn(oFalse);
 !send:
