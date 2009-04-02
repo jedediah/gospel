@@ -60,6 +60,10 @@ block do: {
       exit
 } handleExceptions
 
+exception badType serialized {
+  "Message target or argument has incorrect primitive type: " ++ selector serialized
+}
+
 include: fileName {
   fileEnvironment = dynamicContext new
   value = self include: fileName in: fileEnvironment

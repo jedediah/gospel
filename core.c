@@ -487,7 +487,11 @@ void *loadStream(FILE *, obj, obj);
 #define checkWithoutWaiting(c_value, c_predicate) \
   ({ obj c_newValue = (c_value); \
      for (;;) { \
-       if (c_newValue == oNull) raise(currentThread, eBadType); \
+       if (c_newValue == oNull) { \
+         obj e = slotlessObject(oBadTypeException, 0); \
+         addCanonSlot(e, sSelector, selector(threadContinuation(currentThread))); \
+         raise(currentThread, e); \
+       } \
        if ((c_predicate)(c_newValue)) break; \
        c_newValue = proto(c_newValue); \
      } \

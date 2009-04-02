@@ -34,6 +34,7 @@
 @messageNotUnderstoodException object
 !serialized
   valueReturn(appendStrings(string("Message not understood: "), call(target, sSelector, emptyVector)));
+@badTypeException object
 @null deadEnd
 !serialized
   valueReturn(string("<null>"));
@@ -492,7 +493,7 @@ $serialized string("<canon!>")
 @true object
 @false object
 @exception object
-~badType Message target or argument has incorrect primitive type.
+$badType oBadTypeException
 ~inclusion Error while attempting to open a file for inclusion.
 ~badArity Wrong number of arguments. 
 ~stringExpected String expected.
