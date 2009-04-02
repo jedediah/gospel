@@ -108,6 +108,8 @@ false do: {
 
 and: aBlock { aBlock value }
 false and: aBlock { self }
+or: aBlock { self }
+false or: aBlock { aBlock value }
 
 # TODO: Generalize or eliminate.
 block do: {
@@ -126,6 +128,10 @@ block do: {
 
 ### The ordered collection protocol.
 exception missingElement = "Missing collection element."
+absoluteIndex: i {
+  i < 0 if: { ^ length + i }
+  i
+}
 as: anOrderedCollection {
   result = anOrderedCollection ofLength: length;
    eachIndex: { i | result at: i put: at: i }
@@ -247,8 +253,8 @@ range = new do: {
     last - first
   }
   at: index ifAbsent: aBlock {
-    index < 0 if: { index := index + length }
-    index > -1 and: { index < length }; else: { ^ aBlock value }
+    index := absoluteIndex: index
+    index < 0 or: { length - 1 < index }; if: { ^ aBlock value }
     first + index
   }
   from: first to: last {
@@ -266,7 +272,7 @@ range = new do: {
     } value
   }
   of: aCollection {
-    result = aCollection ofLength: length;
+    result = aCollection ofLength: (aCollection absoluteIndex: last) - (aCollection absoluteIndex: first);
      eachIndex: { i | result at: i put: (aCollection at: first + i) }
   }
   serialized {
