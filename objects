@@ -141,7 +141,6 @@ $vector
 $file
 $TCPSocket
 $canon oNamespaceCanon
-$namespace
 !dynamicContext
   valueReturn(dynamicEnv(threadContinuation(currentThread)));
 !collectGarbage
