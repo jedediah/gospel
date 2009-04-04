@@ -243,7 +243,7 @@ TCPSocket do: {
   maximumConnectionBacklog = 42
 }
 
-integer successor { self + 1 }
+integer successor { + 1 }
 
 range = new do: {
   first = 0
