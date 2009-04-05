@@ -213,6 +213,16 @@ test(isString,
   assert_false(isString(slotlessObject(oString, newAtomVector(1, 0xdeadbeef))));
   assert_true(isString(string("foo")));
 )
+test(bignumAddition,
+  assert_false(strcmp("127751756338",
+                      stringData(call(call(call(string("4294967296"), sAsDecimalInteger, emptyVector),
+                                           sPlus_,
+                                           newVector(1, call(string("123456789042"),
+                                                             sAsDecimalInteger,
+                                                             emptyVector))),
+                                      sSerialized,
+                                      emptyVector))));
+)
 
   return run_test_suite(suite, create_text_reporter());
 }
