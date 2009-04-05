@@ -235,6 +235,19 @@ test(bignumAddition,
                                           sSerialized,
                                           emptyVector))));
 )
+test(bignumSubtraction,
+  assert_false(strcmp("123456789042",
+                      stringData(testcall(testcall(testcall(string("127751756338"),
+                                                            sAsDecimalInteger,
+                                                            emptyVector),
+                                                   sMinus_,
+                                                   newVector(1,
+                                                             testcall(string("4294967296"),
+                                                                      sAsDecimalInteger,
+                                                                      emptyVector))),
+                                          sSerialized,
+                                          emptyVector))));
+)
 
   return run_test_suite(suite, create_text_reporter());
 }

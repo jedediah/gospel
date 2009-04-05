@@ -428,6 +428,20 @@ $serialized string("<canon namespace>")
   obj o = typedObject(oBignum, makeAtomVector(iLength * sizeof(mp_limb_t) / sizeof(void *)));
   memcpy(vectorData(hiddenEntity(o)), i, iLength * sizeof(mp_limb_t)); // TODO: Write barrier.
   valueReturn(o);
+?- minus:
+  retarget(isBignum);
+  obj a = check(arg(0), isBignum);
+  vector x = hiddenEntity(target), y = hiddenEntity(a);
+  int m = vectorLength(x), n = vectorLength(y), max = (m > n ? m : n) + 1;
+  mp_limb_t i[max];
+  if (m > n) mpn_sub(i, vectorData(x), m, vectorData(y), n);
+  else       mpn_sub(i, vectorData(y), n, vectorData(x), m);
+  int iLength = max;
+  while (!i[--iLength]);
+  // FIXME: The following assumes that sizeof(void *) evenly divides sizeof(mp_limb_t).
+  obj o = typedObject(oBignum, makeAtomVector(iLength * sizeof(mp_limb_t) / sizeof(void *)));
+  memcpy(vectorData(hiddenEntity(o)), i, iLength * sizeof(mp_limb_t)); // TODO: Write barrier.
+  valueReturn(o);
 @integer object newAtomVector(1, 0)
 ?serialized
   retarget(isInteger);
