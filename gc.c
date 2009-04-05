@@ -117,6 +117,14 @@ int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
 int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
 int isEnvironment(obj o)  { return vectorType(o) == ENVIRONMENT; }
 
+int isBignum(obj o) {
+  if (vectorType(o) == ENTITY_VECTOR) {
+    vector v = hiddenEntity(o);
+    return v && vectorType(v) == ATOM_VECTOR;
+  }
+  return 0;
+}
+
 // As long as we admit as "strings" only NUL-terminated atom vectors, we won't segfault.
 int isString(obj o) {
   if (vectorType(o) == ENTITY_VECTOR) {

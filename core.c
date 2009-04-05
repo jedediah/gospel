@@ -23,6 +23,9 @@
 #include <unistd.h>
 #include <errno.h>
 
+// Used for bignum arithmetic.
+#include <gmp.h>
+
 // Used by socket objects:
 #include <sys/types.h>
 #include <sys/socket.h>

@@ -246,6 +246,17 @@ $serialized string("<canon namespace>")
 @string object newAtomVector(1, 0)
 ~singleCharacterExpected Attempted to set a string position to something other than a single character.
 ~negativeStringLength Attempted to create a string with negative length.
+!asDecimalInteger
+  /*
+  retarget(isString);
+  
+  // largest int a given number of bytes can represent in binary: 2^(8 * n) - 1
+  // largest int a given number of bytes can represent in b10 string: 10^n - 1
+  
+  mp_limb_t
+  mpn_set_str(vectorData(hiddenEntity(
+  */
+  valueReturn(integer(42));
 !ofLength:containing:
   obj c = check(arg(1), isString);
   if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
@@ -376,6 +387,7 @@ $serialized string("<canon namespace>")
   obj parserOutput = parse(hiddenAtom(target));
   if (parserOutput == eSyntaxError) raise(currentThread, eSyntaxError);
   valueReturn(parserOutput);
+@bignum object newAtomVector(1, 0)
 @integer object newAtomVector(1, 0)
 ?serialized
   retarget(isInteger);

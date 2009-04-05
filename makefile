@@ -26,7 +26,7 @@ ifndef FUNCTION_POINTER_TAILCALLS
 endif
 
 gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o
-	$(CC) $(CFLAGS) -pthread $^ -o $@
+	$(CC) $(CFLAGS) -lgmp -pthread $^ -o $@
 
 objgen : ;
 objects : ;
@@ -54,7 +54,7 @@ core.o : core.c objects.c objects.h death.h gc.h threadData.h parser.h
 main.o : main.c core.h objects.h
 
 test : threadData.o death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
-	$(CC) $(CFLAGS) -pthread $^ -o $@
+	$(CC) $(CFLAGS) -lgmp -pthread $^ -o $@
 
 cgreen/cgreen.a : ;
 cgreen/cgreen.h : cgreen/cgreen.a ;
