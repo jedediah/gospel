@@ -246,17 +246,27 @@ $serialized string("<canon namespace>")
 @string object newAtomVector(1, 0)
 ~singleCharacterExpected Attempted to set a string position to something other than a single character.
 ~negativeStringLength Attempted to create a string with negative length.
-!asDecimalInteger
-  /*
+~badIntegerRepresentation Attempted to convert into an integer a string that doesn't represent one.
+?asDecimalInteger
   retarget(isString);
-  
-  // largest int a given number of bytes can represent in binary: 2^(8 * n) - 1
-  // largest int a given number of bytes can represent in b10 string: 10^n - 1
-  
-  mp_limb_t
-  mpn_set_str(vectorData(hiddenEntity(
-  */
-  valueReturn(integer(42));
+  mpz_t i;
+  if (mpz_init_set_str(i, stringData(target), 10)) {
+    mpz_clear(i);
+    raise(currentThread, eBadIntegerRepresentation);
+  }
+  int s = (mpz_sizeinbase(i, 2) + sizeof(mp_limb_t) - 1) / sizeof(mp_limb_t);
+  // FIXME: The following assumes that sizeof(void *) evenly divides sizeof(mp_limb_t).
+  vector v = makeAtomVector(s * sizeof(mp_limb_t) / sizeof(void *));
+  obj o = typedObject(oBignum, v);
+  mpz_export(vectorData(v),
+             NULL, // Discard the count of limbs written.
+             -1, // Least-significant limb first.
+             sizeof(mp_limb_t),
+             0, // Native endianness of host CPU.
+             0, // No "nails".
+             i);
+  mpz_clear(i);
+  valueReturn(o);
 !ofLength:containing:
   obj c = check(arg(1), isString);
   if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
@@ -388,6 +398,36 @@ $serialized string("<canon namespace>")
   if (parserOutput == eSyntaxError) raise(currentThread, eSyntaxError);
   valueReturn(parserOutput);
 @bignum object newAtomVector(1, 0)
+?serialized
+  retarget(isBignum);
+  mpz_t i;
+  mpz_init(i);
+  vector v = hiddenEntity(target);
+  mpz_import(i,
+             vectorLength(v),
+             -1, // Least-significant limb first.
+             sizeof(mp_limb_t),
+             0, // Native endianness of host CPU.
+             0, // No "nails".
+             vectorData(v));
+  char s[mpz_sizeinbase(i, 10) + 2]; // Extra are for null terminator and possible minus sign.
+  obj o = string(mpz_get_str(s, 10, i));
+  mpz_clear(i);
+  valueReturn(o);
+?+ plus:
+  retarget(isBignum);
+  obj a = check(arg(0), isBignum);
+  vector x = hiddenEntity(target), y = hiddenEntity(a);
+  int m = vectorLength(x), n = vectorLength(y), max = (m > n ? m : n) + 1;
+  mp_limb_t i[max];
+  if (m > n) mpn_add(i, vectorData(x), m, vectorData(y), n);
+  else       mpn_add(i, vectorData(y), n, vectorData(x), m);
+  int iLength = max;
+  while (!i[--iLength]);
+  // FIXME: The following assumes that sizeof(void *) evenly divides sizeof(mp_limb_t).
+  obj o = typedObject(oBignum, makeAtomVector(iLength * sizeof(mp_limb_t) / sizeof(void *)));
+  memcpy(vectorData(hiddenEntity(o)), i, iLength * sizeof(mp_limb_t)); // TODO: Write barrier.
+  valueReturn(o);
 @integer object newAtomVector(1, 0)
 ?serialized
   retarget(isInteger);

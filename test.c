@@ -28,6 +28,9 @@
   } \
   add_test(suite, test_##name);
 
+obj testcall(obj target, obj selector, vector args) {
+  return callWithEnvironment(oDynamicEnvironment, target, selector, args);
+}
 
 int main(int argc, char **argv) {
   TestSuite *suite = create_test_suite();
@@ -213,15 +216,24 @@ test(isString,
   assert_false(isString(slotlessObject(oString, newAtomVector(1, 0xdeadbeef))));
   assert_true(isString(string("foo")));
 )
+test(bignumConversion,
+  assert_false(strcmp("4294967296",
+                      stringData(testcall(testcall(string("4294967296"), sAsDecimalInteger, emptyVector),
+                                          sSerialized,
+                                          emptyVector))));
+)
 test(bignumAddition,
   assert_false(strcmp("127751756338",
-                      stringData(call(call(call(string("4294967296"), sAsDecimalInteger, emptyVector),
-                                           sPlus_,
-                                           newVector(1, call(string("123456789042"),
-                                                             sAsDecimalInteger,
-                                                             emptyVector))),
-                                      sSerialized,
-                                      emptyVector))));
+                      stringData(testcall(testcall(testcall(string("4294967296"),
+                                                            sAsDecimalInteger,
+                                                            emptyVector),
+                                                   sPlus_,
+                                                   newVector(1,
+                                                             testcall(string("123456789042"),
+                                                                      sAsDecimalInteger,
+                                                                      emptyVector))),
+                                          sSerialized,
+                                          emptyVector))));
 )
 
   return run_test_suite(suite, create_text_reporter());

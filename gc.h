@@ -129,6 +129,7 @@ int isSymbol(obj);
 int isStackFrame(obj);
 int isVectorObject(obj);
 int isEnvironment(obj);
+int isBignum(obj);
 
 obj vectorObject(vector);
 vector vectorObjectVector(obj);
