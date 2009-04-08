@@ -409,7 +409,25 @@ $serialized string("<canon namespace>")
   objectAsBignum(check(arg(0), isBignum), y);
   mpz_sub(x, x, y);
   mpz_clear(y);
-  valueReturn(bignumAsObject(x));   
+  valueReturn(bignumAsObject(x));
+?< isLessThan:
+  retarget(isBignum);
+  mpz_t x, y;
+  objectAsBignum(target, x);
+  objectAsBignum(check(arg(0), isBignum), y);
+  obj result = mpz_cmp(x, y) < 0 ? oTrue : oFalse;
+  mpz_clear(x);
+  mpz_clear(y);
+  valueReturn(result);  
+?== equals:
+  retarget(isBignum);
+  mpz_t x, y;
+  objectAsBignum(target, x);
+  objectAsBignum(check(arg(0), isBignum), y);
+  obj result = mpz_cmp(x, y) ? oFalse : oTrue;
+  mpz_clear(x);
+  mpz_clear(y);
+  valueReturn(result);
 @integer object newAtomVector(1, 0)
 ?serialized
   retarget(isInteger);
