@@ -50,6 +50,7 @@ int liveSegmentCount = 0;
 #define STACK_FRAME    6
 #define VECTOR         7
 #define ENVIRONMENT    8
+#define BIGNUM         9
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -114,13 +115,7 @@ int isMethod(obj o)       { return vectorType(o) == METHOD;      }
 int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
 int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
 int isEnvironment(obj o)  { return vectorType(o) == ENVIRONMENT; }
-int isInteger(obj o) {
-  if (vectorType(o) == ENTITY_VECTOR) {
-    vector v = hiddenEntity(o);
-    return v && vectorType(v) == ATOM_VECTOR;
-  }
-  return 0;
-}
+int isInteger(obj o)      { return vectorType(o) == BIGNUM;      }
 
 // As long as we admit as "strings" only NUL-terminated atom vectors, we won't segfault.
 int isString(obj o) {
@@ -665,5 +660,6 @@ void initializePrototypeTags() {
   setVectorType(oMethod, METHOD);
   setVectorType(oVector, VECTOR);
   setVectorType(oDynamicEnvironment, ENVIRONMENT);
+  setVectorType(oInteger, BIGNUM);
 }
 
