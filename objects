@@ -30,7 +30,7 @@
 @deadEnd deadEnd
   obj e = slotlessObject(oMessageNotUnderstoodException, 0);
   addCanonSlot(e, sSelector, selector(threadContinuation(currentThread)));
-  raise(currentThread, e);
+  raise(e);
 @null deadEnd
 !serialized
   valueReturn(string("<null>"));
@@ -77,7 +77,7 @@
 @object null oInternals
 !do:
   obj m = blockMethod(check(arg(0), isBlock));
-  if (methodArity(m)) raise(currentThread, eBadArity);
+  if (methodArity(m)) raise(eBadArity);
   vector c = threadContinuation(currentThread);
   setSubexpressionContinuation(currentThread,
                                origin(c),
@@ -96,7 +96,7 @@
   retarget(isStackFrame);
   obj frame = target;
   for (int i = safeIntegerValue(arg(1));;) {
-    if (frame == oObject) raise(currentThread, eBadReturnDepth);
+    if (frame == oObject) raise(eBadReturnDepth);
     if (!i--) break;
     frame = proto(frame);
   }
@@ -171,9 +171,9 @@ $canon oNamespaceCanon
   gotoNext;
 !includeExactPath:in:
   FILE *f = fopen(safeStringValue(arg(0)), "r");
-  if (!f) raise(currentThread, eInclusion);
+  if (!f) raise(eInclusion);
   void *lastValue = loadStream(f, target, waitFor(arg(1)));
-  if (lastValue == eSyntaxError) raise(currentThread, eSyntaxError);
+  if (lastValue == eSyntaxError) raise(eSyntaxError);
   valueReturn(lastValue);
 !setProto:
   obj p = waitFor(arg(0));
@@ -207,7 +207,7 @@ $canon oNamespaceCanon
   valueReturn(addSlot(target, waitFor(arg(0)), arg(1), threadContinuation(currentThread)));
 !setSlot:to:
   void **slot = deepLookup(target, waitFor(arg(0)), threadContinuation(currentThread));
-  if (!slot) raise(currentThread, eSettingNonexistantSlot);
+  if (!slot) raise(eSettingNonexistantSlot);
   valueReturn(*slot = arg(1));
 !instance
   obj o = slotlessObject(target, hiddenEntity(target));
@@ -221,7 +221,7 @@ $serialized string("<canon namespace>")
   valueReturn(vectorObject(vectorAppend(vectorObjectVector(target), safeVector(arg(0)))));
 !ofLength:containing:
   int l = safeIntegerValue(arg(0));
-  if (l < 0) raise(currentThread, eNegativeVectorLength);
+  if (l < 0) raise(eNegativeVectorLength);
   obj o = arg(1);
   vector v = makeVector(l);
   while (l--) setIdx(v, l, o);
@@ -252,14 +252,14 @@ $serialized string("<canon namespace>")
   mpz_t i;
   if (mpz_init_set_str(i, stringData(target), 10)) {
     mpz_clear(i);
-    raise(currentThread, eBadIntegerRepresentation);
+    raise(eBadIntegerRepresentation);
   }
   valueReturn(bignumAsObject(i));
 !ofLength:containing:
   obj c = check(arg(1), isString);
-  if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
+  if (stringLength(c) != 1) raise(eSingleCharacterExpected);
   int i = safeIntegerValue(arg(0));
-  if (i < 0) raise(currentThread, eNegativeStringLength);
+  if (i < 0) raise(eNegativeStringLength);
   vector s = newAtomVector(CELLS_REQUIRED_FOR_BYTES(i + 1));
   memset(vectorData(s), stringIdx(c, 0), i); // TODO: Write barrier.
   ((char *)vectorData(s))[i] = 0; // TODO: Write barrier.
@@ -278,7 +278,7 @@ $serialized string("<canon namespace>")
   if (i < 0) i = length + i;
   if (i < 0 || i >= length) invokeBlock(arg(2));
   obj c = check(arg(1), isString);
-  if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
+  if (stringLength(c) != 1) raise(eSingleCharacterExpected);
   setStringIdx(s, i, stringIdx(c, 0));
   valueReturn(c);
 !length
@@ -320,7 +320,7 @@ $serialized string("<canon namespace>")
   retarget(isBlock);
   vector args = safeVector(waitFor(arg(0)));
   obj m = blockMethod(target);
-  if (vectorLength(args) != methodArity(m)) raise(currentThread, eBadArity);
+  if (vectorLength(args) != methodArity(m)) raise(eBadArity);
   setMethodContinuation(threadContinuation(currentThread), blockEnv(target), prefix(target, args), m);
   gotoNext;
 !arity
@@ -383,7 +383,7 @@ $serialized string("<canon namespace>")
 !read
   // FIXME: This is not typesafe.
   obj parserOutput = parse(hiddenAtom(target));
-  if (parserOutput == eSyntaxError) raise(currentThread, eSyntaxError);
+  if (parserOutput == eSyntaxError) raise(eSyntaxError);
   valueReturn(parserOutput);
 @integer object newAtomVector(1, 0)
 ?serialized
@@ -442,11 +442,11 @@ $serialized string("<canon namespace>")
 ~socketShutdown Error during socket shutdown.
 !shutdown
   if (shutdown(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), SHUT_RDWR))
-    raise(currentThread, eSocketShutdown);
+    raise(eSocketShutdown);
   normalReturn;
 !new
   int fd = socket(PF_INET, SOCK_STREAM, 0);
-  if (fd == -1) raise(currentThread, eSocketCreation);
+  if (fd == -1) raise(eSocketCreation);
   obj s = slotlessObject(oTCPSocket, emptyVector);
   addSlot(s, sPOSIXFileDescriptor, integer(fd), threadContinuation(currentThread));
   valueReturn(s);
@@ -456,7 +456,7 @@ $serialized string("<canon namespace>")
   int fd = accept(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)),
                   &socketParameters,
                   &socketParametersSize);
-  if (fd == -1) raise(currentThread, eSocketAccept);
+  if (fd == -1) raise(eSocketAccept);
   obj s = slotlessObject(oTCPSocket, emptyVector);
   addSlot(s, sPOSIXFileDescriptor, integer(fd), threadContinuation(currentThread));
   valueReturn(s);
@@ -468,12 +468,12 @@ $serialized string("<canon namespace>")
   s.sin_addr.s_addr = htonl(INADDR_ANY);
   if (bind(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)),
            (struct sockaddr *)&s, (socklen_t)sizeof(struct sockaddr_in)))
-    raise(currentThread, eSocketBinding);
+    raise(eSocketBinding);
   normalReturn;
 !listen
   if (listen(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)),
              safeIntegerValue(call(target, sMaximumConnectionBacklog, emptyVector))))
-    raise(currentThread, eSocketListening);
+    raise(eSocketListening);
   normalReturn;
 @file object
 # Relies on canon.
@@ -481,19 +481,19 @@ $serialized string("<canon namespace>")
 ~errorWhileClosing Error while closing a file.
 !openForReading
   int fd = open(safeStringValue(call(target, sPath, emptyVector)), O_RDONLY);
-  if (fd == -1) raise(currentThread, eErrorWhileOpening);
+  if (fd == -1) raise(eErrorWhileOpening);
   obj o = typedObject(oFileStream, 0);
   addCanonSlot(o, sPOSIXFileDescriptor, integer(fd));
   valueReturn(o);
 !openForWriting
   int fd = open(safeStringValue(call(target, sPath, emptyVector)), O_WRONLY);
-  if (fd == -1) raise(currentThread, eErrorWhileOpening);
+  if (fd == -1) raise(eErrorWhileOpening);
   obj o = typedObject(oFileStream, 0);
   addCanonSlot(o, sPOSIXFileDescriptor, integer(fd));
   valueReturn(o);
 !openForReadingAndWriting
   int fd = open(safeStringValue(call(target, sPath, emptyVector)), O_RDWR);
-  if (fd == -1) raise(currentThread, eErrorWhileOpening);
+  if (fd == -1) raise(eErrorWhileOpening);
   obj o = typedObject(oFileStream, 0);
   addCanonSlot(o, sPOSIXFileDescriptor, integer(fd));
   valueReturn(o);
@@ -505,17 +505,17 @@ $serialized string("<canon namespace>")
   int count = safeIntegerValue(arg(0));
   char s[count];
   ssize_t i = read(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, count);
-  if (i == -1) raise(currentThread, eStreamRead);
+  if (i == -1) raise(eStreamRead);
   s[i] = 0;
   valueReturn(string(s));
 !write:
   char *s = safeStringValue(arg(0));
   ssize_t i = write(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, strlen(s));
-  if (i == -1) raise(currentThread, eStreamWrite);
+  if (i == -1) raise(eStreamWrite);
   valueReturn(integer(i));
 !close
   if (close(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector))))
-    raise(currentThread, eStreamClose);
+    raise(eStreamClose);
   normalReturn;
 @true object
 @false object

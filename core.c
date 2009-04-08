@@ -197,8 +197,8 @@ vector setExceptionContinuation(vector thread, obj exception) {
                                                  dynamicEnv(threadContinuation(thread)));
 }
 
-#define raise(raise_thread, raise_exception) do { \
-  setExceptionContinuation((raise_thread), (raise_exception)); \
+#define raise(raise_exception) do { \
+  setExceptionContinuation(currentThread, (raise_exception)); \
   gotoNext; \
 } while (0)
 
@@ -552,7 +552,7 @@ void *loadStream(FILE *, obj, obj);
        if (c_newValue == oNull) { \
          obj e = slotlessObject(oBadTypeException, 0); \
          addCanonSlot(e, sSelector, selector(threadContinuation(currentThread))); \
-         raise(currentThread, e); \
+         raise(e); \
        } \
        if ((c_predicate)(c_newValue)) break; \
        c_newValue = proto(c_newValue); \
@@ -565,7 +565,7 @@ void *loadStream(FILE *, obj, obj);
 #define safeVector(sv_v) (vectorObjectVector(check((sv_v), isVectorObject)))
 #define valueReturn(vr_v) messageReturn(vr_v)
 #define normalReturn valueReturn(continuationTarget(threadContinuation(currentThread)))
-#define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(currentThread, eMissingArgument); (void *)0; }))
+#define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(eMissingArgument); (void *)0; }))
 #define resend(r_args) do { \
   continuation r_c = threadContinuation(currentThread); \
   obj r_a = (r_args); \
