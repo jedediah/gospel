@@ -71,10 +71,13 @@ exception do: {
 }
 
 inclusionPaths = ["lib/"]
+inclusionFileExtensions = [".gs", ""]
 include: filename in: environment {
   inclusionPaths each: { path |
-    { ^^ self includeExactPath: path ++ filename in: environment } except:
-     { e | e is: exception inclusion; else: { e raise } }
+    inclusionFileExtensions each: { extension |
+      { ^^^ self includeExactPath: path ++ filename ++ extension in: environment } except:
+       { e | e is: exception inclusion; else: { e raise } }
+    }
   }
   "File to be included was not found: " ++ filename; raise
 }
