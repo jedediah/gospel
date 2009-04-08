@@ -254,19 +254,7 @@ $serialized string("<canon namespace>")
     mpz_clear(i);
     raise(currentThread, eBadIntegerRepresentation);
   }
-  int s = (mpz_sizeinbase(i, 2) + sizeof(mp_limb_t) - 1) / sizeof(mp_limb_t);
-  // FIXME: The following assumes that sizeof(void *) evenly divides sizeof(mp_limb_t).
-  vector v = makeAtomVector(s * sizeof(mp_limb_t) / sizeof(void *));
-  obj o = typedObject(oBignum, v);
-  mpz_export(vectorData(v),
-             NULL, // Discard the count of limbs written.
-             -1, // Least-significant limb first.
-             sizeof(mp_limb_t),
-             0, // Native endianness of host CPU.
-             0, // No "nails".
-             i);
-  mpz_clear(i);
-  valueReturn(o);
+  valueReturn(bignumAsObject(i));
 !ofLength:containing:
   obj c = check(arg(1), isString);
   if (stringLength(c) != 1) raise(currentThread, eSingleCharacterExpected);
@@ -401,47 +389,27 @@ $serialized string("<canon namespace>")
 ?serialized
   retarget(isBignum);
   mpz_t i;
-  mpz_init(i);
-  vector v = hiddenEntity(target);
-  mpz_import(i,
-             vectorLength(v),
-             -1, // Least-significant limb first.
-             sizeof(mp_limb_t),
-             0, // Native endianness of host CPU.
-             0, // No "nails".
-             vectorData(v));
+  objectAsBignum(target, i);
   char s[mpz_sizeinbase(i, 10) + 2]; // Extra are for null terminator and possible minus sign.
   obj o = string(mpz_get_str(s, 10, i));
   mpz_clear(i);
   valueReturn(o);
 ?+ plus:
   retarget(isBignum);
-  obj a = check(arg(0), isBignum);
-  vector x = hiddenEntity(target), y = hiddenEntity(a);
-  int m = vectorLength(x), n = vectorLength(y), max = (m > n ? m : n) + 1;
-  mp_limb_t i[max];
-  if (m > n) mpn_add(i, vectorData(x), m, vectorData(y), n);
-  else       mpn_add(i, vectorData(y), n, vectorData(x), m);
-  int iLength = max;
-  while (!i[--iLength]);
-  // FIXME: The following assumes that sizeof(void *) evenly divides sizeof(mp_limb_t).
-  obj o = typedObject(oBignum, makeAtomVector(iLength * sizeof(mp_limb_t) / sizeof(void *)));
-  memcpy(vectorData(hiddenEntity(o)), i, iLength * sizeof(mp_limb_t)); // TODO: Write barrier.
-  valueReturn(o);
+  mpz_t x, y;
+  objectAsBignum(target, x);
+  objectAsBignum(check(arg(0), isBignum), y);
+  mpz_add(x, x, y);
+  mpz_clear(y);
+  valueReturn(bignumAsObject(x));
 ?- minus:
   retarget(isBignum);
-  obj a = check(arg(0), isBignum);
-  vector x = hiddenEntity(target), y = hiddenEntity(a);
-  int m = vectorLength(x), n = vectorLength(y), max = (m > n ? m : n) + 1;
-  mp_limb_t i[max];
-  if (m > n) mpn_sub(i, vectorData(x), m, vectorData(y), n);
-  else       mpn_sub(i, vectorData(y), n, vectorData(x), m);
-  int iLength = max;
-  while (!i[--iLength]);
-  // FIXME: The following assumes that sizeof(void *) evenly divides sizeof(mp_limb_t).
-  obj o = typedObject(oBignum, makeAtomVector(iLength * sizeof(mp_limb_t) / sizeof(void *)));
-  memcpy(vectorData(hiddenEntity(o)), i, iLength * sizeof(mp_limb_t)); // TODO: Write barrier.
-  valueReturn(o);
+  mpz_t x, y;
+  objectAsBignum(target, x);
+  objectAsBignum(check(arg(0), isBignum), y);
+  mpz_sub(x, x, y);
+  mpz_clear(y);
+  valueReturn(bignumAsObject(x));   
 @integer object newAtomVector(1, 0)
 ?serialized
   retarget(isInteger);
