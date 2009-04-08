@@ -385,9 +385,9 @@ $serialized string("<canon namespace>")
   obj parserOutput = parse(hiddenAtom(target));
   if (parserOutput == eSyntaxError) raise(currentThread, eSyntaxError);
   valueReturn(parserOutput);
-@bignum object newAtomVector(1, 0)
+@integer object newAtomVector(1, 0)
 ?serialized
-  retarget(isBignum);
+  retarget(isInteger);
   mpz_t i;
   objectAsBignum(target, i);
   char s[mpz_sizeinbase(i, 10) + 2]; // Extra are for null terminator and possible minus sign.
@@ -395,64 +395,39 @@ $serialized string("<canon namespace>")
   mpz_clear(i);
   valueReturn(o);
 ?+ plus:
-  retarget(isBignum);
+  retarget(isInteger);
   mpz_t x, y;
   objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isBignum), y);
+  objectAsBignum(check(arg(0), isInteger), y);
   mpz_add(x, x, y);
   mpz_clear(y);
   valueReturn(bignumAsObject(x));
 ?- minus:
-  retarget(isBignum);
+  retarget(isInteger);
   mpz_t x, y;
   objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isBignum), y);
+  objectAsBignum(check(arg(0), isInteger), y);
   mpz_sub(x, x, y);
   mpz_clear(y);
   valueReturn(bignumAsObject(x));
 ?< isLessThan:
-  retarget(isBignum);
+  retarget(isInteger);
   mpz_t x, y;
   objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isBignum), y);
+  objectAsBignum(check(arg(0), isInteger), y);
   obj result = mpz_cmp(x, y) < 0 ? oTrue : oFalse;
   mpz_clear(x);
   mpz_clear(y);
   valueReturn(result);  
 ?== equals:
-  retarget(isBignum);
+  retarget(isInteger);
   mpz_t x, y;
   objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isBignum), y);
+  objectAsBignum(check(arg(0), isInteger), y);
   obj result = mpz_cmp(x, y) ? oFalse : oTrue;
   mpz_clear(x);
   mpz_clear(y);
   valueReturn(result);
-@integer object newAtomVector(1, 0)
-?serialized
-  retarget(isInteger);
-  char buffer[12]; // FIXME: Assumes signed 32-bit fixnums.
-  sprintf(buffer, "%d", integerValue(target));
-  valueReturn(string(buffer));
-!== equals
-  retarget(isInteger);
-  obj a = waitFor(arg(0));
-  if (isInteger(a) && integerValue(target) == integerValue(a)) valueReturn(oTrue);
-  valueReturn(oFalse);
-!< isLessThan
-  retarget(isInteger);
-  if (integerValue(target) < safeIntegerValue(waitFor(arg(0)))) normalReturn;
-  valueReturn(oFalse);
-!> isGreaterThan
-  retarget(isInteger);
-  if (integerValue(target) > safeIntegerValue(waitFor(arg(0)))) normalReturn;
-  valueReturn(oFalse);
-!- minus:
-  retarget(isInteger);
-  valueReturn(integer(integerValue(target) - safeIntegerValue(waitFor(arg(0)))));
-!+ plus:
-  retarget(isInteger);
-  valueReturn(integer(integerValue(target) + safeIntegerValue(waitFor(arg(0)))));
 !secondsDelay
   retarget(isInteger);
   int i = integerValue(target);
@@ -527,9 +502,11 @@ $serialized string("<canon namespace>")
                    safeStringValue(call(target, sPOSIXFileMode, emptyVector)));
   if (!fd) raise(currentThread, eErrorWhileOpening);
   valueReturn(typedObject(oFileStream, newAtomVector(1, fd)));
+  obj o = integer(fd);
+  setProto(o, oFileStream);
+  valueReturn(o);
 @fileStream object newAtomVector(1, 0)
 ~errorWhileReading Error while reading from a file stream.
-# Has a primitive type of "fixnum", set in initializePrototypeTags().
 !read:
   int expectedCount = safeIntegerValue(arg(0)), actualCount;
   vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(expectedCount + 1));

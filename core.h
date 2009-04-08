@@ -36,6 +36,9 @@ int yylex(YYSTYPE *, YYLTYPE *, int *, void *);
 
 #include "gc.h"
 
+obj integer(int);
+int integerValue(obj);
+
 obj symbol(const char *c);
 obj appendSymbols(vector);
 

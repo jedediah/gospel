@@ -163,7 +163,6 @@ obj setProto(obj, obj);
 obj newObject(obj, vector, vector, void *);
 obj slotlessObject(obj, vector);
 obj typedObject(obj, vector);
-obj fixnumObject(obj, int);
 
 obj method(vector, vector);
 vector methodParams(obj);
@@ -171,8 +170,6 @@ vector methodBody(obj);
 
 obj primitive(void *);
 void (*primitiveCode(obj))(void);
-obj integer(int);
-int integerValue(obj);
 
 obj stackFrame(obj, vector, vector, vector);
 vector stackFrameContinuation(obj);

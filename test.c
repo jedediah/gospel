@@ -212,7 +212,6 @@ test(callWithEnvironment,
                42);
 )
 test(isString,
-  assert_false(isString(integer(42)));
   assert_false(isString(slotlessObject(oString, newAtomVector(1, 0xdeadbeef))));
   assert_true(isString(string("foo")));
 )

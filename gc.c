@@ -45,12 +45,11 @@ int liveSegmentCount = 0;
 #define ENTITY_VECTOR  1
 #define PROMISE        2
 #define CHANNEL        3
-#define FIXNUM         4
-#define PRIMITIVE      5
-#define METHOD         6
-#define STACK_FRAME    7
-#define VECTOR         8
-#define ENVIRONMENT    9
+#define PRIMITIVE      4
+#define METHOD         5
+#define STACK_FRAME    6
+#define VECTOR         7
+#define ENVIRONMENT    8
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -110,14 +109,12 @@ void setVectorType(vector v, int t) {
 int isPromise(vector v)   { return vectorType(v) == PROMISE;   }
 int isChannel(vector v)   { return vectorType(v) == CHANNEL;   }
 
-int isInteger(obj o)      { return vectorType(o) == FIXNUM;      }
 int isPrimitive(obj o)    { return vectorType(o) == PRIMITIVE;   }
 int isMethod(obj o)       { return vectorType(o) == METHOD;      }
 int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
 int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
 int isEnvironment(obj o)  { return vectorType(o) == ENVIRONMENT; }
-
-int isBignum(obj o) {
+int isInteger(obj o) {
   if (vectorType(o) == ENTITY_VECTOR) {
     vector v = hiddenEntity(o);
     return v && vectorType(v) == ATOM_VECTOR;
@@ -291,7 +288,6 @@ void scan() {
       break;
     case ATOM_VECTOR:
       break;
-//  case FIXNUM: case PRIMITIVE: case ENTITY_VECTOR: case METHOD: case STACK_FRAME:
     default:
       for (int i = 0; i < vectorLength(grayList); i++) mark(idx(grayList, i));
       break;
@@ -627,12 +623,6 @@ obj typedObject(obj proto, vector hidden) {
   return o;
 }
 
-obj fixnumObject(obj proto, int hidden) {
-  obj o = slotlessObject(proto, newAtomVector(1, hidden));
-  setVectorType(o, FIXNUM);
-  return o;
-}
-
 obj primitive(void *code) {
   obj o = slotlessObject(oPrimitive, newAtomVector(1, code));
   setVectorType(o, PRIMITIVE);
@@ -649,13 +639,6 @@ obj method(vector params, vector body) {
 }
 vector methodParams(obj c) { return idx(hiddenEntity(c), 0); }
 vector methodBody(obj c)   { return idx(hiddenEntity(c), 1); }
-
-obj integer(int value) {
-  return fixnumObject(oInteger, value);
-}
-int integerValue(obj i) {
-  return (int)hiddenAtom(i);
-}
 
 obj stackFrame(obj parent, vector names, vector values, vector continuation) {
   obj o = newObject(parent, names, values, continuation);
@@ -678,11 +661,9 @@ obj vectorObjectVector(obj v) {
 // Certain objects have to be given special type tags.
 // TODO: Make it possible to specify this in the builtins file.
 void initializePrototypeTags() {
-  setVectorType(oInteger, FIXNUM);
   setVectorType(oPrimitive, PRIMITIVE);
   setVectorType(oMethod, METHOD);
   setVectorType(oVector, VECTOR);
   setVectorType(oDynamicEnvironment, ENVIRONMENT);
-  setVectorType(oFileStream, FIXNUM);
 }
 

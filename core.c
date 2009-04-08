@@ -471,7 +471,7 @@ obj bignumObject(int length, vector data) {
   vector v = makeAtomVector(n + 1);
   setIdx(v, 0, (void *)length);
   for (int i = 0; i < n; ++i) setIdx(v, i + 1, (void *)idx(data, i)); // TODO: Use memcpy()?
-  return typedObject(oBignum, v);
+  return typedObject(oInteger, v);
 }
 int bignumObjectLength(obj o) {
   return (int)idx(hiddenEntity(o), 0);
@@ -505,6 +505,20 @@ int *bignumObjectData(obj o) {
   mpz_clear(i); \
   o; \
 })
+
+obj integer(int v) {
+  mpz_t i;
+  mpz_init_set_si(i, v);
+  return bignumAsObject(i);
+}
+int integerValue(obj o) {
+  mpz_t i;
+  mpz_init(i);
+  objectAsBignum(o, i);
+  int v = mpz_get_si(i);
+  mpz_clear(i);
+  return v;
+}
 
 obj *filenameToInclude;
 promise *promiseOfInclusion;

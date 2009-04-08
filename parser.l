@@ -66,7 +66,10 @@ OP  [!%&*\-+=<>?/]+
 \$[^ \[\]\(\)\{\}\n.,;]*  { *value = symbol(yyget_text(yyscanner) + 1);
                             return SYMBOL;
                           }
--?[0-9]+                  { *value = integer(atoi(yyget_text(yyscanner)));
+-?[0-9]+                  { *value = callWithEnvironment(oDynamicEnvironment,
+                                                         string(yyget_text(yyscanner)),
+                                                         sAsDecimalInteger,
+                                                         emptyVector);
                             return INTEGER;
                           }
 =                         { BEGIN(NEWLINES);

@@ -110,6 +110,8 @@ and: aBlock { aBlock value }
 false and: aBlock { self }
 or: aBlock { self }
 false or: aBlock { aBlock value }
+not { false }
+false not { true }
 
 # TODO: Generalize or eliminate.
 block do: {
@@ -244,6 +246,13 @@ TCPSocket do: {
 }
 
 integer successor { + 1 }
+
+object do: {
+  < anObject { > anObject or: { == anObject }; not }
+  > anObject { < anObject or: { == anObject }; not }
+  <= anObject { > anObject; not }
+  >= anObject { < anObject; not }
+}
 
 range = new do: {
   first = 0
