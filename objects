@@ -433,15 +433,13 @@ $serialized string("<canon namespace>")
   int i = integerValue(target);
   while (i) i = sleep(i);
   valueReturn(target);
-@TCPSocket object
+@TCPSocket fileStream
 ~socketCreation Error while creating socket.
 ~socketBinding Error while binding socket.
 ~socketClosing Error while closing socket.
 ~socketListening Error while beginning to listen on socket.
 ~socketAccept Error while accepting connection to socket.
 ~socketShutdown Error during socket shutdown.
-~socketRead Error while reading from socket.
-~socketWrite Error while writing to socket.
 !shutdown
   if (shutdown(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), SHUT_RDWR))
     raise(currentThread, eSocketShutdown);
@@ -477,51 +475,47 @@ $serialized string("<canon namespace>")
              safeIntegerValue(call(target, sMaximumConnectionBacklog, emptyVector))))
     raise(currentThread, eSocketListening);
   normalReturn;
+@file object
+# Relies on canon.
+~errorWhileOpening Error while opening a file.
+~errorWhileClosing Error while closing a file.
+!openForReading
+  int fd = open(safeStringValue(call(target, sPath, emptyVector)), O_RDONLY);
+  if (fd == -1) raise(currentThread, eErrorWhileOpening);
+  obj o = typedObject(oFileStream, 0);
+  addCanonSlot(o, sPOSIXFileDescriptor, integer(fd));
+  valueReturn(o);
+!openForWriting
+  int fd = open(safeStringValue(call(target, sPath, emptyVector)), O_WRONLY);
+  if (fd == -1) raise(currentThread, eErrorWhileOpening);
+  obj o = typedObject(oFileStream, 0);
+  addCanonSlot(o, sPOSIXFileDescriptor, integer(fd));
+  valueReturn(o);
+!openForReadingAndWriting
+  int fd = open(safeStringValue(call(target, sPath, emptyVector)), O_RDWR);
+  if (fd == -1) raise(currentThread, eErrorWhileOpening);
+  obj o = typedObject(oFileStream, 0);
+  addCanonSlot(o, sPOSIXFileDescriptor, integer(fd));
+  valueReturn(o);
+@fileStream object
+~streamRead Error while reading from a POSIX file stream.
+~streamWrite Error while writing to a POSIX file stream.
+~streamClose Error while closing a POSIX file stream.
 ?read:
   int count = safeIntegerValue(arg(0));
   char s[count];
   ssize_t i = read(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, count);
-  if (i == -1) raise(currentThread, eSocketRead);
+  if (i == -1) raise(currentThread, eStreamRead);
   s[i] = 0;
   valueReturn(string(s));
 !write:
   char *s = safeStringValue(arg(0));
   ssize_t i = write(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector)), s, strlen(s));
-  if (i == -1) raise(currentThread, eSocketWrite);
+  if (i == -1) raise(currentThread, eStreamWrite);
   valueReturn(integer(i));
 !close
   if (close(safeIntegerValue(call(target, sPOSIXFileDescriptor, emptyVector))))
-    raise(currentThread, eSocketClosing);
-  normalReturn;
-@file object
-# Relies on canon.
-~errorWhileOpening Error while opening a file.
-~errorWhileClosing Error while closing a file.
-!open
-  FILE *fd = fopen(safeStringValue(call(target, sPath, emptyVector)),
-                   safeStringValue(call(target, sPOSIXFileMode, emptyVector)));
-  if (!fd) raise(currentThread, eErrorWhileOpening);
-  valueReturn(typedObject(oFileStream, newAtomVector(1, fd)));
-  obj o = integer(fd);
-  setProto(o, oFileStream);
-  valueReturn(o);
-@fileStream object newAtomVector(1, 0)
-~errorWhileReading Error while reading from a file stream.
-!read:
-  int expectedCount = safeIntegerValue(arg(0)), actualCount;
-  vector s = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(expectedCount + 1));
-  char *b = vectorData(s);
-  b[actualCount = fread(b, sizeof(char), expectedCount, (FILE *)safeIntegerValue(target))] = 0;
-  // If we got the number of characters we expected, we can use the vector we've already allocated for the hidden data of the string object. Otherwise we use string() to reallocate.
-  valueReturn(actualCount < expectedCount ? string(b) : typedObject(oString, s));
-!write:
-  obj s = check(arg(0), isString);
-  valueReturn(integer(fwrite(stringData(s),
-                             sizeof(char),
-                             stringLength(s),
-                             (FILE *)safeIntegerValue(target))));
-!close
-  if (fclose((FILE *)safeIntegerValue(target))) raise(currentThread, eErrorWhileClosing);
+    raise(currentThread, eStreamClose);
   normalReturn;
 @true object
 @false object

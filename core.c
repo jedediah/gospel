@@ -32,6 +32,11 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
+// Used by fileStream objects. 
+#include <sys/stat.h>
+#include <fcntl.h>
+
+
 #include "death.h"
 #include "core.h"
 #include "gc.h"

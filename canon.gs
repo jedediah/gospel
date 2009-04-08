@@ -216,28 +216,8 @@ printLine { self print. "\n" print }
 
 file do: {
   path = ""
-  POSIXFileMode = ""
-
   named: newPath {
     new tap: { newFile | newFile path = newPath }
-  }
-  copy {
-    file named: path
-  }
-  forReading {
-    copy do: {
-      POSIXFileMode = "r"
-      forAppending { self POSIXFileMode = "a+" }
-    }
-  }
-  forWriting {
-    copy POSIXFileMode = "w+"
-  }
-  forAppending {
-    copy do: {
-      POSIXFileMode = "a"
-      forAppending { self POSIXFileMode = "a+" }
-    }
   }
 }
 
