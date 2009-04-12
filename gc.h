@@ -26,6 +26,8 @@
 
 #define EDEN_OVERHEAD 5 // For the sake of testing.
 
+#include <gmp.h> // For the definition of "mpz_t".
+
 typedef struct vectorStruct {
   struct vectorStruct *prev, *next;
   int type;
@@ -133,6 +135,10 @@ int isBignum(obj);
 
 obj vectorObject(vector);
 vector vectorObjectVector(obj);
+
+__mpz_struct *bignumData(obj);
+obj emptyBignum(void);
+vector emptyBignumVector(void);
 
 obj string(const char *);
 char *stringData(obj);

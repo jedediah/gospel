@@ -471,58 +471,13 @@ int arity() {
   return vectorLength(evaluated(threadContinuation(currentThread))) - 1;
 }
 
-obj bignumObject(int length, vector data) {
-  int n = vectorLength(data);
-  vector v = makeAtomVector(n + 1);
-  setIdx(v, 0, (void *)length);
-  for (int i = 0; i < n; ++i) setIdx(v, i + 1, (void *)idx(data, i)); // TODO: Use memcpy()?
-  return typedObject(oInteger, v);
-}
-int bignumObjectLength(obj o) {
-  return (int)idx(hiddenEntity(o), 0);
-}
-int *bignumObjectData(obj o) {
-  return (int *)idxPointer(hiddenEntity(o), 1);
-}
-
-#define objectAsBignum(o, i) do { \
-  mpz_init(i); \
-  mpz_import(i, \
-             abs(bignumObjectLength(o)), \
-             -1, /* Least-significant limb first. */ \
-             sizeof(mp_limb_t), \
-             0, /*Native endianness of host CPU. */ \
-             0, /* No "nails". */ \
-             bignumObjectData(o)); \
-  if (bignumObjectLength(o) < 0) mpz_neg(i, i); \
-} while (0)
-#define bignumAsObject(i) ({ \
-  int limbCount = mpz_size(i); \
-  vector v = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(limbCount * sizeof(mp_limb_t))); \
-  obj o = bignumObject(mpz_sgn(i) < 0 ? -limbCount : limbCount, v); \
-  mpz_export(bignumObjectData(o), \
-             NULL, /* Discard the count of limbs written. */ \
-             -1, /* Least-significant limb first. */ \
-             sizeof(mp_limb_t), \
-             0, /* Native endianness of host CPU. */ \
-             0, /* No "nails". */ \
-             (i)); \
-  mpz_clear(i); \
-  o; \
-})
-
 obj integer(int v) {
-  mpz_t i;
-  mpz_init_set_si(i, v);
-  return bignumAsObject(i);
+  obj i = emptyBignum();
+  mpz_init_set_si(bignumData(i), v);
+  return i;
 }
-int integerValue(obj o) {
-  mpz_t i;
-  mpz_init(i);
-  objectAsBignum(o, i);
-  int v = mpz_get_si(i);
-  mpz_clear(i);
-  return v;
+int integerValue(obj i) {
+  return mpz_get_si(bignumData(i));
 }
 
 obj *filenameToInclude;

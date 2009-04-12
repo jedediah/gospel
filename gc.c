@@ -29,6 +29,8 @@
 
 #include <pthread.h>
 
+#include <gmp.h> // For bignum finalization.
+
 void *heap;
 
 int liveSegmentCount = 0;
@@ -132,6 +134,18 @@ int isSymbol(obj o) {
   return isString(o);
 }
 
+__mpz_struct *bignumData(obj o) {
+  return vectorData(hiddenEntity(o));
+}
+vector emptyBignumVector() {
+  vector v = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(__mpz_struct)));
+  mpz_init((__mpz_struct *)vectorData(v));
+  return v;
+}
+obj emptyBignum() {
+  return typedObject(oInteger, emptyBignumVector());
+}
+
 obj string(const char *s) {
   int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
   vector v = makeAtomVector(length);
@@ -190,7 +204,7 @@ vector extract(vector v) {
 }
 
 #define VECTOR_HEADER_SIZE 3
-
+#include <stdio.h>
 vector constructWhiteList() {
   const vector topOfHeap = (vector)(heap + ARENA_CELLS * sizeof(void *));
   struct vectorStruct stub = {0, 0, 0};
@@ -227,6 +241,11 @@ vector constructWhiteList() {
       prev = prev->next = base;
     }
     for (;;) {
+      switch (vectorType(current)) { // Perform finalization for the primitive types that need it.
+        case BIGNUM:
+          mpz_clear(bignumData(current));
+          setVectorType(current, ENTITY_VECTOR);
+      }
       advance();
       if (current == topOfHeap) {
         merge();
@@ -292,6 +311,8 @@ void scan() {
 
 #include <stdio.h>
 void collectGarbage() {
+  mark(garbageCollectorRoot); // FIXME: Redundant with respect to flip(), above?
+  mark(oObject);
   while (grayList != blackList) scan();
   flip();
 }

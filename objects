@@ -75,6 +75,9 @@
 @threadExpiryIndicator null
 # Returned to indicate to call() that it should terminate the thread that invoked it.
 @object null oInternals
+# We stash a pointer to oInternals here to lend it oObjects's immunity to garbage collection.
+# It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
+# but future changes to the interpreter may eliminate the need for oInternals.
 !do:
   obj m = blockMethod(check(arg(0), isBlock));
   if (methodArity(m)) raise(eBadArity);
@@ -89,9 +92,6 @@
   gotoNext;
 !self
   normalReturn;
-# We stash a pointer to oInternals here to lend it oObjects's immunity to garbage collection.
-# It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
-# but future changes to the interpreter may eliminate the need for oInternals.
 !return:atDepth:
   retarget(isStackFrame);
   obj frame = target;
@@ -249,12 +249,9 @@ $serialized string("<canon namespace>")
 ~badIntegerRepresentation Attempted to convert into an integer a string that doesn't represent one.
 ?asDecimalInteger
   retarget(isString);
-  mpz_t i;
-  if (mpz_init_set_str(i, stringData(target), 10)) {
-    mpz_clear(i);
-    raise(eBadIntegerRepresentation);
-  }
-  valueReturn(bignumAsObject(i));
+  obj i = emptyBignum();
+  if (mpz_set_str(bignumData(i), stringData(target), 10)) raise(eBadIntegerRepresentation);
+  valueReturn(i);
 !ofLength:containing:
   obj c = check(arg(1), isString);
   if (stringLength(c) != 1) raise(eSingleCharacterExpected);
@@ -385,49 +382,29 @@ $serialized string("<canon namespace>")
   obj parserOutput = parse(hiddenAtom(target));
   if (parserOutput == eSyntaxError) raise(eSyntaxError);
   valueReturn(parserOutput);
-@integer object newAtomVector(1, 0)
+@integer object emptyBignumVector()
 ?serialized
   retarget(isInteger);
-  mpz_t i;
-  objectAsBignum(target, i);
+  __mpz_struct *i = bignumData(target);
   char s[mpz_sizeinbase(i, 10) + 2]; // Extra are for null terminator and possible minus sign.
   obj o = string(mpz_get_str(s, 10, i));
-  mpz_clear(i);
   valueReturn(o);
 ?+ plus:
   retarget(isInteger);
-  mpz_t x, y;
-  objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isInteger), y);
-  mpz_add(x, x, y);
-  mpz_clear(y);
-  valueReturn(bignumAsObject(x));
+  obj z = emptyBignum();
+  mpz_add(bignumData(z), bignumData(target), bignumData(check(arg(0), isInteger)));
+  valueReturn(z);
 ?- minus:
   retarget(isInteger);
-  mpz_t x, y;
-  objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isInteger), y);
-  mpz_sub(x, x, y);
-  mpz_clear(y);
-  valueReturn(bignumAsObject(x));
+  obj z = emptyBignum();
+  mpz_sub(bignumData(z), bignumData(target), bignumData(check(arg(0), isInteger)));
+  valueReturn(z);
 ?< isLessThan:
   retarget(isInteger);
-  mpz_t x, y;
-  objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isInteger), y);
-  obj result = mpz_cmp(x, y) < 0 ? oTrue : oFalse;
-  mpz_clear(x);
-  mpz_clear(y);
-  valueReturn(result);  
+  valueReturn(mpz_cmp(bignumData(target), bignumData(check(arg(0), isInteger))) < 0 ? oTrue : oFalse);  
 ?== equals:
   retarget(isInteger);
-  mpz_t x, y;
-  objectAsBignum(target, x);
-  objectAsBignum(check(arg(0), isInteger), y);
-  obj result = mpz_cmp(x, y) ? oFalse : oTrue;
-  mpz_clear(x);
-  mpz_clear(y);
-  valueReturn(result);
+  valueReturn(mpz_cmp(bignumData(target), bignumData(check(arg(0), isInteger))) ? oFalse : oTrue);
 !secondsDelay
   retarget(isInteger);
   int i = integerValue(target);
