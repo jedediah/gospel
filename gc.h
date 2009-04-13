@@ -131,7 +131,7 @@ int isSymbol(obj);
 int isStackFrame(obj);
 int isVectorObject(obj);
 int isEnvironment(obj);
-int isBignum(obj);
+int isRegex(obj);
 
 obj vectorObject(vector);
 vector vectorObjectVector(obj);
@@ -141,6 +141,7 @@ obj emptyBignum(void);
 vector emptyBignumVector(void);
 
 obj string(const char *);
+obj stringFromVector(vector);
 char *stringData(obj);
 int stringLength(obj);
 char stringIdx(obj, int);

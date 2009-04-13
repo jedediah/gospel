@@ -140,6 +140,8 @@ $exception
 $vector
 $file
 $TCPSocket
+$regex
+$range
 $canon oNamespaceCanon
 !dynamicContext
   valueReturn(dynamicEnv(threadContinuation(currentThread)));
@@ -301,6 +303,23 @@ $serialized string("<canon namespace>")
   retarget(isSymbol);
   // TODO: Create the dollarsign string once, at startup.
   valueReturn(appendStrings(string("$"), target));
+@range object
+&from:to:
+@regex object makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(regex_t)))
+~regexSyntaxError Syntax error in regex.
+~regexOutOfMemory Memory exhausted while matching regex.
+~regexDidNotMatch Regex didn't match.
+!for:
+  vector v = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(regex_t)));
+  if (regcomp(vectorData(v), safeStringValue(arg(0)), 0)) raise(eRegexSyntaxError);
+  valueReturn(typedObject(oRegex, v));
+?of:ifAbsent:
+  retarget(isRegex);
+  char *s = safeStringValue(arg(0));
+  regmatch_t indices[1];
+  if (regexec(vectorData(hiddenEntity(target)), s, 1, indices, REG_NOTBOL | REG_NOTEOL))
+    invokeBlock(arg(1));
+  valueReturn(call(oRange, sFrom_to_, newVector(2, integer(indices->rm_so), integer(indices->rm_eo))));
 @blockLiteral object method(newVector(1, oSymbol), newVector(1, oBlockLiteral))
 # This could inherit from oMethod, but we're avoiding that because we might want to make oMethod and
 # oPrimitive more magical than they are now.

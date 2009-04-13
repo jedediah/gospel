@@ -220,7 +220,7 @@ printLine { self print. "\n" print }
 file do: {
   path = ""
   named: newPath {
-    new tap: { newFile | newFile path = newPath }
+    self new tap: { newFile | newFile path = newPath }
   }
 }
 
@@ -237,9 +237,9 @@ object do: {
   >= anObject { < anObject; not }
 }
 
-range = new do: {
+range do: {
   first = 0
-  last = 1
+  last = 0
 
   length {
     last - first
@@ -250,7 +250,7 @@ range = new do: {
     first + index
   }
   from: first to: last {
-    new tap: { range | range first = first. range last = last }
+    self new tap: { range | range first = first. range last = last }
   }
   from: first through: last {
     from: first to: last + 1

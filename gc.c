@@ -30,6 +30,7 @@
 #include <pthread.h>
 
 #include <gmp.h> // For bignum finalization.
+#include <regex.h> // For regex finalization.
 
 void *heap;
 
@@ -53,6 +54,7 @@ int liveSegmentCount = 0;
 #define VECTOR         7
 #define ENVIRONMENT    8
 #define BIGNUM         9
+#define REGEX         10
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -118,6 +120,7 @@ int isStackFrame(obj o)   { return vectorType(o) == STACK_FRAME; }
 int isVectorObject(obj o) { return vectorType(o) == VECTOR;      }
 int isEnvironment(obj o)  { return vectorType(o) == ENVIRONMENT; }
 int isInteger(obj o)      { return vectorType(o) == BIGNUM;      }
+int isRegex(obj o)        { return vectorType(o) == REGEX;       }
 
 // As long as we admit as "strings" only NUL-terminated atom vectors, we won't segfault.
 int isString(obj o) {
@@ -146,11 +149,14 @@ obj emptyBignum() {
   return typedObject(oInteger, emptyBignumVector());
 }
 
+obj stringFromVector(vector v) {
+  return typedObject(oString, v);
+}
 obj string(const char *s) {
   int length = CELLS_REQUIRED_FOR_BYTES(strlen(s) + 1);
   vector v = makeAtomVector(length);
-  strcpy((char *)vectorData(v), s);
-  return slotlessObject(oString, v);
+  strcpy((char *)vectorData(v), s); // TODO: Write barrier.
+  return stringFromVector(v);
 }
 char *stringData(obj s) {
   return (char *)(hiddenEntity(s)->data);
@@ -244,6 +250,10 @@ vector constructWhiteList() {
       switch (vectorType(current)) { // Perform finalization for the primitive types that need it.
         case BIGNUM:
           mpz_clear(bignumData(current));
+          setVectorType(current, ENTITY_VECTOR);
+          break;
+        case REGEX:
+          regfree(vectorData(hiddenEntity(current)));
           setVectorType(current, ENTITY_VECTOR);
       }
       advance();
@@ -682,5 +692,6 @@ void initializePrototypeTags() {
   setVectorType(oVector, VECTOR);
   setVectorType(oDynamicEnvironment, ENVIRONMENT);
   setVectorType(oInteger, BIGNUM);
+  setVectorType(oRegex, REGEX);
 }
 
