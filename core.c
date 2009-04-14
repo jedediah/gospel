@@ -26,6 +26,8 @@
 // Used for bignum arithmetic.
 #include <gmp.h>
 
+#include <regex.h>
+
 // Used by socket objects:
 #include <sys/types.h>
 #include <sys/socket.h>
