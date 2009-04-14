@@ -21,7 +21,7 @@ false assert { suite failedAssertion raise }
 
 suite = new do: {
   new {
-    suite instance tap: { newSuite | newSuite tests = object new }
+    suite instance do: { tests = object new }
   }
 
   tests = object new
