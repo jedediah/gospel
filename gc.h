@@ -107,6 +107,9 @@ vector *promiseValueField(promise);
 obj waitFor(void *);
 void fulfillPromise(promise, obj);
 
+vector newActor(obj);
+promise enqueueMessage(vector, obj, vector);
+
 typedef vector channel;
 channel newChannel(vector);
 vector channelTarget(channel);
@@ -123,6 +126,8 @@ void requireGC(void);
 
 int isPromise(vector);
 int isChannel(vector);
+int isActor(vector);
+
 int isInteger(obj);
 int isPrimitive(obj);
 int isMethod(obj);

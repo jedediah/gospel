@@ -339,6 +339,13 @@ void invokeDispatchMethod() {
 void dispatch() {
   continuation c = threadContinuation(currentThread);
   obj t = continuationTarget(c);
+  if (isActor(t)) {
+    vector evaled = evaluated(c);
+    int n = vectorLength(evaled) - 1;
+    vector args = makeVector(n);
+    for (int i = 0; i < n; ++i) setIdx(args, i, idx(evaled, i + 1));
+    staticMessageReturn(enqueueMessage(t, selector(c), args));
+  }
   if (isChannel(t)) {
     promise p = newPromise();
     acquireChannelLock(t);
@@ -415,8 +422,8 @@ vector cons(void *car, void *cdr) {
 void *car(vector pair) { return idx(pair, 0); }
 void *cdr(vector pair) { return idx(pair, 1); }
 
-vector setcar(vector pair, void *val) { setIdx(pair, 0, val); }
-vector setcdr(vector pair, void *val) { setIdx(pair, 1, val); }
+vector setcar(vector pair, void *val) { return setIdx(pair, 0, val); }
+vector setcdr(vector pair, void *val) { return setIdx(pair, 1, val); }
 
 int isEmpty(vector v) {
   return vectorLength(v) == 0; 

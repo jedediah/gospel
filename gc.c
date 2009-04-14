@@ -55,6 +55,7 @@ int liveSegmentCount = 0;
 #define ENVIRONMENT    8
 #define BIGNUM         9
 #define REGEX         10
+#define ACTOR         11
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -111,8 +112,9 @@ void setVectorType(vector v, int t) {
   v->type = v->type & ~TYPE_BIT_MASK | t;
 }
 
-int isPromise(vector v)   { return vectorType(v) == PROMISE;   }
-int isChannel(vector v)   { return vectorType(v) == CHANNEL;   }
+int isPromise(vector v)   { return vectorType(v) == PROMISE; }
+int isChannel(vector v)   { return vectorType(v) == CHANNEL; }
+int isActor(vector v)     { return vectorType(v) == ACTOR;   }
 
 int isPrimitive(obj o)    { return vectorType(o) == PRIMITIVE;   }
 int isMethod(obj o)       { return vectorType(o) == METHOD;      }
@@ -300,16 +302,22 @@ void flip() {
   setMarkBit(garbageCollectorRoot);
 }
 
+// TODO: Rearrange so that this isn't necessary.
+void markPromise(vector);
+void markActor(vector);
+
 // TODO: Now that e.g. primitives and integers have their own typetag values, they can be
 //       implemented more efficiently.
 void scan() {
   switch (vectorType(grayList)) {
     case PROMISE:
-      mark(promiseValue(grayList));
+      markPromise(grayList);
       break;
     case CHANNEL:
       mark(channelTarget((channel)grayList));
       break;
+    case ACTOR:
+      markActor(grayList);
     case ATOM_VECTOR:
       break;
     default:
@@ -489,6 +497,7 @@ typedef struct {
   obj value;
   pthread_cond_t conditionVariable;
   pthread_mutex_t mutex;
+  vector actor;
 } promiseData;
 
 promise newPromise() {
@@ -499,10 +508,15 @@ promise newPromise() {
     die("Error while initializing promise mutex.");
   if (pthread_cond_init(&pd->conditionVariable, NULL))
     die("Error while initializing promise condition variable.");
+  pd->actor = NULL;
   return p;
 }
 obj promiseValue(promise p) {
   return ((promiseData *)vectorData(p))->value;
+}
+void markPromise(promise p) {
+  mark(promiseValue(p));
+  mark(((promiseData *)vectorData(p))->actor);  
 }
 void fulfillPromise(promise p, obj o) {
   promiseData *pd = (promiseData *)vectorData(p);
@@ -512,6 +526,69 @@ void fulfillPromise(promise p, obj o) {
     die("Error while waking up threads waiting on a promise.");
   if (pthread_mutex_unlock(&pd->mutex)) die("Error while releasing a promise lock after fulfillment.");
   return;
+}
+
+typedef struct {
+  vector frontOfQueue, backOfQueue;
+  pthread_mutex_t queueLock;
+  pthread_cond_t newMessageSignal;
+  obj object;
+  vector threadData; // TODO: Deprecate the whole concept of thread data objects.
+} actorData;
+
+void markActor(vector a) {
+  mark(((actorData *)vectorData(a))->frontOfQueue);
+  mark(((actorData *)vectorData(a))->object);
+}
+void acquireQueueLock(actorData *ad) {
+  pthread_mutex_lock(&ad->queueLock);
+}
+void releaseQueueLock(actorData *ad) {
+  pthread_mutex_unlock(&ad->queueLock);
+}
+promise enqueueMessage(vector a, obj selector, vector args) {
+  promise p = newPromise();
+  actorData *ad = vectorData(((promiseData *)vectorData(p))->actor = a);
+  acquireQueueLock(ad);
+  vector v = newVector(4, NULL, p, selector, args);
+  if (!ad->backOfQueue) {
+    ad->frontOfQueue = ad->backOfQueue = v;
+    if (pthread_cond_signal(&ad->newMessageSignal)) die("Error while waking up an actor.");
+  }
+  else ad->backOfQueue = setIdx(ad->backOfQueue, 0, v);
+  releaseQueueLock(ad);
+  return p;
+}
+vector newThread(void *, obj, obj, obj, obj, vector); // TODO: Have actorLoop() run the interpreter in its own thread instead of spawning new ones.
+vector addThread(vector); // TODO: Reorganize threading code around the new actor model...
+void actorLoop(vector a) {
+  actorData *ad = vectorData(a);
+  setCurrentThread(ad->threadData);
+  for (;;) {
+    acquireQueueLock(ad);
+    while (!ad->frontOfQueue) pthread_cond_wait(&ad->newMessageSignal, &ad->queueLock);
+    promise p = idx(ad->frontOfQueue, 1);
+    obj selector = idx(ad->frontOfQueue, 2);
+    vector args = idx(ad->frontOfQueue, 3);
+    if (!(ad->frontOfQueue = idx(ad->frontOfQueue, 0))) ad->backOfQueue = NULL;
+    releaseQueueLock(ad);
+    newThread(p, oObject, oDynamicEnvironment, ad->object, selector, args);
+    waitFor(p);
+  }
+}
+vector newActor(obj o) {
+  vector a = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(actorData)));
+  setVectorType(a, ACTOR);
+  actorData *ad = vectorData(a);
+  if (pthread_mutex_init(&ad->queueLock, NULL))
+    die("Error while initializing an actor's message queue lock.");
+  if (pthread_cond_init(&ad->newMessageSignal, NULL))
+    die("Error while initializing an actor's condition variable.");
+  ad->object = o;
+  ad->threadData = addThread(garbageCollectorRoot);
+  // Queue pointers have already been initialized to NULL by makeAtomVector().
+  createPrimitiveThread((void (*)(void *))actorLoop, a);
+  return a;
 }
 
 obj waitFor(void *e) {
