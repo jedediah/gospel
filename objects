@@ -130,7 +130,6 @@ $object
 $integer
 $null
 $code
-$promiseCode
 $arrowCode
 $block
 $primitive
@@ -382,13 +381,6 @@ $serialized string("<canon namespace>")
                                   env(c),
                                   dynamicEnv(c)));
   gotoNext;
-@promiseCode code
-!interpret
-  retarget(isCode);
-  promise p = newPromise();
-  continuation c = threadContinuation(currentThread);
-  newThread(p, env(c), dynamicEnv(c), codeTarget(target), codeSelector(target), codeArgs(target));
-  valueReturn(p);
 @arrowCode object
 !from:
   // FIXME: Type safety?

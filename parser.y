@@ -183,8 +183,6 @@ gap:
 unaryMessage:
   unaryTarget NAME
   { $$ = message($1, $2, emptyVector); }
-| unaryTarget '@' NAME
-  { $$ = promiseCode(message($1, $3, emptyVector)); }
 ;
 unaryTarget:
   { $$ = oDefaultMessageTarget; }
@@ -197,14 +195,10 @@ unaryTarget:
 untargettedBinaryMessage:
   OPERATOR gap binaryArgument
   { $$ = message(oDefaultMessageTarget, $1, newVector(1, $3)); }
-| '@' gap OPERATOR gap binaryArgument
-  { $$ = promiseCode(message(oDefaultMessageTarget, $3, newVector(1, $5))); }
 ;
 binaryMessage:
   binaryTarget OPERATOR gap binaryArgument
   { $$ = message($1, $2, newVector(1, $4)); }
-| binaryTarget '@' gap OPERATOR gap binaryArgument
-  { $$ = promiseCode(message($1, $4, newVector(1, $6))); }
 ;
 binaryTarget:
   unaryTarget
@@ -221,14 +215,10 @@ binaryArgument:
 untargettedKeywordMessage:
   keywords
   { $$ = keywordMessage(oDefaultMessageTarget, nreverse($1)); }
-| '@' gap keywords
-  { $$ = promiseCode(keywordMessage(oDefaultMessageTarget, nreverse($3))); }
 ;
 keywordMessage:
   binaryTarget keywords
   { $$ = keywordMessage($1, nreverse($2)); }
-| binaryTarget '@' gap keywords
-  { $$ = promiseCode(keywordMessage($1, nreverse($4))); }
 ;
 keywords:
   completeKeywords

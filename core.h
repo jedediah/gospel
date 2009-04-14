@@ -58,8 +58,6 @@ vector vectorAppend(vector, vector);
 
 obj appendStrings(obj, obj);
 
-obj promiseCode(obj);
-
 obj expressionSequence(vector);
 
 typedef vector pair;

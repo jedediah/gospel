@@ -443,10 +443,6 @@ obj setMessageTarget(obj message, obj target) {
 obj expressionSequence(vector exprs) {
   return message(oMethodBody, sSubexpressions_, exprs);
 }
-obj promiseCode(obj message) {
-  return slotlessObject(oPromiseCode,
-                        newVector(3, codeTarget(message), codeSelector(message), codeArgs(message)));
-}
 
 obj threadTarget(vector td) { return continuationTarget(threadContinuation(td)); }
 
