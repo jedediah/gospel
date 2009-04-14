@@ -79,7 +79,7 @@
 # It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
 # but future changes to the interpreter may eliminate the need for oInternals.
 !actor
-  valueReturn(newActor(target));
+  valueReturn(newActor(target, oObject, oDynamicEnvironment));
 !do:
   obj b = check(arg(0), isBlock), m = blockMethod(b);
   vector statements = methodBody(m);

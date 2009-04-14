@@ -107,7 +107,7 @@ vector *promiseValueField(promise);
 obj waitFor(void *);
 void fulfillPromise(promise, obj);
 
-vector newActor(obj);
+vector newActor(obj, obj, obj);
 promise enqueueMessage(vector, obj, vector);
 
 void initializeHeap(void);

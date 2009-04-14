@@ -527,7 +527,7 @@ typedef struct {
   vector frontOfQueue, backOfQueue;
   pthread_mutex_t queueLock;
   pthread_cond_t newMessageSignal;
-  obj object;
+  obj object, env, scope;
   vector threadData; // TODO: Deprecate the whole concept of thread data objects.
 } actorData;
 
@@ -571,7 +571,7 @@ void actorLoop(vector a) {
     waitFor(p);
   }
 }
-vector newActor(obj o) {
+vector newActor(obj o, obj scope, obj env) {
   vector a = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(actorData)));
   setVectorType(a, ACTOR);
   actorData *ad = vectorData(a);
@@ -580,6 +580,8 @@ vector newActor(obj o) {
   if (pthread_cond_init(&ad->newMessageSignal, NULL))
     die("Error while initializing an actor's condition variable.");
   ad->object = o;
+  ad->scope = scope;
+  ad->env = env;
   ad->threadData = addThread(garbageCollectorRoot);
   // Queue pointers have already been initialized to NULL by makeAtomVector().
   createPrimitiveThread((void (*)(void *))actorLoop, a);
