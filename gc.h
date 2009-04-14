@@ -110,22 +110,12 @@ void fulfillPromise(promise, obj);
 vector newActor(obj);
 promise enqueueMessage(vector, obj, vector);
 
-typedef vector channel;
-channel newChannel(vector);
-vector channelTarget(channel);
-int *channelCount(channel);
-int *channelFlag(channel);
-
-void acquireChannelLock(channel);
-void releaseChannelLock(channel);
-
 void initializeHeap(void);
 
 void collectGarbage(void);
 void requireGC(void);
 
 int isPromise(vector);
-int isChannel(vector);
 int isActor(vector);
 
 int isInteger(obj);

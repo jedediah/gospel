@@ -201,8 +201,6 @@ $canon oNamespaceCanon
   valueReturn(vectorObject(v));
 !proto
   valueReturn(proto(target));
-!channel
-  valueReturn(newChannel(target));
 !identity
   normalReturn;
 !addSlot:as:

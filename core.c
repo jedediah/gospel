@@ -346,26 +346,6 @@ void dispatch() {
     for (int i = 0; i < n; ++i) setIdx(args, i, idx(evaled, i + 1));
     staticMessageReturn(enqueueMessage(t, selector(c), args));
   }
-  if (isChannel(t)) {
-    promise p = newPromise();
-    acquireChannelLock(t);
-    vector behindChannel = duplicateVector(evaluated(c));
-    setIdx(behindChannel, 0, channelTarget(t));
-
-    vector channelThread = addThread(garbageCollectorRoot);
-    setContinuation(channelThread,
-                    newContinuation(p,
-                                    selector(c),
-                                    behindChannel,
-                                    behindChannel,
-                                    env(c),
-                                    dynamicEnv(c)));
-    spawn(dispatch, channelThread);
-
-    obj r = waitFor(p);
-    releaseChannelLock(t);
-    staticMessageReturn(r);
-  }
   setThreadReceiver(currentThread, t);
   tailcall(invokeDispatchMethod);
 }

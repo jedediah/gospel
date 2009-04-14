@@ -47,7 +47,7 @@ int liveSegmentCount = 0;
 #define ATOM_VECTOR    0
 #define ENTITY_VECTOR  1
 #define PROMISE        2
-#define CHANNEL        3
+#define ACTOR          3
 #define PRIMITIVE      4
 #define METHOD         5
 #define STACK_FRAME    6
@@ -55,7 +55,6 @@ int liveSegmentCount = 0;
 #define ENVIRONMENT    8
 #define BIGNUM         9
 #define REGEX         10
-#define ACTOR         11
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
@@ -113,7 +112,6 @@ void setVectorType(vector v, int t) {
 }
 
 int isPromise(vector v)   { return vectorType(v) == PROMISE; }
-int isChannel(vector v)   { return vectorType(v) == CHANNEL; }
 int isActor(vector v)     { return vectorType(v) == ACTOR;   }
 
 int isPrimitive(obj o)    { return vectorType(o) == PRIMITIVE;   }
@@ -312,9 +310,6 @@ void scan() {
   switch (vectorType(grayList)) {
     case PROMISE:
       markPromise(grayList);
-      break;
-    case CHANNEL:
-      mark(channelTarget((channel)grayList));
       break;
     case ACTOR:
       markActor(grayList);
@@ -610,31 +605,6 @@ void permitGC() {
   if (pthread_mutex_unlock(&GCLock)) die("Error while releasing GC mutex.");
 }
 
-typedef struct {
-  obj target;
-  pthread_mutex_t mutex;
-} channelData;
-
-channel newChannel(obj target) {
-  channel c = makeVector(CELLS_REQUIRED_FOR_BYTES(sizeof(channelData)));
-  setVectorType(c, CHANNEL);
-  channelData *cd = (channelData *)vectorData(c);
-  cd->target = target;
-  if (pthread_mutex_init(&cd->mutex, NULL))
-    die("Error while initializing a channel mutex.");
-  return c;
-}
-obj channelTarget(channel c) {
-  return ((channelData *)vectorData(c))->target;
-}
-void acquireChannelLock(channel c) {
-  if (pthread_mutex_lock(&((channelData *)vectorData(c))->mutex))
-    die("Error while acquiring a channel lock.");
-}
-void releaseChannelLock(channel c) {
-  if (pthread_mutex_unlock(&((channelData *)vectorData(c))->mutex))
-    die("Error while releasing a channel lock.");
-}
 
 void createPrimitiveThread(void (*f)(void *), void *a) {
   pthread_t thread;
