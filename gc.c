@@ -525,7 +525,7 @@ void fulfillPromise(promise p, obj o) {
 }
 
 typedef struct {
-  vector frontOfQueue, backOfQueue;
+  vector prev, next, frontOfQueue, backOfQueue;
   pthread_mutex_t queueLock;
   pthread_cond_t newMessageSignal;
   obj object, env, scope;
@@ -535,8 +535,11 @@ typedef struct {
 } actorData;
 
 void markActor(vector a) {
-  mark(((actorData *)vectorData(a))->frontOfQueue);
-  mark(((actorData *)vectorData(a))->object);
+  actorData *ad = vectorData(a);
+  mark(ad->frontOfQueue);
+  mark(ad->object);
+  mark(ad->prev);
+  mark(ad->next);
 }
 void acquireQueueLock(actorData *ad) {
   pthread_mutex_lock(&ad->queueLock);
@@ -569,19 +572,23 @@ void actorLoop(vector a) {
   setCurrentThread(ad->threadData);
   setCurrentActor(currentThread, a);
   for (;;) {
+    // Drop the first message from the queue, as we've just finished handling it - unless this is our first iteration, in which case it's a dummy. If the queue is empty afterwards, go to sleep.
     acquireQueueLock(ad);
-    while (!ad->frontOfQueue)
-      if (pthread_cond_wait(&ad->newMessageSignal, &ad->queueLock))
-        die("Error while trying to have an actor wait for new messages.");
-    promise p = idx(ad->frontOfQueue, 1);
-    obj selector = idx(ad->frontOfQueue, 2);
-    vector args = idx(ad->frontOfQueue, 3);
-    // We set up the continuation before removing the message from the queue, because otherwise we'd lose it if caught by a garbage collection.
-    setContinuation(subexpressionContinuation(p, ad->scope, ad->env, ad->object, selector, args, 0));
-    if (!(ad->frontOfQueue = idx(ad->frontOfQueue, 0))) ad->backOfQueue = NULL;
-    // TODO: Remove the message from the queue after handling it, not before, so that acquiring the queue lock and finding the queue empty can be taken as proof that the actor is asleep (and can be garbage-collected if nothing is holding a reference to it).
+    if (!(ad->frontOfQueue = idx(ad->frontOfQueue, 0))) {
+      ad->backOfQueue = NULL;
+      while (!ad->frontOfQueue)
+        if (pthread_cond_wait(&ad->newMessageSignal, &ad->queueLock))
+          die("Error while trying to have an actor wait for new messages.");
+    }
     releaseQueueLock(ad);
-    ad->currentPromise = p;
+
+    setContinuation(subexpressionContinuation(ad->currentPromise = idx(ad->frontOfQueue, 1),
+                                              ad->scope,
+                                              ad->env,
+                                              ad->object,
+                                              idx(ad->frontOfQueue, 2),
+                                              idx(ad->frontOfQueue, 3),
+                                              0));
     setjmp(ad->toplevelEscape);
     doNext();
   }
@@ -592,7 +599,7 @@ void trimStack() { // TODO: Add noreturn assertion.
 promise currentPromise() {
   return ((actorData *)vectorData(currentActor(currentThread)))->currentPromise;
 }
-vector newActor(obj o, obj scope, obj env) {
+vector newActorWithListPosition(obj o, obj scope, obj env, vector prev, vector next) {
   vector a = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(actorData)));
   actorData *ad = vectorData(a);
   if (pthread_mutex_init(&ad->queueLock, NULL))
@@ -603,10 +610,15 @@ vector newActor(obj o, obj scope, obj env) {
   ad->scope = scope;
   ad->env = env;
   ad->threadData = addThread(garbageCollectorRoot);
-  // Queue pointers have already been initialized to NULL by makeAtomVector().
+  ad->prev = prev;
+  ad->next = next;
+  ad->frontOfQueue = ad->backOfQueue = newVector(1, 0); // A dummy, since the actor loop begins by dropping a message from the queue (because this needs to happen after a message has been processed, and doing it this way means the queue lock need only be acquired once per iteration).
   setVectorType(a, ACTOR);
   createPrimitiveThread((void (*)(void *))actorLoop, a);
   return a;
+}
+vector newActor(obj o, obj scope, obj env) {
+  return newActorWithListPosition(o, scope, env, NULL, NULL);
 }
 
 obj waitFor(void *e) {
