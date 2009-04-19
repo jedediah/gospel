@@ -42,7 +42,6 @@ void yyerror(YYLTYPE *, int *, int *, void **, void *, char const *);
 %token OPERATOR
 %token KEYWORD
 %token KEYWORDS
-%token ARROW
 
 %token ADDSLOT
 %token SETSLOT
@@ -129,16 +128,10 @@ keywordsignature:
   { $$ = cons(cons($2, $4), $1); }
 ;
 
-expr:
-  arrow
-| dependency
-;
-
-// We cannot use call() because it accesses the current continuation, which won't be present when the parser is being run in the main thread.
 cascade:
   expr
 | cascade ';' gap message
-  { $$ = callWithEnvironment(oDynamicEnvironment, quote($4), sCascading_, newVector(1, quote($1))); }
+  { $$ = call(quote($4), sCascading_, newVector(1, quote($1))); }
 ;
 message:
   unaryMessage
@@ -153,13 +146,7 @@ parens:
   { $$ = expressionSequence(listToVector($2)); }
 ;
 
-/* FIXME: This is right-recursive. */
-arrow:
-  dependency ARROW gap expr
-  { $$ = message(slotlessObject(oArrowCode, $4), sFrom_, newVector(1, $1)); }
-;
-
-dependency:
+expr:
   parens
 | literal
 | unaryMessage
@@ -170,9 +157,9 @@ dependency:
 ;
 
 assignment:
-  unaryTarget param ADDSLOT gap dependency
+  unaryTarget param ADDSLOT gap expr
   { $$ = message($1, sAddSlot_as_, newVector(2, $2, $5)); }
-| unaryTarget param SETSLOT gap dependency
+| unaryTarget param SETSLOT gap expr
   { $$ = message($1, sSetSlot_to_, newVector(2, $2, $5)); }
 ;
 

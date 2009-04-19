@@ -29,7 +29,8 @@
   add_test(suite, test_##name);
 
 obj testcall(obj target, obj selector, vector args) {
-  return callWithEnvironment(oDynamicEnvironment, target, selector, args);
+  obj a = newActor(target, oObject, oDynamicEnvironment);
+  return waitFor(enqueueMessage(a, selector, args));
 }
 
 int main(int argc, char **argv) {
@@ -74,7 +75,7 @@ test(listToVector,
 test(spawn,
   void *p = newPromise();
   vector i = integer(42);
-  void f() { keep(garbageCollectorRoot, p, i); }
+  void f() { fulfillPromise(p, i); }
   spawn(f, i);
   assert_equal(waitFor(p), i);
 )
@@ -96,7 +97,7 @@ test(shallowLookup,
   obj s = symbol("slot"),
       v = symbol("value"),
       o = newObject(oNull, newVector(1, s), newVector(1, v), emptyVector);
-  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment);
+  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment, 0);
   assert_false(shallowLookup(o, symbol("notASlot"), c));
   assert_equal(*shallowLookup(o, s, c), v);
 )
@@ -108,7 +109,7 @@ test(deepLookup,
                                    newVector(1, v),
                                    emptyVector),
                          emptyVector);
-  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment);
+  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment, 0);
   assert_false(deepLookup(o, symbol("notASlot"), c));
   assert_equal(*deepLookup(o, s, c), v); 
 )
@@ -156,7 +157,7 @@ test(addSlot,
   obj o = newObject(oNull, emptyVector, emptyVector, 0),
       s = symbol("foo"),
       i = integer(42);
-  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment);
+  continuation c = newContinuation(0, 0, 0, 0, 0, oDynamicEnvironment, 0);
   void **v;
   assert_equal(addSlot(o, s, i, c), i);
   assert_true((int)(v = shallowLookup(o, s, c)));
@@ -204,13 +205,6 @@ test(vectorAppend,
   assert_equal(idx(v, 1), a);
   assert_equal(idx(v, 2), b);
 )
-test(callWithEnvironment,
-  assert_equal(integerValue(callWithEnvironment(oDynamicEnvironment,
-                                                integer(40),
-                                                sPlus_,
-                                                newVector(1, integer(2)))),
-               42);
-)
 test(isString,
   assert_false(isString(slotlessObject(oString, newAtomVector(1, 0xdeadbeef))));
   assert_true(isString(string("foo")));
@@ -246,6 +240,11 @@ test(bignumSubtraction,
                                                                       emptyVector))),
                                           sSerialized,
                                           emptyVector))));
+)
+test(multipleMessages,
+  obj i = integer(42), a = newActor(i, oObject, oDynamicEnvironment);
+  assert_equal(waitFor(enqueueMessage(a, sIdentity, emptyVector)), i);
+  assert_equal(waitFor(enqueueMessage(a, sIdentity, emptyVector)), i);
 )
 
   return run_test_suite(suite, create_text_reporter());

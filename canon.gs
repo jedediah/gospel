@@ -36,7 +36,6 @@ block do: {
 }
 
 ## The exception-handling system that the core expects.
-raise { dynamicContext handler value: self }
 block do: {
   # Establish the target block as a handler in the current environment. Allows execution to return back through the $raise: expression if the block does not perform a nonlocal exit, which may yield strange behaviour for exceptions raised by primitives.
   handleExceptions {

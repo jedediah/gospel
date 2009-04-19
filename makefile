@@ -21,9 +21,6 @@ CFLAGS+=-std=gnu99
 ifndef GCC_THREADING
   CFLAGS+=-D NO_THREAD_VARIABLES
 endif
-ifndef FUNCTION_POINTER_TAILCALLS
-  CFLAGS+=-D NO_COMPUTED_TAILCALLS
-endif
 
 gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o
 	$(CC) $(CFLAGS) -lgmp -pthread $^ -o $@

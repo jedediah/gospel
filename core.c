@@ -99,9 +99,14 @@ continuation newContinuation(void *origin,
                              obj selector,
                              vector evaluated,
                              vector unevaluated,
-                             vector staticEnv,
-                             vector dynamicEnv) {
-  return newVector(7, origin, selector, evaluated, unevaluated, staticEnv, dynamicEnv, 0);
+                             vector scope,
+                             vector env,
+                             vector old) {
+  return newVector(8, origin, selector, evaluated, unevaluated, scope, env, NULL, old);
+}
+
+void *oldContinuation(continuation c) {
+  return idx(c, 7);
 }
 
 obj receiver(continuation c) {
@@ -137,70 +142,65 @@ obj continuationTarget(continuation c) {
   return waitFor(idx(evaluated(c), 0));
 }
 
-vector setSubexpressionContinuation(vector thread,
-                                    continuation parentContinuation,
-                                    obj staticEnv,
-                                    obj dynamicEnv,
-                                    obj target,
-                                    obj selector,
-                                    vector args) {
-  return setContinuation(thread,
-                         newContinuation(parentContinuation,
-                                         selector,
-                                         emptyVector, // initially no subexpressions evaluated
-                                         prefix(target, args),
-                                         staticEnv,
-                                         dynamicEnv));
+vector subexpressionContinuation(continuation parent,
+                                 obj scope,
+                                 obj env,
+                                 obj target,
+                                 obj selector,
+                                 vector args,
+                                 vector old) {
+  return newContinuation(parent,
+                         selector,
+                         emptyVector, // initially no subexpressions evaluated
+                         prefix(target, args),
+                         scope,
+                         env,
+                         old);
 }
 
-vector prepareMessageReturn(obj value) {
-  continuation c = origin(threadContinuation(currentThread));
-  if (isPromise(c)) {
-    keep(currentThread, c, value);
-    explicitlyEndThread();
-  }  
-  return setContinuation(currentThread,
-                         newContinuation(origin(c),
-                                         selector(c),
-                                         suffix(value, evaluated(c)),
-                                         unevaluated(c),
-                                         env(c),
-                                         dynamicEnv(c)));
+#define prepareMessageReturn(expr, escape) do { \
+  obj value = (expr); \
+  continuation c = origin(threadContinuation(currentThread)); \
+  if (isPromise(c)) { \
+    fulfillPromise(c, value); \
+    escape; \
+  }   \
+  setContinuation(newContinuation(origin(c), \
+                                  selector(c), \
+                                  suffix(value, evaluated(c)), \
+                                  unevaluated(c), \
+                                  env(c), \
+                                  dynamicEnv(c), \
+                                  oldContinuation(c))); \
+} while (0)
+
+#define gotoNext return 0
+#define callPrimitiveMethod(m) do { if (primitiveCode((m))()) return; tailcall(doNext); } while (0)
+#define messageReturn(mr_v) do { \
+  prepareMessageReturn(mr_v, return -1); \
+  gotoNext; \
+} while (0)
+#define staticMessageReturn(smr_v) do { \
+  prepareMessageReturn(smr_v, return); \
+  tailcall(doNext); \
+} while (0)
+
+vector exceptionContinuation(obj exception) {
 }
 
-#ifdef NO_COMPUTED_TAILCALLS
-  #define gotoNext return
-  #define computeTailcall(ct_e) do { (ct_e)(); tailcall(doNext); } while (0)
-#else
-  #define gotoNext tailcall(doNext)
-  #define computeTailcall(ct_e) tailcall(ct_e)
-#endif
-
-// messageReturn() is equivalent to staticMessageReturn() if compiling with support for tailcalls to
-// function pointers, but otherwise performs the C function return that primitive-calling code will in
-// that event be expecting.
-#define messageReturn(mr_v) do { prepareMessageReturn(mr_v); gotoNext; } while (0)
-#define staticMessageReturn(smr_v) do { prepareMessageReturn(smr_v); tailcall(doNext); } while (0)
-
-
-vector setExceptionContinuationWithEnvironment(vector thread, obj exception, obj environment) {
-  continuation c = threadContinuation(thread);
-  return setSubexpressionContinuation(thread,
-                                      origin(c),
-                                      env(c),
-                                      environment,
-                                      exception,
-                                      sRaise,
-                                      emptyVector);
-}
-vector setExceptionContinuation(vector thread, obj exception) {
-  return setExceptionContinuationWithEnvironment(thread,
-                                                 exception,
-                                                 dynamicEnv(threadContinuation(thread)));
+void prepareToRaise(obj exception) {
+  continuation c = threadContinuation(currentThread);
+  setContinuation(subexpressionContinuation(origin(c),
+                                            env(c),
+                                            dynamicEnv(c),
+                                            exception,
+                                            sRaise,
+                                            emptyVector,
+                                            oldContinuation(c)));
 }
 
-#define raise(raise_exception) do { \
-  setExceptionContinuation(currentThread, (raise_exception)); \
+#define raise(exception) do { \
+  prepareToRaise(exception); \
   gotoNext; \
 } while (0)
 
@@ -260,41 +260,23 @@ obj addSlot(obj o, obj s, void *v, continuation c) {
   return slot ? *slot = v : newSlot(o, s, v, currentNamespace(c));
 }
 
-void doNext(void);
-vector newThread(void *cc,
-                 obj staticEnv,
-                 obj dynamicEnv,
-                 obj target,
-                 obj selector,
-                 vector args) {
-  vector threadData = addThread(garbageCollectorRoot);
-  
-  setContinuation(threadData,
-                  newContinuation(cc,
-                                  selector,
-                                  emptyVector,
-                                  prefix(target, args),
-                                  staticEnv,
-                                  dynamicEnv));
-  spawn(doNext, threadData);
-  return threadData;
-}
-
 void invokeDispatchMethod(void);
 
 obj newEnvironment(obj oldEnv) {
   return typedObject(oldEnv, hiddenEntity(oldEnv));
 }
 
-void setMethodContinuation(vector c, obj scope, vector args, obj method) {
-  setSubexpressionContinuation(currentThread,
-                               origin(c),
-                               stackFrame(scope, methodParams(method), args, c),
-                               newEnvironment(dynamicEnv(c)),
-                               oMethodBody,
-                               sSubexpressions_,
-                               methodBody(method));
+vector methodContinuation(vector c, obj scope, vector args, obj method) {
+  return subexpressionContinuation(origin(c),
+                                   stackFrame(scope, methodParams(method), args, c),
+                                   newEnvironment(dynamicEnv(c)),
+                                   oMethodBody,
+                                   sSubexpressions_,
+                                   methodBody(method),
+                                   oldContinuation(c));
 }
+
+void doNext(void);
 
 void normalDispatchMethod() {
   vector c = threadContinuation(currentThread);
@@ -306,14 +288,13 @@ void normalDispatchMethod() {
   }
   obj contents = *slot;
 
-  if (isPrimitive(contents)) computeTailcall(primitiveCode(contents));
+  if (isPrimitive(contents)) callPrimitiveMethod(contents);
   if (isMethod(contents)) {
     vector params = methodParams(contents), args = evaluated(c);
-    if (vectorLength(args) != vectorLength(params)) {
-      setExceptionContinuation(currentThread, eBadArity);
-      tailcall(doNext);
-    }
-    setMethodContinuation(c, continuationTarget(c), args, contents);
+    if (vectorLength(args) != vectorLength(params))
+      prepareToRaise(eBadArity);
+    else
+      setContinuation(methodContinuation(c, continuationTarget(c), args, contents));
     tailcall(doNext);
   }
   staticMessageReturn(contents); // The slot contains a constant value, not code.
@@ -327,10 +308,10 @@ void invokeDispatchMethod() {
   //       primitive method object containing normalDispatchMethod, and eliminate the first test.
 
   if (!dm) tailcall(normalDispatchMethod);
-  if (isPrimitive(dm)) computeTailcall(primitiveCode(dm));
+  if (isPrimitive(dm)) callPrimitiveMethod(dm);
   if (isMethod(dm)) {
     // Method is checked for correct arity when it's installed.
-    setMethodContinuation(c, continuationTarget(c), evaluated(c), dm);
+    setContinuation(methodContinuation(c, continuationTarget(c), evaluated(c), dm));
     tailcall(doNext);
   }
   staticMessageReturn(dm); // The dispatch method is actually just a constant value.
@@ -360,40 +341,36 @@ void doNext() {
   if (evaluatedCount >= unevaluatedCount) tailcall(dispatch);
   // If not, evaluate the next subexpression.
   vector subexpr = newVector(1, idx(unevaluated(c), evaluatedCount));
-  setContinuation(currentThread,
-                  newContinuation(c,
+  setContinuation(newContinuation(c,
                                   sInterpret,
                                   subexpr,
                                   subexpr,
                                   env(c),
-                                  dynamicEnv(c)));
+                                  dynamicEnv(c),
+                                  oldContinuation(c)));
   tailcall(dispatch);
 }
 
-obj callWithEnvironment(obj env, obj target, obj selector, vector args) {
+obj callWithState(obj scope, obj env, obj target, obj selector, vector args) {
   promise p = newPromise();
-  obj newEnv = newEnvironment(env);
-  // FIXME: Assumes that the Canon namespace will always be visible, which is probably a bad idea.
-  addCanonSlot(newEnv,
-               sHandler,
-               block(oNull,
-                     method(newVector(2, sCurrentMessageTarget, oSymbol),
-                            newVector(1,
-                                      message(oInternals,
-                                              sTerminateThread_andReraise_in_,
-                                              newVector(3,
-                                                        quote(p),
-                                                        message(oDefaultMessageTarget,
-                                                                oSymbol,
-                                                                emptyVector),
-                                                        quote(env)))))));
-  newThread(p, oObject, newEnv, target, selector, args);
-  obj v = waitFor(p);
-  if (v == oThreadExpiryIndicator) explicitlyEndThread();
-  return v;
+  setContinuation(subexpressionContinuation(p,
+                                            scope,
+                                            env,
+                                            target,
+                                            selector,
+                                            args,
+                                            newVector(2,
+                                                      threadContinuation(currentThread),
+                                                      shelteredValue(currentThread))));   
+  doNext();
+  vector oc = oldContinuation(threadContinuation(currentThread));
+  shelter(currentThread, idx(oc, 1));
+  setContinuation(idx(oc, 0));
+  return p;
 }
-obj call(obj target, obj selector, vector args) {
-  return callWithEnvironment(dynamicEnv(threadContinuation(currentThread)), target, selector, args);
+obj call(obj target, obj selector, obj args) {
+  continuation c = threadContinuation(currentThread);
+  return callWithState(env(c), dynamicEnv(c), target, selector, args);
 }
 
 vector cons(void *car, void *cdr) {
@@ -465,9 +442,6 @@ int integerValue(obj i) {
   return mpz_get_si(bignumData(i));
 }
 
-obj *filenameToInclude;
-promise *promiseOfInclusion;
-
 // This should never be called, as no primitive object should ever actually be sent a message.
 void prototypePrimitiveHiddenValue() {
   die("The prototype primitive's code was executed.");
@@ -477,13 +451,13 @@ void *loadStream(FILE *, obj, obj);
 
 #define invokeBlock(b) do { \
   continuation c = origin(threadContinuation(currentThread)); \
-  setSubexpressionContinuation(currentThread, \
-                               c, \
-                               env(c), \
-                               dynamicEnv(c), \
-                               (b), \
-                               sAppliedTo_, \
-                               newVector(1, vectorObject(emptyVector))); \
+  setContinuation(subexpressionContinuation(c, \
+                                            env(c), \
+                                            dynamicEnv(c), \
+                                            (b), \
+                                            sAppliedTo_, \
+                                            newVector(1, vectorObject(emptyVector)), \
+                                            oldContinuation(c))); \
   gotoNext; \
 } while(0)
 #define checkWithoutWaiting(c_value, c_predicate) \
@@ -506,23 +480,9 @@ void *loadStream(FILE *, obj, obj);
 #define valueReturn(vr_v) messageReturn(vr_v)
 #define normalReturn valueReturn(continuationTarget(threadContinuation(currentThread)))
 #define arg(a_i) (arg(currentThread, (a_i)) ?: ({ raise(eMissingArgument); (void *)0; }))
-#define resend(r_args) do { \
-  continuation r_c = threadContinuation(currentThread); \
-  obj r_a = (r_args); \
-  setContinuation(currentThread, \
-                  newContinuation(origin(r_c), \
-                                  selector(r_c), \
-                                  r_a, \
-                                  r_a, \
-                                  env(r_c), \
-                                  dynamicEnv(r_c))); \
-  tailcall(dispatch); \
-} while (0)
 
-// Will undef the "gotoNext" macro.
 #include "objects.c"
 
-#undef resend
 #undef arg
 #undef normalReturn
 #undef valueReturn
@@ -555,7 +515,7 @@ void setupInterpreter() {
   intern(oSymbol);
 }
 
-void *loadStream(FILE *f, obj staticEnv, obj dynamicEnv) {
+void *loadStream(FILE *f, obj scope, obj env) {
   void *scanner = beginParsing(f);
   obj parserOutput, lastValue = oNull;
   while ((parserOutput = parse(scanner)) != oEndOfFile) {
@@ -563,21 +523,10 @@ void *loadStream(FILE *f, obj staticEnv, obj dynamicEnv) {
       lastValue = eSyntaxError;
       break;
     }
-    promise p = newPromise();
-    newThread(p, staticEnv, dynamicEnv, parserOutput, sIdentity, emptyVector);
-    lastValue = waitFor(p);
+    lastValue = waitFor(callWithState(scope, env, parserOutput, sIdentity, emptyVector));
   }
   endParsing(scanner);
   fclose(f);
-  return lastValue;
-}
-
-// Currently used only by main.c for loading command-line arguments.
-void *loadFile(const char *filename, obj staticEnv, obj dynamicEnv) {
-  FILE *f = fopen(filename, "r");
-  if (!f) die("Could not open \"%s\" for input.", filename);
-  void *lastValue = loadStream(f, staticEnv, dynamicEnv);
-  if (lastValue == eSyntaxError) die("Syntax error.");
   return lastValue;
 }
 

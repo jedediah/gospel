@@ -24,8 +24,9 @@
 int main(int argc, char **argv) {
   setupInterpreter();
   if (argc > 2) die("Too many arguments.");
-  loadFile("canon.gs", oObject, oDynamicEnvironment);
-  loadFile(argc == 2 ? argv[1] : "repl.gs", oObject, oDynamicEnvironment);
+  vector a = newActor(oInternals, oObject, oDynamicEnvironment);
+  waitFor(enqueueMessage(a, sLoadFile_, newVector(1, string("canon.gs"))));
+  waitFor(enqueueMessage(a, sLoadFile_, newVector(1, string(argc == 2 ? argv[1] : "repl.gs"))));
   return 0;
 }
 

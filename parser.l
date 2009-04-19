@@ -66,10 +66,7 @@ OP  [!%&*\-+=<>?/]+
 \$[^ \[\]\(\)\{\}\n.,;]*  { *value = symbol(yyget_text(yyscanner) + 1);
                             return SYMBOL;
                           }
--?[0-9]+                  { *value = callWithEnvironment(oDynamicEnvironment,
-                                                         string(yyget_text(yyscanner)),
-                                                         sAsDecimalInteger,
-                                                         emptyVector);
+-?[0-9]+                  { *value = call(string(yyget_text(yyscanner)), sAsDecimalInteger, emptyVector);
                             return INTEGER;
                           }
 =                         { BEGIN(NEWLINES);
@@ -92,9 +89,6 @@ OP  [!%&*\-+=<>?/]+
 ({ID}:){2,}               { *value = symbol(yyget_text(yyscanner));
                             BEGIN(NEWLINES);
                             return KEYWORDS;
-                          }
-->                        { BEGIN(NEWLINES);
-                            return ARROW;
                           }
 [\(\[\{]                  { ++*nesting;
                             return *yyget_text(yyscanner);

@@ -26,12 +26,14 @@ vector addThread(vector);
 void killThreadData(vector);
 vector shelter(vector, vector);
 
+vector currentActor(vector);
+vector setCurrentActor(vector, vector);
+
 vector threadContinuation(vector);
-vector setContinuation(vector, vector);
+vector setContinuation(vector);
 
 vector createGarbageCollectorRoot(obj);
 
-void keep(vector, promise, vector);
-void terminateThread(vector);
+void fulfillPromise(promise, vector);
 
 #endif

@@ -23,6 +23,7 @@
 &POSIXFileMode
 
 &selector
+&value:
 
 # If a primitive must do anything that will prevent GCC's sibling call optimization, such as taking
 # a pointer to its own automatic memory, then declare it with ?foo rather than !foo.
@@ -52,7 +53,6 @@
 !interpret
   valueReturn(env(threadContinuation(currentThread)));
 @methodBody null
-!cascading:
 !subexpressions:
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
@@ -60,6 +60,14 @@
 # Used by the core to implement some of the interpreter's behaviour. Not meant for user code.
 # The hidden data field contains the symbol table. The default initialization, to NULL, is correct:
 #  If we also explicitly initialized it to NULL here, we would be overwriting the symbols of the builtins.
+!loadFile:
+  char *filename = safeStringValue(arg(0));
+  FILE *f = fopen(filename, "r");
+  if (!f) die("Could not open \"%s\" for input.", filename);
+  continuation c = threadContinuation(currentThread);
+  void *lastValue = loadStream(f, env(c), dynamicEnv(c));
+  if (lastValue == eSyntaxError) die("Syntax error.");
+  valueReturn(lastValue);
 !vectorLiteral
   int c = vectorLength(evaluated(threadContinuation(currentThread))) - 1;
   vector v = makeVector(c);
@@ -68,18 +76,23 @@
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
-!terminateThread:andReraise:in:
-  fulfillPromise(arg(0), oThreadExpiryIndicator);
-  setExceptionContinuationWithEnvironment(currentThread, arg(1), arg(2));
-  gotoNext;
-@threadExpiryIndicator null
-# Returned to indicate to call() that it should terminate the thread that invoked it.
 @object null oInternals
 # We stash a pointer to oInternals here to lend it oObjects's immunity to garbage collection.
 # It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
 # but future changes to the interpreter may eliminate the need for oInternals.
 !actor
   valueReturn(newActor(target, oObject, oDynamicEnvironment));
+!raise
+  // TODO: It might be better to swap in the actor's current promise at a different stage, in case e.g. object#raise gets redefined.
+  continuation c = threadContinuation(currentThread);
+  setContinuation(subexpressionContinuation(currentPromise(),
+                                            env(c),
+                                            dynamicEnv(c),
+                                            message(dynamicEnv(c), sHandler, emptyVector),
+                                            sValue_,
+                                            newVector(1, target),
+                                            0));
+  trimStack();
 !do:
   obj b = check(arg(0), isBlock), m = blockMethod(b);
   vector statements = methodBody(m);
@@ -88,7 +101,7 @@
   // Point the top-level message of each statement at our target.
   // TODO: This loop is being duplicated in code#definedOn: for the case where the methodBody object is the target. Can we change method bodies to consist of a single object (which may or may not be a methodBody#subexpressions: message) instead of a vector?
   for (int i = 0; i < n; ++i)
-    setIdx(newStatements, i, call(quote(idx(statements, i)), sDefinedOn_, newVector(1, target)));
+    setIdx(newStatements, i, waitFor(call(quote(idx(statements, i)), sDefinedOn_, newVector(1, target))));
   invokeBlock(block(blockEnv(b), method(methodParams(m), suffix(target, newStatements))));
 !self
   normalReturn;
@@ -101,26 +114,23 @@
     frame = proto(frame);
   }
   obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(currentThread, stackFrameContinuation(frame));
+  setContinuation(stackFrameContinuation(frame));
   valueReturn(v);
 !return
   retarget(isStackFrame);
-  setContinuation(currentThread, stackFrameContinuation(target));
+  setContinuation(stackFrameContinuation(target));
   valueReturn(oNull);
 !return:
   retarget(isStackFrame);
   obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(currentThread, stackFrameContinuation(target));
+  setContinuation(stackFrameContinuation(target));
   valueReturn(v);
 !thisContext
   normalReturn;
 !recurse
   retarget(isStackFrame);
-  setContinuation(currentThread, stackFrameContinuation(target));
+  setContinuation(stackFrameContinuation(target));
   gotoNext;
-!end
-  killThreadData(currentThread);
-  // Permit a C subroutine return, thus killing the current thread.
 $parser
 # TODO: Put the next entry in an "interpreter" namespace when objgen supports it:
 $defaultMessageTarget
@@ -130,7 +140,6 @@ $object
 $integer
 $null
 $code
-$arrowCode
 $block
 $primitive
 $string
@@ -153,22 +162,24 @@ $canon oNamespaceCanon
   exit(0);
 # "Lobby" stuff ends here.
 !interpretInScope:inEnvironment:
-  setContinuation(currentThread,
-                  newContinuation(origin(threadContinuation(currentThread)),
+  continuation c = threadContinuation(currentThread);
+  setContinuation(newContinuation(origin(c),
                                   sInterpret,
                                   newVector(1, target),
                                   emptyVector, // There should be no reason for anyone to examine this.
                                   waitFor(arg(0)),
-                                  waitFor(arg(1))));
+                                  waitFor(arg(1)),
+                                  oldContinuation(c)));
   gotoNext;
 !evaluate:in:
-  setSubexpressionContinuation(currentThread,
-                               origin(threadContinuation(currentThread)),
-                               target,
-                               waitFor(arg(1)),
-                               parseString(safeStringValue(arg(0))),
-                               sIdentity,
-                               emptyVector);
+  continuation c = threadContinuation(currentThread);
+  setContinuation(subexpressionContinuation(origin(c),
+                                            target,
+                                            waitFor(arg(1)),
+                                            parseString(safeStringValue(arg(0))),
+                                            sIdentity,
+                                            emptyVector,
+                                            oldContinuation(c)));
   gotoNext;
 !includeExactPath:in:
   FILE *f = fopen(safeStringValue(arg(0)), "r");
@@ -185,13 +196,13 @@ $canon oNamespaceCanon
   valueReturn(oFalse);
 !send:
   continuation c = origin(threadContinuation(currentThread));
-  setSubexpressionContinuation(currentThread,
-                               c,
-                               env(c),
-                               dynamicEnv(c),
-                               target,
-                               waitFor(arg(0)),
-                               emptyVector);
+  setContinuation(subexpressionContinuation(c,
+                                            env(c),
+                                            dynamicEnv(c),
+                                            target,
+                                            waitFor(arg(0)),
+                                            emptyVector,
+                                            oldContinuation(c)));
   gotoNext;
 !localMethods
   int n = slotCount(target);
@@ -316,7 +327,9 @@ $serialized string("<canon namespace>")
   regmatch_t indices[1];
   if (regexec(vectorData(hiddenEntity(target)), s, 1, indices, REG_NOTBOL | REG_NOTEOL))
     invokeBlock(arg(1));
-  valueReturn(call(oRange, sFrom_to_, newVector(2, integer(indices->rm_so), integer(indices->rm_eo))));
+  valueReturn(waitFor(call(oRange,
+                           sFrom_to_,
+                           newVector(2, integer(indices->rm_so), integer(indices->rm_eo)))));
 @blockLiteral object method(newVector(1, oSymbol), newVector(1, oBlockLiteral))
 # This could inherit from oMethod, but we're avoiding that because we might want to make oMethod and
 # oPrimitive more magical than they are now.
@@ -334,7 +347,10 @@ $serialized string("<canon namespace>")
   vector args = safeVector(waitFor(arg(0)));
   obj m = blockMethod(target);
   if (vectorLength(args) != methodArity(m)) raise(eBadArity);
-  setMethodContinuation(threadContinuation(currentThread), blockEnv(target), prefix(target, args), m);
+  setContinuation(methodContinuation(threadContinuation(currentThread),
+                                     blockEnv(target),
+                                     prefix(target, args),
+                                     m));
   gotoNext;
 !arity
   retarget(isBlock);
@@ -354,7 +370,7 @@ $serialized string("<canon namespace>")
     int n = vectorLength(oldBody);
     vector newBody = makeVector(n);
     for (int i = 0; i < n; ++i)
-      setIdx(newBody, i, call(quote(idx(oldBody, i)), sDefinedOn_, newVector(1, newTarget)));
+      setIdx(newBody, i, waitFor(call(quote(idx(oldBody, i)), sDefinedOn_, newVector(1, newTarget))));
     valueReturn(message(oMethodBody, sSubexpressions_, newBody));
   }
   valueReturn(message(newTarget, codeSelector(target), codeArgs(target)));
@@ -364,35 +380,25 @@ $serialized string("<canon namespace>")
   if (messageTarget == oMethodBody) {
     // We have been called on the methodBody#subexpressions: message generated by the parser to represent a parenthesized list of statements. We will cascade the first of those statements.
     vector statements = duplicateVector(codeArgs(target));
-    setIdx(statements, 0, call(quote(idx(statements, 0)), sCascading_, newVector(1, cascadeTarget)));
+    setIdx(statements,
+           0,
+           waitFor(call(quote(idx(statements, 0)), sCascading_, newVector(1, cascadeTarget))));
     valueReturn(message(oMethodBody, sSubexpressions_, statements));
   }
-  valueReturn(message(call(quote(messageTarget), sCascading_, newVector(1, cascadeTarget)),
+  valueReturn(message(waitFor(call(quote(messageTarget), sCascading_, newVector(1, cascadeTarget))),
                       codeSelector(target),
                       codeArgs(target)));  
 !interpret
   retarget(isCode);
   continuation c = threadContinuation(currentThread);
-  setContinuation(currentThread,
-                  newContinuation(origin(c),
+  setContinuation(newContinuation(origin(c),
                                   codeSelector(target),
                                   emptyVector,
                                   prefix(codeTarget(target) ?: env(c), codeArgs(target)),
                                   env(c),
-                                  dynamicEnv(c)));
+                                  dynamicEnv(c),
+                                  oldContinuation(c)));
   gotoNext;
-@arrowCode object
-!from:
-  // FIXME: Type safety?
-  promise p = newPromise();
-  continuation c = threadContinuation(currentThread);
-  newThread(p,
-            env(c),
-            dynamicEnv(c),
-            oMethodBody,
-            sSubexpressions_,
-            newVector(2, message(arg(0), sIdentity, emptyVector), hiddenEntity(target)));
-  valueReturn(p);
 @endOfFile object
 # Returned by the parser when it encounters an end-of-file.
 !interpret

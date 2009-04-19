@@ -96,8 +96,6 @@ void createPrimitiveThread(void (*)(void *), void *);
   createPrimitiveThread(spawn_init, (void *)(spawn_a)); \
 } while (0)
 
-void explicitlyEndThread(void);
-
 typedef vector obj;
 
 typedef vector promise;
@@ -106,6 +104,9 @@ obj promiseValue(promise);
 vector *promiseValueField(promise);
 obj waitFor(void *);
 void fulfillPromise(promise, obj);
+
+void trimStack(void);
+promise currentPromise(void);
 
 vector newActor(obj, obj, obj);
 promise enqueueMessage(vector, obj, vector);
@@ -171,7 +172,7 @@ vector methodParams(obj);
 vector methodBody(obj);
 
 obj primitive(void *);
-void (*primitiveCode(obj))(void);
+int (*primitiveCode(obj))(void);
 
 obj stackFrame(obj, vector, vector, vector);
 vector stackFrameContinuation(obj);

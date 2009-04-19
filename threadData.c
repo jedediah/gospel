@@ -24,21 +24,23 @@ vector newThreadData(vector cc,
                      vector prev,
                      vector next,
                      vector scratch) {
-  return newVector(4, cc, prev, next, scratch);
+  return newVector(5, cc, prev, next, scratch, 0);
 }
 
 continuation threadContinuation(vector td) { return idx(td, 0); }
 vector       previousThreadData(vector td) { return idx(td, 1); }
 vector       nextThreadData(vector td)     { return idx(td, 2); }
 vector       shelteredValue(vector td)     { return idx(td, 3); }
+vector       currentActor(vector td)       { return idx(td, 4); }
 
-vector setContinuation(vector threadData, continuation c) {
-  setIdx(threadData, 0, c);
-  return threadData;
+vector setContinuation(continuation c) {
+  setIdx(currentThread, 0, c);
+  return currentThread;
 }
-vector setPreviousThreadData(vector td, vector ptd) { return setIdx(td, 1, ptd); } 
+vector setPreviousThreadData(vector td, vector ptd) { return setIdx(td, 1, ptd); }
 vector setNextThreadData(vector td, vector ntd)     { return setIdx(td, 2, ntd); }
 vector shelter(vector td, vector v)                 { return setIdx(td, 3, v);   }
+vector setCurrentActor(vector td, vector a)         { return setIdx(td, 4, a);   }
 
 vector createGarbageCollectorRoot(obj rootLiveObject) {
   vector root = newThreadData(rootLiveObject, 0, 0, 0);
@@ -63,14 +65,3 @@ void killThreadData(vector td) {
   releaseThreadListLock();
 }
 
-void keep(vector thread, promise p, vector o) {
-  fulfillPromise(p, o);
-  killThreadData(thread);
-  // The return from this function is intended to terminate the thread as per clone(2).
-  // It must therefore only be called in tail context.
-}
-
-void terminateThread(vector thread) {
-  killThreadData(thread);
-  explicitlyEndThread();
-}

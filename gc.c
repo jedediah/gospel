@@ -28,6 +28,7 @@
 #include "objects.h" // Because we define some object creation functions.
 
 #include <pthread.h>
+#include <setjmp.h>
 
 #include <gmp.h> // For bignum finalization.
 #include <regex.h> // For regex finalization.
@@ -61,8 +62,8 @@ int liveSegmentCount = 0;
 // TODO: Merge "threadData.c" back in here, since we have to expose its implementation anyway.
 struct vectorStruct dummyThreadData = {0,
                                        0,
-                                       4 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
-                                       {0, 0, 0, 0}};
+                                       5 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
+                                       {0, 0, 0, 0, 0}};
 
 #ifdef NO_THREAD_VARIABLES
   pthread_key_t threadLocalStorageKey;
@@ -529,6 +530,8 @@ typedef struct {
   pthread_cond_t newMessageSignal;
   obj object, env, scope;
   vector threadData; // TODO: Deprecate the whole concept of thread data objects.
+  jmp_buf toplevelEscape;
+  promise currentPromise;
 } actorData;
 
 void markActor(vector a) {
@@ -549,31 +552,48 @@ promise enqueueMessage(vector a, obj selector, vector args) {
   if (!ad->backOfQueue) {
     ad->frontOfQueue = ad->backOfQueue = v;
     if (pthread_cond_signal(&ad->newMessageSignal)) die("Error while waking up an actor.");
+    // The actor will wake up when we release the lock.
   }
   else ad->backOfQueue = setIdx(ad->backOfQueue, 0, v);
   releaseQueueLock(ad);
   return p;
 }
-vector newThread(void *, obj, obj, obj, obj, vector); // TODO: Have actorLoop() run the interpreter in its own thread instead of spawning new ones.
+vector setContinuation(vector);
+vector subexpressionContinuation(vector, obj, obj, obj, obj, vector, vector); // TODO: Reorganize.
 vector addThread(vector); // TODO: Reorganize threading code around the new actor model...
+vector setCurrentActor(vector, vector); // TODO: As above.
+vector currentActor(vector); // TODO: As above.
+void doNext(void); // TODO: As above.
 void actorLoop(vector a) {
   actorData *ad = vectorData(a);
   setCurrentThread(ad->threadData);
+  setCurrentActor(currentThread, a);
   for (;;) {
     acquireQueueLock(ad);
-    while (!ad->frontOfQueue) pthread_cond_wait(&ad->newMessageSignal, &ad->queueLock);
+    while (!ad->frontOfQueue)
+      if (pthread_cond_wait(&ad->newMessageSignal, &ad->queueLock))
+        die("Error while trying to have an actor wait for new messages.");
     promise p = idx(ad->frontOfQueue, 1);
     obj selector = idx(ad->frontOfQueue, 2);
     vector args = idx(ad->frontOfQueue, 3);
+    // We set up the continuation before removing the message from the queue, because otherwise we'd lose it if caught by a garbage collection.
+    setContinuation(subexpressionContinuation(p, ad->scope, ad->env, ad->object, selector, args, 0));
     if (!(ad->frontOfQueue = idx(ad->frontOfQueue, 0))) ad->backOfQueue = NULL;
+    // TODO: Remove the message from the queue after handling it, not before, so that acquiring the queue lock and finding the queue empty can be taken as proof that the actor is asleep (and can be garbage-collected if nothing is holding a reference to it).
     releaseQueueLock(ad);
-    newThread(p, oObject, oDynamicEnvironment, ad->object, selector, args);
-    waitFor(p);
+    ad->currentPromise = p;
+    setjmp(ad->toplevelEscape);
+    doNext();
   }
+}
+void trimStack() { // TODO: Add noreturn assertion.
+  longjmp(((actorData *)vectorData(currentActor(currentThread)))->toplevelEscape, 42); // Value returned through setjmp() will be ignored.
+}
+promise currentPromise() {
+  return ((actorData *)vectorData(currentActor(currentThread)))->currentPromise;
 }
 vector newActor(obj o, obj scope, obj env) {
   vector a = makeAtomVector(CELLS_REQUIRED_FOR_BYTES(sizeof(actorData)));
-  setVectorType(a, ACTOR);
   actorData *ad = vectorData(a);
   if (pthread_mutex_init(&ad->queueLock, NULL))
     die("Error while initializing an actor's message queue lock.");
@@ -584,6 +604,7 @@ vector newActor(obj o, obj scope, obj env) {
   ad->env = env;
   ad->threadData = addThread(garbageCollectorRoot);
   // Queue pointers have already been initialized to NULL by makeAtomVector().
+  setVectorType(a, ACTOR);
   createPrimitiveThread((void (*)(void *))actorLoop, a);
   return a;
 }
@@ -611,10 +632,6 @@ void permitGC() {
 void createPrimitiveThread(void (*f)(void *), void *a) {
   pthread_t thread;
   if (pthread_create(&thread, NULL, (void *(*)(void *))f, a)) die("Failed spawning.");
-}
-
-void explicitlyEndThread() {
-  pthread_exit(0);
 }
 
 vector suffix(void *e, vector v) {
@@ -703,7 +720,7 @@ obj primitive(void *code) {
   setVectorType(o, PRIMITIVE);
   return o;
 }
-void (*primitiveCode(obj p))(void) {
+int (*primitiveCode(obj p))(void) {
   return hiddenAtom(p);
 }
 
