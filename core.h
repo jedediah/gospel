@@ -40,7 +40,7 @@ obj integer(int);
 int integerValue(obj);
 
 obj symbol(const char *c);
-obj appendSymbols(vector);
+obj intern(obj);
 
 obj message(obj, obj, vector);
 obj setMessageTarget(obj, obj);

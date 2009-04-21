@@ -56,43 +56,6 @@ pair list(void *o) {
   return cons(o, emptyList);
 }
 
-pair nreverse(pair l) {
-  pair next, last = emptyList;
-  while (!empty(l)) {
-    next = cdr(l);
-    setcdr(l, last);
-    last = l;
-    l = next;
-  }
-  return last;
-}
-
-pair nappend(pair x, pair y) {
-  pair first = x, next;
-  while (!empty(next = cdr(x))) x = next;
-  setcdr(x, y);
-  return first;
-}
-
-int length(pair l) {
-  int i = 0;
-  while (!empty(l)) {
-    l = cdr(l);
-    i++;
-  }
-  return i;
-}
-
-vector listToVector(vector list) {
-  vector v = makeVector(length(list));
-  for (int i = 0; !empty(list); i++, list = cdr(list)) setIdx(v, i, car(list));
-  return v;
-}
-
-pair map(void *fn, pair list) {
-  return empty(list) ? list : cons(((void *(*)(void *))fn)(car(list)), map(fn, cdr(list)));
-}
-
 typedef vector continuation;
 
 continuation newContinuation(void *origin,
@@ -382,15 +345,11 @@ void *cdr(vector pair) { return idx(pair, 1); }
 vector setcar(vector pair, void *val) { return setIdx(pair, 0, val); }
 vector setcdr(vector pair, void *val) { return setIdx(pair, 1, val); }
 
-int isEmpty(vector v) {
-  return vectorLength(v) == 0; 
-}
-
 obj intern(obj symbol) {
   acquireSymbolTableLock();
   obj symbolTable = hiddenEntity(oInternals);
   char *string = stringData(symbol);
-  for (pair st = symbolTable; !empty(st); st = cdr(st))
+  for (pair st = symbolTable; st; st = cdr(st))
     if (!strcmp(string, stringData(car(st)))) {
       releaseSymbolTableLock();
       return car(st);
@@ -491,14 +450,6 @@ void *loadStream(FILE *, obj, obj);
 #undef safeIntegerValue
 #undef retarget
 #undef check
-
-obj appendSymbols(pair symbols) {
-  obj s = string("");
-  for (; !empty(symbols); symbols = cdr(symbols))
-    s = appendStrings(s, car(symbols));
-  setProto(s, oSymbol);
-  return intern(s);
-}
 
 obj symbol(const char *s) {
   obj o = string(s);

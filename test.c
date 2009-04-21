@@ -46,10 +46,6 @@ test(integer,
 test(intern,
   assert_equal(symbol("foo"), symbol("foo"));
 )
-test(appendSymbols,
-  assert_equal(appendSymbols(cons(symbol("foo"), list(symbol("bar")))),
-               symbol("foobar"));
-)
 test(appendStrings,
   obj s1 = string("foo"),
       s2 = string("bar"),
@@ -63,14 +59,6 @@ test(freeSpaceCount,
   newVector(0);
   // Free space should now be reduced by the size of a zero-length vector and its edenspace.
   assert_equal(freeSpaceCount(), oldCount - 3 - EDEN_OVERHEAD);
-)
-test(listToVector,
-  vector n = integer(42),
-         m = symbol("foo"),
-         v = listToVector(cons(n, list(m)));
-  assert_equal(vectorLength(v), 2);
-  assert_equal(idx(v, 0), n);
-  assert_equal(idx(v, 1), m);
 )
 test(spawn,
   void *p = newPromise();

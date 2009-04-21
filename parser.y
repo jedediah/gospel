@@ -22,6 +22,9 @@
 #include "objects.h"
 #include <stdio.h>
 
+vector nreverse(vector);
+vector listToVector(vector);
+obj appendSymbols(vector);
 obj keywordMessage(obj target, pair args);
 void yyerror(YYLTYPE *, int *, int *, void **, void *, char const *);
 
@@ -277,6 +280,44 @@ lines:
 ;
 
 %%
+
+pair nreverse(pair l) {
+  pair next, last = emptyList;
+  while (l) {
+    next = cdr(l);
+    setcdr(l, last);
+    last = l;
+    l = next;
+  }
+  return last;
+}
+
+int length(pair l) {
+  int i = 0;
+  while (l) {
+    l = cdr(l);
+    i++;
+  }
+  return i;
+}
+
+vector listToVector(vector list) {
+  vector v = makeVector(length(list));
+  for (int i = 0; list; i++, list = cdr(list)) setIdx(v, i, car(list));
+  return v;
+}
+
+pair map(void *fn, pair list) {
+  return list ? cons(((void *(*)(void *))fn)(car(list)), map(fn, cdr(list))) : list;
+}
+
+obj appendSymbols(pair symbols) {
+  obj s = string("");
+  for (; symbols; symbols = cdr(symbols))
+    s = appendStrings(s, car(symbols));
+  setProto(s, oSymbol);
+  return intern(s);
+}
 
 obj keywordMessage(obj target, pair args) {
   return message(target,
