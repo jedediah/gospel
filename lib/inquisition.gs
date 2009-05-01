@@ -31,13 +31,13 @@ suite = new do: {
   teardown {}
   run {
     failures = exceptions = 0
-    "Tests: " ++ (tests localMethods each: { selector |
-                    setup
-                    { tests send: selector } except: { e |
+    "Tests: " ++ (self tests localMethods each: { selector |
+                    self setup
+                    { self tests send: selector } except: { e |
                       e is: failedAssertion; if: { ^ failures := failures + 1 }
                       exceptions := exceptions + 1
                     }
-                    teardown
+                    self teardown
                   }; length serialized) ++
      "\nFailures: " ++ failures serialized ++
       "\nExceptions: " ++ exceptions serialized

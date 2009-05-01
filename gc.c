@@ -729,13 +729,14 @@ int (*primitiveCode(obj p))(void) {
   return hiddenAtom(p);
 }
 
-obj method(vector params, vector body) {
-  obj o = slotlessObject(oMethod, newVector(2, params, body));
+obj method(vector params, vector body, obj scope) {
+  obj o = slotlessObject(oMethod, newVector(3, params, body, scope));
   setVectorType(o, METHOD);
   return o;
 }
 vector methodParams(obj c) { return idx(hiddenEntity(c), 0); }
 vector methodBody(obj c)   { return idx(hiddenEntity(c), 1); }
+vector methodScope(obj c)  { return idx(hiddenEntity(c), 2); }
 
 obj stackFrame(obj parent, vector names, vector values, vector continuation) {
   obj o = newObject(parent, names, values, continuation);

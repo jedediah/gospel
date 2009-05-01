@@ -96,11 +96,11 @@ declaration:
   unaryTarget signature '{' body '}'
   { pair sig = $2;
     $$ = message($1,
-                 sAddSlot_as_,
+                 sAddMethod_as_,
                  newVector(2,
                            car(sig),
-                           method(listToVector(cons(sSelf, cdr(sig))),
-                                  listToVector($4)))); }
+                           blockLiteral(listToVector(cdr(sig)),
+                                        listToVector($4)))); }
 ;
 statement:
   cascade
@@ -244,9 +244,9 @@ literal:
 | '[' gap list gap ']'
   { $$ = message(oInternals, sVectorLiteral, listToVector(nreverse($3))); }
 | '{' body '}'
-  { $$ = blockLiteral(newVector(1, sCurrentMessageTarget), listToVector($2)); }
+  { $$ = blockLiteral(emptyVector, listToVector($2)); }
 | '{' params '|' body '}'
-  { $$ = blockLiteral(listToVector(cons(sCurrentMessageTarget, nreverse($2))), listToVector($4)); }
+  { $$ = blockLiteral(listToVector(nreverse($2)), listToVector($4)); }
 ;
 list:
   cascade

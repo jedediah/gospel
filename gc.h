@@ -167,9 +167,10 @@ obj newObject(obj, vector, vector, void *);
 obj slotlessObject(obj, vector);
 obj typedObject(obj, vector);
 
-obj method(vector, vector);
+obj method(vector, vector, obj);
 vector methodParams(obj);
 vector methodBody(obj);
+obj    methodScope(obj);
 
 obj primitive(void *);
 int (*primitiveCode(obj))(void);

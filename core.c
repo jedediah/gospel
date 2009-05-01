@@ -148,9 +148,6 @@ vector subexpressionContinuation(continuation parent,
   tailcall(doNext); \
 } while (0)
 
-vector exceptionContinuation(obj exception) {
-}
-
 void prepareToRaise(obj exception) {
   continuation c = threadContinuation(currentThread);
   setContinuation(subexpressionContinuation(origin(c),
@@ -176,7 +173,7 @@ obj appendStrings(obj s1, obj s2) {
 }
 
 obj blockLiteral(vector params, vector body) {
-  return slotlessObject(oBlockLiteral, method(params, body));
+  return slotlessObject(oBlockLiteral, method(prefix(oNull, params), body, oNull));
 }
 int isBlockLiteral(obj bl) { return isMethod(hiddenEntity(bl)); }
 
@@ -229,9 +226,9 @@ obj newEnvironment(obj oldEnv) {
   return typedObject(oldEnv, hiddenEntity(oldEnv));
 }
 
-vector methodContinuation(vector c, obj scope, vector args, obj method) {
+vector methodContinuation(vector c, vector args, obj method) {
   return subexpressionContinuation(origin(c),
-                                   stackFrame(scope, methodParams(method), args, c),
+                                   stackFrame(methodScope(method), methodParams(method), args, c),
                                    newEnvironment(dynamicEnv(c)),
                                    oMethodBody,
                                    sSubexpressions_,
@@ -257,7 +254,7 @@ void normalDispatchMethod() {
     if (vectorLength(args) != vectorLength(params))
       prepareToRaise(eBadArity);
     else
-      setContinuation(methodContinuation(c, continuationTarget(c), args, contents));
+      setContinuation(methodContinuation(c, args, contents));
     tailcall(doNext);
   }
   staticMessageReturn(contents); // The slot contains a constant value, not code.
@@ -274,7 +271,7 @@ void invokeDispatchMethod() {
   if (isPrimitive(dm)) callPrimitiveMethod(dm);
   if (isMethod(dm)) {
     // Method is checked for correct arity when it's installed.
-    setContinuation(methodContinuation(c, continuationTarget(c), evaluated(c), dm));
+    setContinuation(methodContinuation(c, evaluated(c), dm));
     tailcall(doNext);
   }
   staticMessageReturn(dm); // The dispatch method is actually just a constant value.
