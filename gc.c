@@ -326,7 +326,7 @@ void scan() {
 #include <stdio.h>
 void collectGarbage() {
   mark(garbageCollectorRoot); // FIXME: Redundant with respect to flip(), above?
-  mark(oObject);
+  mark(oNave); // FIXME: Redundant due to oNave being referenced from the root thread data object?
   while (grayList != blackList) scan();
   flip();
 }

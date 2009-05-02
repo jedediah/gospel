@@ -457,7 +457,7 @@ obj symbol(const char *s) {
 void setupInterpreter() {
   initializeHeap();
   initializeMainThread();
-  setCurrentThread(garbageCollectorRoot = createGarbageCollectorRoot(oObject));
+  setCurrentThread(garbageCollectorRoot = createGarbageCollectorRoot(oNave));
   initializeObjects();
   initializePrototypeTags();
   intern(oSymbol);

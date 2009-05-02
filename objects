@@ -72,52 +72,10 @@
 !methodBody
   int l = vectorLength(evaluated(threadContinuation(currentThread)));
   valueReturn(l == 1 ? oNull : arg(l - 2));
-@object null oInternals
-# We stash a pointer to oInternals here to lend it oObjects's immunity to garbage collection.
-# It would perhaps make more sense to give oInternals the immunity, and let oObject borrow it,
+@nave object oInternals
+# We stash a pointer to oInternals here to lend it oNave's immunity to garbage collection.
+# It would perhaps make more sense to give oInternals the immunity, and let oNave borrow it,
 # but future changes to the interpreter may eliminate the need for oInternals.
-!addMethod:as:
-  obj m = blockMethod(check(arg(1), isBlock));
-  vector p = duplicateVector(methodParams(m));
-  setIdx(p, 0, sSelf);
-  valueReturn(addSlot(target,
-                      waitFor(arg(0)),
-                      method(p, methodBody(m), methodScope(m)),
-                      threadContinuation(currentThread)));
-!actor
-  valueReturn(newActor(target, oObject, oDynamicEnvironment));
-!raise
-  // TODO: It might be better to swap in the actor's current promise at a different stage, in case e.g. object#raise gets redefined.
-  continuation c = threadContinuation(currentThread);
-  setContinuation(subexpressionContinuation(currentPromise(),
-                                            env(c),
-                                            dynamicEnv(c),
-                                            dynamicEnv(c),
-                                            sHandle_,
-                                            newVector(1, target),
-                                            0));
-  trimStack();
-!do:
-  obj b = check(arg(0), isBlock), m = blockMethod(b);
-  vector statements = methodBody(m);
-  int n = vectorLength(statements);
-  vector newStatements = makeVector(n);
-  for (int i = 0; i < n; ++i)
-    setIdx(newStatements, i, waitFor(call(quote(idx(statements, i)), sCascading_, newVector(1, target))));
-  invokeBlock(block(blockEnv(b), method(methodParams(m), suffix(target, newStatements), methodScope(m))));
-!self
-  normalReturn;
-!return:atDepth:
-  retarget(isStackFrame);
-  obj frame = target;
-  for (int i = safeIntegerValue(arg(1));;) {
-    if (frame == oObject) raise(eBadReturnDepth);
-    if (!i--) break;
-    frame = proto(frame);
-  }
-  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
-  setContinuation(stackFrameContinuation(frame));
-  valueReturn(v);
 !return
   retarget(isStackFrame);
   setContinuation(stackFrameContinuation(target));
@@ -126,6 +84,17 @@
   retarget(isStackFrame);
   obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
   setContinuation(stackFrameContinuation(target));
+  valueReturn(v);
+!return:atDepth:
+  retarget(isStackFrame);
+  obj frame = target;
+  for (int i = safeIntegerValue(arg(1));;) {
+    if (frame == oNave) raise(eBadReturnDepth);
+    if (!i--) break;
+    frame = proto(frame);
+  }
+  obj v = shelter(currentThread, arg(0)); // Because it might be orphaned when we change continuations.
+  setContinuation(stackFrameContinuation(frame));
   valueReturn(v);
 !thisContext
   normalReturn;
@@ -139,6 +108,7 @@ $defaultMessageTarget
 $true
 $false
 $object
+$nave
 $integer
 $null
 $code
@@ -162,7 +132,38 @@ $canon oNamespaceCanon
   normalReturn;
 !exit
   exit(0);
-# "Lobby" stuff ends here.
+@object null
+!addMethod:as:
+  obj m = blockMethod(check(arg(1), isBlock));
+  vector p = duplicateVector(methodParams(m));
+  setIdx(p, 0, sSelf);
+  valueReturn(addSlot(target,
+                      waitFor(arg(0)),
+                      method(p, methodBody(m), methodScope(m)),
+                      threadContinuation(currentThread)));
+!actor
+  valueReturn(newActor(target, oNave, oDynamicEnvironment));
+!raise
+  // TODO: It might be better to swap in the actor's current promise at a different stage, in case e.g. object#raise gets redefined.
+  continuation c = threadContinuation(currentThread);
+  setContinuation(subexpressionContinuation(currentPromise(),
+                                            env(c),
+                                            dynamicEnv(c),
+                                            dynamicEnv(c),
+                                            sHandle_,
+                                            newVector(1, target),
+                                            0));
+  trimStack();
+!do:
+  obj b = check(arg(0), isBlock), m = blockMethod(b);
+  vector statements = methodBody(m);
+  int n = vectorLength(statements);
+  vector newStatements = makeVector(n);
+  for (int i = 0; i < n; ++i)
+    setIdx(newStatements, i, waitFor(call(quote(idx(statements, i)), sCascading_, newVector(1, target))));
+  invokeBlock(block(blockEnv(b), method(methodParams(m), suffix(target, newStatements), methodScope(m))));
+!self
+  normalReturn;
 !interpretInScope:inEnvironment:
   continuation c = threadContinuation(currentThread);
   setContinuation(newContinuation(origin(c),

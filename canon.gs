@@ -14,10 +14,10 @@
 #   You should have received a copy of the GNU General Public License
 #   along with Gospel.  If not, see <http://www.gnu.org/licenses/>.
 
-new { self instance }
+object new { self instance }
 
 # Used by the parser to construct cascades.
-cascading: target { "Syntax error in cascade - leftmost message had a target." raise. exit }
+object cascading: target { "Syntax error in cascade - leftmost message had a target." raise. exit }
 defaultMessageTarget cascading: target { target }
 
 object serialized = "<object>"
@@ -74,34 +74,37 @@ exception do: {
 
 inclusionPaths = ["lib/"]
 inclusionFileExtensions = [".gs", ""]
-include: filename in: environment {
-  inclusionPaths each: { path |
-    inclusionFileExtensions each: { extension |
-      { ^^^ self includeExactPath: path ++ filename ++ extension in: environment } except:
-       { e | e is: exception inclusion; else: { e raise } }
+object do: {
+  include: filename in: environment {
+    inclusionPaths each: { path |
+      inclusionFileExtensions each: { extension |
+        { ^^^ self includeExactPath: path ++ filename ++ extension in: environment } except:
+         { e | e is: exception inclusion; else: { e raise } }
+      }
     }
+    "File to be included was not found: " ++ filename; raise
   }
-  "File to be included was not found: " ++ filename; raise
-}
-include: filename {
-  fileEnvironment = dynamicContext new
-  lastValue = self include: filename in: fileEnvironment
-  dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
-  lastValue
-}
-namespace {
-  dynamicContext proto setNamespaces: ([self] ++ dynamicContext proto namespaces) nub
-  self
-}
-
-tap: aBlock {
-  aBlock value: self
-  self
+  include: filename {
+    fileEnvironment = dynamicContext new
+    lastValue = self include: filename in: fileEnvironment
+    dynamicContext proto setNamespaces: (dynamicContext proto namespaces ++ fileEnvironment namespaces) nub
+    lastValue
+  }
+  namespace {
+    dynamicContext proto setNamespaces: ([self] ++ dynamicContext proto namespaces) nub
+    self
+  }
+  tap: aBlock {
+    aBlock value: self
+    self
+  }
 }
 
-if: yes          { yes  value }
-if: yes else: no { yes  value }
-        else: no { self       }
+object do: {
+  if: yes          { yes  value }
+  if: yes else: no { yes  value }
+          else: no { self       }
+}
 
 false do: {
   if: yes          { self       }
@@ -279,7 +282,7 @@ range do: {
   }
 }
 
-methods {
+object methods {
   object is: self; if: [] else: { self proto methods }; ++ self localMethods
 }
 

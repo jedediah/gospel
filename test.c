@@ -29,7 +29,7 @@
   add_test(suite, test_##name);
 
 obj testcall(obj target, obj selector, vector args) {
-  obj a = newActor(target, oObject, oDynamicEnvironment);
+  obj a = newActor(target, oNave, oDynamicEnvironment);
   return waitFor(enqueueMessage(a, selector, args));
 }
 
@@ -230,7 +230,7 @@ test(bignumSubtraction,
                                           emptyVector))));
 )
 test(multipleMessages,
-  obj i = integer(42), a = newActor(i, oObject, oDynamicEnvironment);
+  obj i = integer(42), a = newActor(i, oNave, oDynamicEnvironment);
   assert_equal(waitFor(enqueueMessage(a, sIdentity, emptyVector)), i);
   assert_equal(waitFor(enqueueMessage(a, sIdentity, emptyVector)), i);
 )

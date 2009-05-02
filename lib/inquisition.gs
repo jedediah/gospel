@@ -16,8 +16,9 @@
 
 "inquisition" namespace
 
-assert { self }
+object assert { self }
 false assert { suite failedAssertion raise }
+failedAssertion = "Failed assertion in unit test."
 
 suite = new do: {
   new {
@@ -25,7 +26,6 @@ suite = new do: {
   }
 
   tests = object new
-  failedAssertion = "Failed assertion in unit test."
  
   setup {}
   teardown {}
