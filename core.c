@@ -417,17 +417,14 @@ void *loadStream(FILE *, obj, obj);
   gotoNext; \
 } while(0)
 #define checkWithoutWaiting(c_value, c_predicate) \
-  ({ obj c_newValue = (c_value); \
-     for (;;) { \
-       if (c_newValue == oNull) { \
-         obj e = slotlessObject(oBadTypeException, 0); \
-         addCanonSlot(e, sSelector, selector(threadContinuation(currentThread))); \
-         raise(e); \
-       } \
-       if ((c_predicate)(c_newValue)) break; \
-       c_newValue = proto(c_newValue); \
+  ({ obj c_v = (c_value); \
+     if (!(c_predicate)(c_v)) { \
+       obj e = slotlessObject(oBadTypeException, NULL); \
+       addCanonSlot(e, sSelector, selector(threadContinuation(currentThread))); \
+       raise(e); \
      } \
-     c_newValue; })
+     c_v; \
+   })
 #define check(c_value, c_predicate) (checkWithoutWaiting(waitFor(c_value), (c_predicate)))
 #define retarget(r_predicate) (target = checkWithoutWaiting(target, (r_predicate)))
 #define safeIntegerValue(siv_i) (integerValue(check((siv_i), isInteger)))
