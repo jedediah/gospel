@@ -219,7 +219,7 @@ vector do: {
   }
 }
 
-string ofLength: length { self ofLength: self length containing: " " }
+string ofLength: length { self ofLength: length containing: " " }
 
 object do: {
   print { self serialized print }
@@ -275,7 +275,7 @@ range do: {
   of: aCollection {
     result = aCollection ofLength:
               (aCollection absoluteIndex: self last) - (aCollection absoluteIndex: self first);
-     eachIndex: { i | result at: i put: (aCollection at: first + i) }
+     eachIndex: { i | result at: i put: (aCollection at: self first + i) }
   }
   serialized {
     self first serialized ++ "..." ++ self last serialized
