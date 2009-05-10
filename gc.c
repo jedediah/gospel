@@ -129,8 +129,8 @@ int isString(obj o) {
     vector v = hiddenEntity(o);
     if (!v || vectorType(v) != ATOM_VECTOR) return 0;
     int last = (int)idx(v, vectorLength(v) - 1);
-    // FIXME: Assumes 32-bit integers.
-    return !(last & 0xff000000 && last & 0x00ff0000 && last & 0x0000ff00 && last & 0x000000ff);
+    // We hope that the compiler can unroll this:
+    for (int i = 0; i < sizeof(int); ++i) if (!(last & 0xff << 8 * i)) return -1;
   }
   return 0;
 }
