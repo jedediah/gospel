@@ -83,7 +83,7 @@ vector *edenIdx(vector, int);
 void *setIdx(vector, int, void *);
 void *vectorData(vector);
 
-int vectorLength(vector);i
+int vectorLength(vector);
 
 vector zero(vector);
 

@@ -164,13 +164,14 @@ char *stringData(obj s) {
 }
 int stringLength(obj s) {
   vector data = hiddenEntity(s);
-  int i = vectorLength(data);
-  if (!i) return 0;
-  char *last = (char *)idxPointer(data, i - 1);
-  return i * 4 - ( !last[0] ? 4
-                 : !last[1] ? 3
-                 : !last[2] ? 2
-                            : 1);
+  int n = vectorLength(data);
+  if (!n) return 0; // TODO: Do we really want to allow two different representations of the empty string?
+  int last = atomIdx(data, n - 1);
+  // We hope that the compiler can unroll this:
+  for (int i = 0; i < sizeof(int); ++i)
+    if (!(last & 0xff << 8 * i))
+      return (n - 1) * sizeof(int) + i; // Assuming little-endianness.
+  die("Attempted to find the length of a corrupted string.");  
 }
 char stringIdx(obj s, int i) {
   return stringData(s)[i];
