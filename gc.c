@@ -377,9 +377,13 @@ vector zero(vector v) {
   return v;
 }
 
-void *idx(vector v, int i) {
-  return v->data[i];
+vector idx(vector v, int i) {
+  return ((vector *)v->data)[i];
 }
+int atomIdx(vector v, int i) {
+  return ((int *)v->data)[i];
+}
+
 vector *idxPointer(vector v, int i) {
   return (vector *)&v->data[i];
 }

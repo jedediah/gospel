@@ -75,13 +75,15 @@ vector newAtomVector(int, ...);
 
 vector duplicateVector(vector);
 
-void *idx(vector, int);
+vector idx(vector, int);
+int atomIdx(vector, int);
+
 vector *idxPointer(vector, int);
 vector *edenIdx(vector, int);
 void *setIdx(vector, int, void *);
 void *vectorData(vector);
 
-int vectorLength(vector);
+int vectorLength(vector);i
 
 vector zero(vector);
 
