@@ -22,8 +22,6 @@
 // A compiler hint.
 #define tailcall(t_f) do { (t_f)(); return; } while (0)
 
-#define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(int) - 1) / sizeof(int))
-
 #define EDEN_OVERHEAD 5 // For the sake of testing.
 
 #include <gmp.h> // For the definition of "mpz_t".
@@ -33,6 +31,9 @@ typedef struct vectorStruct {
   int type;
   void *data[];
 } *vector;
+
+typedef int atom;
+#define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(atom) - 1) / sizeof(atom))
 
 int isMarked(vector);
 void mark(vector);
@@ -76,7 +77,7 @@ vector newAtomVector(int, ...);
 vector duplicateVector(vector);
 
 vector idx(vector, int);
-int atomIdx(vector, int);
+atom atomIdx(vector, int);
 
 vector *idxPointer(vector, int);
 vector *edenIdx(vector, int);

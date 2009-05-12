@@ -128,9 +128,9 @@ int isString(obj o) {
   if (vectorType(o) == ENTITY_VECTOR) {
     vector v = hiddenEntity(o);
     if (!v || vectorType(v) != ATOM_VECTOR) return 0;
-    int last = atomIdx(v, vectorLength(v) - 1);
+    atom last = atomIdx(v, vectorLength(v) - 1);
     // We hope that the compiler can unroll this:
-    for (int i = 0; i < sizeof(int); ++i) if (!(last & 0xff << 8 * i)) return -1;
+    for (int i = 0; i < sizeof(atom); ++i) if (!(last & 0xff << 8 * i)) return -1;
   }
   return 0;
 }
@@ -166,11 +166,11 @@ int stringLength(obj s) {
   vector data = hiddenEntity(s);
   int n = vectorLength(data);
   if (!n) return 0; // TODO: Do we really want to allow two different representations of the empty string?
-  int last = atomIdx(data, n - 1);
+  atom last = atomIdx(data, n - 1);
   // We hope that the compiler can unroll this:
   for (int i = 0; i < sizeof(int); ++i)
     if (!(last & 0xff << 8 * i))
-      return (n - 1) * sizeof(int) + i; // Assuming little-endianness.
+      return (n - 1) * sizeof(atom) + i; // Assuming little-endianness.
   die("Attempted to find the length of a corrupted string.");  
 }
 char stringIdx(obj s, int i) {
