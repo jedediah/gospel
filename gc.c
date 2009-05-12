@@ -128,7 +128,7 @@ int isString(obj o) {
   if (vectorType(o) == ENTITY_VECTOR) {
     vector v = hiddenEntity(o);
     if (!v || vectorType(v) != ATOM_VECTOR) return 0;
-    int last = (int)idx(v, vectorLength(v) - 1);
+    int last = atomIdx(v, vectorLength(v) - 1);
     // We hope that the compiler can unroll this:
     for (int i = 0; i < sizeof(int); ++i) if (!(last & 0xff << 8 * i)) return -1;
   }
