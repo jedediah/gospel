@@ -25,6 +25,7 @@
 #define EDEN_OVERHEAD 5 // For the sake of testing.
 
 #include <gmp.h> // For the definition of "mpz_t".
+#include <stdint.h> // For the definition of "intptr_t".
 
 typedef struct vectorStruct {
   struct vectorStruct *prev, *next;
@@ -33,7 +34,7 @@ typedef struct vectorStruct {
 } *vector;
 
 typedef vector obj;
-typedef int atom;
+typedef intptr_t atom;
 #define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(atom) - 1) / sizeof(atom))
 
 vector shelteredValue(vector);

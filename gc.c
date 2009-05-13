@@ -214,7 +214,7 @@ int stringLength(obj s) {
   if (!n) return 0; // TODO: Do we really want to allow two different representations of the empty string?
   atom last = atomIdx(data, n - 1);
   // We hope that the compiler can unroll this:
-  for (int i = 0; i < sizeof(int); ++i)
+  for (int i = 0; i < sizeof(atom); ++i)
     if (!(last & 0xff << 8 * i))
       return (n - 1) * sizeof(atom) + i; // Assuming little-endianness.
   die("Attempted to find the length of a corrupted string.");  
@@ -260,7 +260,7 @@ vector extract(vector v) {
 #define VECTOR_HEADER_SIZE 3
 #include <stdio.h>
 vector constructWhiteList() {
-  const vector topOfHeap = (vector)(heap + ARENA_CELLS * sizeof(void *));
+  const vector topOfHeap = (vector)(heap + ARENA_CELLS * sizeof(atom));
   struct vectorStruct stub = {0, 0, 0};
   vector prev = &stub,
          current = endOfEmptyVector(emptyVector); // The real beginning of the heap.
@@ -290,7 +290,7 @@ vector constructWhiteList() {
     vector base = current;
     void merge() {
       // Combine contiguous white segments and link the result to the previous white segment.
-      setVectorLength(base, ((int)current - (int)base->data) / sizeof(void *));
+      setVectorLength(base, ((int)current - (int)base->data) / sizeof(atom));
       base->prev = prev;
       prev = prev->next = base;
     }
@@ -420,7 +420,7 @@ vector allot(int size) {
 }
 
 vector zero(vector v) {
-  memset(v->data, 0, vectorLength(v) * sizeof(void *));
+  memset(v->data, 0, vectorLength(v) * sizeof(atom));
   return v;
 }
 
@@ -463,7 +463,7 @@ vector edenAllot(int n) {
 vector duplicateVector(vector v) {
   int n = vectorLength(v);
   vector nv = edenAllot(n);
-  memcpy(nv, v, (n + VECTOR_HEADER_SIZE) * sizeof(void *));
+  memcpy(nv, v, (n + VECTOR_HEADER_SIZE) * sizeof(atom));
   permitGC();
   return nv;
 }
@@ -504,7 +504,7 @@ vector newAtomVector(int length, ...) {
 
 void initializeHeap() {
   void *memory;
-  if (!(memory = malloc(ARENA_CELLS * sizeof(void *) + 1024))) die("Could not allocate heap.");
+  if (!(memory = malloc(ARENA_CELLS * sizeof(atom) + 1024))) die("Could not allocate heap.");
   // The gray list and black list (being in the same cycle) must have distinct pointers.
   // "emptyVector" is treated specially by the garbage collector: The heap is considered to begin
   // immediately after its end, so that it is never collected. It must always be at the lowest address.
@@ -689,14 +689,14 @@ vector suffix(void *e, vector v) {
   int l = vectorLength(v);
   vector nv = makeVector(l + 1);
   nv->data[l] = e;
-  memcpy(nv->data, v->data, l * sizeof(void *));
+  memcpy(nv->data, v->data, l * sizeof(atom));
   return nv;
 }
 vector prefix(void *e, vector v) {
   int l = vectorLength(v);
   vector nv = makeVector(l + 1);
   setIdx(nv, 0, e);
-  memcpy((void *)vectorData(nv) + sizeof(void *), vectorData(v), l * sizeof(void *));
+  memcpy((void *)vectorData(nv) + sizeof(atom), vectorData(v), l * sizeof(atom));
   return nv;
 }
 
@@ -749,7 +749,7 @@ obj newSlot(obj o, obj s, void *v, obj namespace) {
   vector oldSlots = slots(o);
   int length = vectorLength(oldSlots);
   vector newSlots = makeVector(length + 3);
-  memcpy(vectorData(newSlots), vectorData(oldSlots), length * sizeof(obj));
+  memcpy(vectorData(newSlots), vectorData(oldSlots), length * sizeof(atom)); // TODO: Write barrier.
   setIdx(newSlots, length,     s);
   setIdx(newSlots, length + 1, v);
   setIdx(newSlots, length + 2, namespace);

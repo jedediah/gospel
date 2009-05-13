@@ -194,8 +194,8 @@ int isBlock(obj b) { // FIXME: This is not a perfect test.
 vector vectorAppend(vector v1, vector v2) {
   int length1 = vectorLength(v1), length2 = vectorLength(v2);
   vector v3 = makeVector(length1 + length2);
-  memcpy(vectorData(v3), vectorData(v1), length1 * sizeof(void *));
-  memcpy((void *)vectorData(v3) + length1 * sizeof(void *), vectorData(v2), length2 * sizeof(void *));
+  memcpy(vectorData(v3), vectorData(v1), length1 * sizeof(atom));
+  memcpy((void *)vectorData(v3) + length1 * sizeof(atom), vectorData(v2), length2 * sizeof(atom));
   return v3;
 }
 
