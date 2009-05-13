@@ -43,7 +43,6 @@
 #include "core.h"
 #include "gc.h"
 #include "objects.h"
-#include "threadData.h"
 #include "parser.h"
 
 #define NIL 0

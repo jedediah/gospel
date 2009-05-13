@@ -32,8 +32,23 @@ typedef struct vectorStruct {
   void *data[];
 } *vector;
 
+typedef vector obj;
 typedef int atom;
 #define CELLS_REQUIRED_FOR_BYTES(n) (((n) + sizeof(atom) - 1) / sizeof(atom))
+
+vector shelteredValue(vector);
+
+vector shelter(vector, vector);
+
+vector currentActor(vector);
+vector setCurrentActor(vector, vector);
+
+vector threadContinuation(vector);
+vector setContinuation(vector);
+
+vector createGarbageCollectorRoot(obj);
+
+void fulfillPromise(obj, vector);
 
 int isMarked(vector);
 void mark(vector);
@@ -98,8 +113,6 @@ void createPrimitiveThread(void (*)(void *), void *);
   void spawn_init(void *spawn_arg) { setCurrentThread(spawn_arg); tailcall(spawn_f); } \
   createPrimitiveThread(spawn_init, (void *)(spawn_a)); \
 } while (0)
-
-typedef vector obj;
 
 typedef vector promise;
 promise newPromise(void);

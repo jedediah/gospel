@@ -59,11 +59,57 @@ int liveSegmentCount = 0;
 #define MARK_BIT      16
 
 // This provides eden space during startup, before the first real thread data object has been created.
-// TODO: Merge "threadData.c" back in here, since we have to expose its implementation anyway.
 struct vectorStruct dummyThreadData = {0,
                                        0,
                                        5 << TAG_BIT_COUNT | MARK_BIT | ENTITY_VECTOR,
                                        {0, 0, 0, 0, 0}};
+                                       
+typedef vector continuation;
+
+vector newThreadData(vector cc,
+                     vector prev,
+                     vector next,
+                     vector scratch) {
+  return newVector(5, cc, prev, next, scratch, 0);
+}
+
+continuation threadContinuation(vector td) { return idx(td, 0); }
+vector       previousThreadData(vector td) { return idx(td, 1); }
+vector       nextThreadData(vector td)     { return idx(td, 2); }
+vector       shelteredValue(vector td)     { return idx(td, 3); }
+vector       currentActor(vector td)       { return idx(td, 4); }
+
+vector setContinuation(continuation c) {
+  setIdx(currentThread, 0, c);
+  return currentThread;
+}
+vector setPreviousThreadData(vector td, vector ptd) { return setIdx(td, 1, ptd); }
+vector setNextThreadData(vector td, vector ntd)     { return setIdx(td, 2, ntd); }
+vector shelter(vector td, vector v)                 { return setIdx(td, 3, v);   }
+vector setCurrentActor(vector td, vector a)         { return setIdx(td, 4, a);   }
+
+vector createGarbageCollectorRoot(obj rootLiveObject) {
+  vector root = newThreadData(rootLiveObject, 0, 0, 0);
+  mark(setNextThreadData(root, setPreviousThreadData(root, root)));
+  return root;
+}
+
+vector addThread(vector root) {
+  acquireThreadListLock();
+  vector next = nextThreadData(root),
+         new = newThreadData(0, root, next, 0);
+  setNextThreadData(root, setPreviousThreadData(next, new));
+  releaseThreadListLock();
+  return new;
+}
+
+void killThreadData(vector td) {
+  // Remove td from the doubly-linked list of live threadData objects.
+  acquireThreadListLock();
+  setNextThreadData(previousThreadData(td), nextThreadData(td));
+  setPreviousThreadData(nextThreadData(td), previousThreadData(td));
+  releaseThreadListLock();
+}
 
 #ifdef NO_THREAD_VARIABLES
   pthread_key_t threadLocalStorageKey;
@@ -519,7 +565,7 @@ void markPromise(promise p) {
   mark(promiseValue(p));
   mark(((promiseData *)vectorData(p))->actor);  
 }
-void fulfillPromise(promise p, obj o) {
+void fulfillPromise(obj p, obj o) {
   promiseData *pd = (promiseData *)vectorData(p);
   if (pthread_mutex_lock(&pd->mutex)) die("Error while acquiring a promise lock before fulfillment.");
   if (!pd->value) pd->value = o;

@@ -22,7 +22,7 @@ ifndef GCC_THREADING
   CFLAGS+=-D NO_THREAD_VARIABLES
 endif
 
-gospel : threadData.o death.o gc.o y.tab.o lex.yy.o core.o main.o
+gospel : death.o gc.o y.tab.o lex.yy.o core.o main.o
 	$(CC) $(CFLAGS) -lgmp -pthread $^ -o $@
 
 objgen : ;
@@ -36,7 +36,6 @@ y.tab.c y.tab.h : parser.y core.h objects.h
 lex.yy.c : parser.l death.h core.h y.tab.h
 	flex parser.l
 
-threadData.h : threadData.o gc.h ;
 gc.h : gc.o ;
 death.h : death.o ;
 core.h : core.o ;
@@ -44,13 +43,12 @@ core.h : core.o ;
 
 lex.yy.o : lex.yy.c
 y.tab.o : y.tab.c
-threadData.o : threadData.c gc.h
 gc.o : gc.c objects.h death.h
 death.o : death.c
-core.o : core.c objects.c objects.h death.h gc.h threadData.h parser.h
+core.o : core.c objects.c objects.h death.h gc.h parser.h
 main.o : main.c core.h objects.h
 
-test : threadData.o death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
+test : death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
 	$(CC) $(CFLAGS) -lgmp -pthread $^ -o $@
 
 cgreen/cgreen.a : ;
@@ -62,4 +60,4 @@ test.o : test.c cgreen/cgreen.h core.o
 
 .PHONY : clean
 clean :
-	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o threadData.o test.o main.o gospel test
+	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o test.o main.o gospel test
