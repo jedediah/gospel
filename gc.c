@@ -597,13 +597,8 @@ void releaseQueueLock(actorData *ad) {
 }
 
 // TODO: Ugly linking hack indicates that source should be reorganized.
-vector setContinuation(vector);
 vector subexpressionContinuation(vector, obj, obj, obj, obj, vector, vector);
-vector addThread(vector);
-vector setCurrentActor(vector, vector);
-vector currentActor(vector);
 void doNext(void);
-void killThreadData(vector);
 
 void actorLoop(vector a) {
   actorData *ad = vectorData(a);
