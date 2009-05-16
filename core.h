@@ -36,7 +36,7 @@ int yylex(YYSTYPE *, YYLTYPE *, int *, void *);
 
 #include "gc.h"
 
-obj integer(int);
+obj integer(atom);
 int integerValue(obj);
 
 obj symbol(const char *c);

@@ -290,7 +290,7 @@ vector constructWhiteList() {
     vector base = current;
     void merge() {
       // Combine contiguous white segments and link the result to the previous white segment.
-      setVectorLength(base, ((int)current - (int)base->data) / sizeof(atom));
+      setVectorLength(base, ((void*)current - (void*)base->data) / sizeof(atom));
       base->prev = prev;
       prev = prev->next = base;
     }
@@ -427,7 +427,7 @@ vector zero(vector v) {
 vector idx(vector v, int i) {
   return ((vector *)v->data)[i];
 }
-int atomIdx(vector v, int i) {
+atom atomIdx(vector v, int i) {
   return ((int *)v->data)[i];
 }
 

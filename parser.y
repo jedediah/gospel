@@ -105,9 +105,9 @@ declaration:
 statement:
   cascade
 | carets
-  { $$ = message(oDefaultMessageTarget, sReturn_atDepth_, newVector(2, oNull, integer((int)$1))); }
+  { $$ = message(oDefaultMessageTarget, sReturn_atDepth_, newVector(2, oNull, integer((atom)$1))); }
 | carets cascade
-  { $$ = message(oDefaultMessageTarget, sReturn_atDepth_, newVector(2, $2, integer((int)$1))); }
+  { $$ = message(oDefaultMessageTarget, sReturn_atDepth_, newVector(2, $2, integer((atom)$1))); }
 ;
 carets:
   '^'

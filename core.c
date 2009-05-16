@@ -388,7 +388,7 @@ int arity() {
   return vectorLength(evaluated(threadContinuation(currentThread))) - 1;
 }
 
-obj integer(int v) {
+obj integer(atom v) {
   obj i = emptyBignum();
   mpz_init_set_si(bignumData(i), v);
   return i;
