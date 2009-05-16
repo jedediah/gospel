@@ -51,13 +51,15 @@ main.o : main.c core.h objects.h
 test : death.o gc.o y.tab.o lex.yy.o test.o cgreen/cgreen.a
 	$(CC) $(CFLAGS) -lgmp -pthread $^ -o $@
 
-cgreen/cgreen.a : ;
+cgreen/cgreen.a :
+	cd ./cgreen && make
+
 cgreen/cgreen.h : cgreen/cgreen.a ;
 # Dependencies cause core.c to be compiled twice anyway, might as well depend on core.o as a convenient
 # shorthand for all the things that core.c depends on.
 test.o : test.c cgreen/cgreen.h core.o
 
-
 .PHONY : clean
 clean :
-	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o test.o main.o gospel test
+	rm -f objects.c objects.h y.tab.h y.tab.c lex.yy.c lex.yy.o y.tab.o gc.o core.o death.o test.o main.o gospel test ;
+	cd ./cgreen && make clean

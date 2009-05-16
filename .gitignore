@@ -10,3 +10,8 @@
 /y.tab.c
 /y.tab.h
 /y.tab.o
+/cgreen/*.o
+/cgreen/cgreen.a
+/test.o
+/test
+/threadData.o
